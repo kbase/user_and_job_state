@@ -27,8 +27,6 @@ pairs or jobs, require service authentication.
 The service assumes other services are capable of simple math and does not
 throw errors if a progress bar overflows.
 
-Jobs are automatically deleted after 30 days.
-
 Where string limits are noted, these apply only to *incoming* strings. Other
 services that the UJS wraps (currently AWE) may provide longer strings for
 these fields and the UJS passes them on unchanged.
