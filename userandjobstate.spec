@@ -358,11 +358,15 @@ module UserAndJobState {
 		list<service_name> services - the services from which to list jobs.
 			Omit to list jobs from all services.
 		job_filter filter - the filter to apply to the set of jobs.
-		auth_strategy authstrat - only return jobs with the specified
-			authorization strategy.
+		auth_strategy authstrat - return jobs with the specified
+			authorization strategy. If this parameter is omitted, jobs
+			with the default strategy will be returned.
 		list<auth_params> authparams - only return jobs with one of the
 			specified authorization parameters. An authorization strategy must
-			be provided if authparams is specified.
+			be provided if authparams is specified. In most cases, at least one
+			authorization parameter must be supplied and there is an upper
+			limit to the number of paramters allowed. In the case of the
+			workspace strategy, these limits are 1 and 10, respectively.
 	*/
 	typedef structure {
 		list<service_name> services;

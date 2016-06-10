@@ -109,7 +109,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     private static final long serialVersionUID = 1L;
     private static final String version = "0.0.1";
     private static final String gitUrl = "https://github.com/mrcreosote/user_and_job_state";
-    private static final String gitCommitHash = "dbdb1d414d5b7a6722413577d4fa3226c37dd855";
+    private static final String gitCommitHash = "7336ab35c39d3f2872ad943756b15ab837c50c7f";
 
     //BEGIN_CLASS_HEADER
 	

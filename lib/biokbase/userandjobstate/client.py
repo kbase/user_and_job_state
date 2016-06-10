@@ -595,30 +595,34 @@ class UserAndJobState(object):
            for the list_jobs2 method. Optional parameters: list<service_name>
            services - the services from which to list jobs. Omit to list jobs
            from all services. job_filter filter - the filter to apply to the
-           set of jobs. auth_strategy authstrat - only return jobs with the
-           specified authorization strategy. list<auth_params> authparams -
-           only return jobs with one of the specified authorization
-           parameters. An authorization strategy must be provided if
-           authparams is specified.) -> structure: parameter "services" of
-           list of type "service_name" (A service name. Alphanumerics and the
-           underscore are allowed.), parameter "filter" of type "job_filter"
-           (A string-based filter for listing jobs. If the string contains:
-           'R' - running jobs are returned. 'C' - completed jobs are
-           returned. 'E' - jobs that errored out are returned. 'S' - shared
-           jobs are returned. The string can contain any combination of these
-           codes in any order. If the string contains none of the codes or is
-           null, all self-owned jobs are returned. If only the S filter is
-           present, all jobs are returned. The S filter is ignored for jobs
-           not using the default authorization strategy.), parameter
-           "authstrat" of type "auth_strategy" (An authoriziation strategy to
-           use for jobs. Other than the default strategy (ACLs local to the
-           UJS and managed by the UJS sharing functions), currently the only
-           other strategy is the workspace strategy, which consults the
-           workspace service for authorization information.), parameter
-           "authparams" of list of type "auth_param" (An authorization
-           parameter. The contents of this parameter differ by auth_strategy,
-           but for the workspace strategy it is the workspace id (an integer)
-           as a string.)
+           set of jobs. auth_strategy authstrat - return jobs with the
+           specified authorization strategy. If this parameter is omitted,
+           jobs with the default strategy will be returned. list<auth_params>
+           authparams - only return jobs with one of the specified
+           authorization parameters. An authorization strategy must be
+           provided if authparams is specified. In most cases, at least one
+           authorization parameter must be supplied and there is an upper
+           limit to the number of paramters allowed. In the case of the
+           workspace strategy, these limits are 1 and 10, respectively.) ->
+           structure: parameter "services" of list of type "service_name" (A
+           service name. Alphanumerics and the underscore are allowed.),
+           parameter "filter" of type "job_filter" (A string-based filter for
+           listing jobs. If the string contains: 'R' - running jobs are
+           returned. 'C' - completed jobs are returned. 'E' - jobs that
+           errored out are returned. 'S' - shared jobs are returned. The
+           string can contain any combination of these codes in any order. If
+           the string contains none of the codes or is null, all self-owned
+           jobs are returned. If only the S filter is present, all jobs are
+           returned. The S filter is ignored for jobs not using the default
+           authorization strategy.), parameter "authstrat" of type
+           "auth_strategy" (An authoriziation strategy to use for jobs. Other
+           than the default strategy (ACLs local to the UJS and managed by
+           the UJS sharing functions), currently the only other strategy is
+           the workspace strategy, which consults the workspace service for
+           authorization information.), parameter "authparams" of list of
+           type "auth_param" (An authorization parameter. The contents of
+           this parameter differ by auth_strategy, but for the workspace
+           strategy it is the workspace id (an integer) as a string.)
         :returns: instance of list of type "job_info2" (Information about a
            job.) -> tuple of size 12: parameter "job" of type "job_id" (A job
            id.), parameter "service" of type "service_name" (A service name.
