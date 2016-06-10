@@ -15,9 +15,11 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.userandjobstate.userstate.UserState;
@@ -25,9 +27,12 @@ import us.kbase.userandjobstate.userstate.UserState.KeyState;
 import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.DB;
 
 public class UserStateTests {
 	
+	private static final String DB_NAME = "UserStateTests";
+
 	private static MongoController mongo;
 	
 	private static UserState us;
@@ -40,7 +45,7 @@ public class UserStateTests {
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		us = new UserState("localhost:" + mongo.getServerPort(),
-				"UserStateTests", "userstate", 0);
+				DB_NAME, "userstate", 0);
 	}
 	
 	@AfterClass
@@ -56,6 +61,13 @@ public class UserStateTests {
 			long101 += "aaaaaaaaaabbbbbbbbbb";
 		}
 		long101 += "f";
+	}
+	
+	@Before
+	public void clearDB() throws Exception {
+		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
+				DB_NAME);
+		UserJobStateTestCommon.destroyDB(db);
 	}
 	
 	@Test

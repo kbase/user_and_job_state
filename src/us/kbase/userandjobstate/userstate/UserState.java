@@ -74,7 +74,7 @@ public class UserState {
 		idx.put(KEY, 1);
 		final DBObject unique = new BasicDBObject();
 		unique.put(IDX_UNIQ, 1);
-		uscol.ensureIndex(idx, unique);
+		uscol.createIndex(idx, unique);
 	}
 
 	private static final String VAL_ERR = String.format(

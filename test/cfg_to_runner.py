@@ -18,10 +18,7 @@ CONFIG_OPTS = ['test.user1',
                'test.pwd2',
                'test.user3',
                'test.pwd3',
-               'test.shock.exe',
                'test.mongo.exe',
-               'test.awe.server.exe',
-               'test.awe.client.exe',
                'test.temp.dir',
                'test.temp.dir.keep'
                ]

@@ -21,9 +21,13 @@ import java.util.TimeZone;
 import org.ini4j.Ini;
 import org.ini4j.Profile.Section;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.mongodb.DB;
+
+import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
@@ -55,6 +59,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	private static String TOKEN1;
 	private static String TOKEN2;
 	
+	private final static String DB_NAME = "JSONRPCLayerTest_DB";
+	
 	private static MongoController mongo;
 	
 	@BeforeClass
@@ -76,7 +82,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		Ini ini = new Ini();
 		Section ws = ini.add("UserAndJobState");
 		ws.add("mongodb-host", "localhost:" + mongo.getServerPort());
-		ws.add("mongodb-database", "JSONRPCLayerTest_DB");
+		ws.add("mongodb-database", DB_NAME);
 		ws.add("mongodb-user", "foo");
 		ws.add("mongodb-pwd", "foo");
 		ws.add("kbase-admin-user", USER1);
@@ -115,6 +121,13 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		if (mongo != null) {
 			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
 		}
+	}
+	
+	@Before
+	public void clearDB() throws Exception {
+		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
+				DB_NAME);
+		UserJobStateTestCommon.destroyDB(db);
 	}
 	
 	@Test

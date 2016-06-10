@@ -98,7 +98,7 @@ public class UJSJobState implements JobState {
 		idx.put(userField, 1);
 		idx.put(SERVICE, 1);
 		idx.put(COMPLETE, 1);
-		jobcol.ensureIndex(idx);
+		jobcol.createIndex(idx);
 	}
 	
 	/* (non-Javadoc)

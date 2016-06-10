@@ -5,6 +5,19 @@ OVERVIEW
 A service for 1) maintaining global KBase user state, and 2) maintaining
 job state. See the API docs for more details.
 
+VERSION: 0.2.0 (TBD)
+-------------------------
+
+BACKWARDS INCOMPATIBILIES:
+
+- All AWE related code has been removed, and the UJS can no longer fetch jobs
+from AWE.
+
+UPDATED FEATURES / MAJOR BUG FIXES:
+
+- Fixed a bug where mongo connections would not be released when redeploying
+  the server in an already running glassfish instance.
+
 VERSION: 0.1.3 (4/9/2015)
 --------------------------------------
 

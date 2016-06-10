@@ -53,25 +53,23 @@ build-docs: build-libs
 	rm -f pod2htm?.tmp
 	cp $(SERVICE).spec docs/.
 
-compile: compile-typespec compile-java
+compile: compile-typespec compile-typespec-java compile-html
 
-compile-java:
-	gen_java_types -S -o . -u $(URL) $(SERVICE).spec
-	-rm lib/*.jar
+compile-html:
+	kb-sdk compile --html --out docshtml $(SERVICE).spec
+
+compile-typespec-java:
+	kb-sdk compile  --java --javasrc src --javasrv --out . \
+		--url $(URL) $(SERVICE).spec
 
 compile-typespec:
-	mkdir -p lib/biokbase/$(SERVICE)
-	touch lib/biokbase/__init__.py # do not include code in biokbase/__init__.py
-	touch lib/biokbase/$(SERVICE)/__init__.py 
-	mkdir -p lib/javascript/$(SERVICE)
-	compile_typespec \
-		--client Bio::KBase::$(SERVICE)::Client \
-		--py biokbase.$(SERVICE).client \
-		--js javascript/$(SERVICE)/Client \
+	kb-sdk compile \
+		--out lib \
+		--jsclname javascript/$(SERVICE)/Client \
+		--plclname Bio::KBase::$(SERVICE)::Client \
+		--pyclname biokbase.$(SERVICE).client \
 		--url $(URL) \
-		$(SERVICE).spec lib
-	-rm lib/$(SERVICE_CAPS)Server.p?
-	-rm lib/$(SERVICE_CAPS)Impl.p?
+		$(SERVICE).spec
 
 test: test-client test-service test-scripts
 	
