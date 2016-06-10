@@ -27,9 +27,7 @@ pairs or jobs, require service authentication.
 The service assumes other services are capable of simple math and does not
 throw errors if a progress bar overflows.
 
-Where string limits are noted, these apply only to *incoming* strings. Other
-services that the UJS wraps (currently AWE) may provide longer strings for
-these fields and the UJS passes them on unchanged.
+Where string limits are noted, these apply only to *incoming* strings.
 
 Potential job process flows:
 
@@ -273,7 +271,6 @@ module UserAndJobState {
 	/* A string-based filter for listing jobs.
 	
 		If the string contains:
-			'Q' - created / queued jobs are returned (but see below).
 			'R' - running jobs are returned.
 			'C' - completed jobs are returned.
 			'E' - jobs that errored out are returned.
@@ -283,17 +280,6 @@ module UserAndJobState {
 		jobs are returned. If only the S filter is
 		present, all jobs are returned.
 		
-		The Q filter has no meaning in the context of UJS based jobs (e.g. jobs
-		that are not pulled by the UJS from an external job runner) and is
-		ignored. A UJS job in the 'created' state is not yet 'owned', per se,
-		by a job runner, and so UJS jobs in the 'created' state are never
-		returned.
-		
-		In contrast, for a job runner like AWE, jobs may be in the submitted
-		or queued state, and the Q filter will cause these jobs to be returned.
-		
-		Note that the S filter currently does not work with AWE. All AWE jobs
-		visible to the user are always returned.
 	*/
 	typedef string job_filter;
 	
@@ -303,7 +289,7 @@ module UserAndJobState {
 	funcdef list_jobs(list<service_name> services, job_filter filter)
 		returns(list<job_info> jobs);
 	
-	/* List all job services. Does not currently list AWE services. */
+	/* List all job services. */
 	funcdef list_job_services() returns(list<service_name> services);
 	
 	/* Share a job. Sharing a job to the same user twice or with the job owner
@@ -316,23 +302,21 @@ module UserAndJobState {
 	*/
 	funcdef unshare_job(job_id job, list<username> users) returns();
 	
-	/* Get the owner of a job. Does not currently work with AWE jobs. */
+	/* Get the owner of a job. */
 	funcdef get_job_owner(job_id job) returns(username owner);
 	
 	/* Get the list of users with which a job is shared. Only the job owner
-		may access this method. Does not currently work with AWE jobs.
+		may access this method.
 	*/
 	funcdef get_job_shared(job_id job) returns(list<username> users);
 	
 	/* Delete a job. Will fail if the job is not complete.
-		Does not currently work with AWE jobs.
 	*/
 	funcdef delete_job(job_id job) returns();
 	
 	/* Force delete a job - will succeed unless the job has not been started.
 		In that case, the service must start the job and then delete it, since
 		a job is not "owned" by any service until it is started.
-		Does not currently work with AWE jobs.
 	*/
 	funcdef force_delete_job(service_token token, job_id job) returns();
 };

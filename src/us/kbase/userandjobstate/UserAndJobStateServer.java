@@ -19,8 +19,6 @@ import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_ID;
 import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_URL;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,10 +44,6 @@ import us.kbase.auth.TokenExpiredException;
 import us.kbase.auth.TokenFormatException;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.mongo.exceptions.MongoAuthException;
-import us.kbase.userandjobstate.awe.AweJobState;
-import us.kbase.userandjobstate.awe.client.AweJobId;
-import us.kbase.userandjobstate.awe.client.exceptions.AweHttpException;
-import us.kbase.userandjobstate.awe.client.exceptions.InvalidAweUrlException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
@@ -114,9 +108,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 
     //BEGIN_CLASS_HEADER
 	
-    //TODO needs to look through the AWE code and look for cruft, this was written in haste
-    //TODO 1 a full suite of tests for AWE integration
-
 	private static final String VER = "0.1.2";
 
 	//required deploy parameters:
@@ -127,8 +118,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private static final String PWD = "mongodb-pwd";
 	//mongo connection attempt limit
 	private static final String MONGO_RECONNECT = "mongodb-retry";
-	//awe url
-	private static final String AWE_URL = "awe-url";
 	//credentials to use for user queries
 	private static final String KBASE_ADMIN_USER = "kbase-admin-user";
 	private static final String KBASE_ADMIN_PWD = "kbase-admin-pwd";
@@ -145,7 +134,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	
 	private final UserState us;
 	private final JobState js;
-	private final URL aweUrl;
 	private final ConfigurableAuthService auth;
 	
 	private final static DateTimeFormatter DATE_PARSER =
@@ -218,61 +206,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return null;
 	}
 	
-	private URL checkAweUrl(final String host) {
-		if (host == null || host.isEmpty()) {
-			System.out.println("No Awe URL found in config, running without Awe server");
-			logInfo("No Awe URL found in config, running without Awe server");
-			return null;
-		}
-		try {
-			final URL url = new URL(host);
-			AweJobState.testURL(url);
-			System.out.println("Connected to Awe server at " +
-					url.toExternalForm());
-			logInfo("Connected to Awe server at " + url.toExternalForm());
-			return url;
-		} catch (MalformedURLException mue) {
-			fail("Invalid Awe url: " + mue.getLocalizedMessage());
-		} catch (InvalidAweUrlException e) {
-			fail("Invalid Awe url: " + e.getLocalizedMessage());
-		} catch (IOException io) {
-			fail("Couldn't connect to awe server at " + host + ": " +
-					io.getLocalizedMessage());
-		}
-		return null;
-	}
-	
-	private JobState getJobState(final String jobid, final AuthToken token)
-			throws IOException, TokenExpiredException {
-		// this is a filthy hack, but it'll do for now. Adding other job
-		// runners will be problematic unless they all use globally unique
-		//job ids
-		if (aweUrl == null) {
-			return js;
-		}
-		try {
-			new AweJobId(jobid);
-		} catch (IllegalArgumentException iae) {
-			return js;
-		}
-		return getAweJobState(token);
-	}
-	
-	private JobState getAweJobState(final AuthToken token)
-			throws IOException, TokenExpiredException {
-		try {
-			return new AweJobState(aweUrl, token);
-		} catch (InvalidAweUrlException e) {
-			throw new IOException("Couldn't connect to awe server at " +
-					aweUrl, e);
-		} catch (AweHttpException e) {
-			throw new IOException("Couldn't connect to awe server at " +
-					aweUrl, e);
-		} catch (IOException io) {
-			throw new IOException("Couldn't connect to awe server at " +
-					aweUrl, io);
-		}
-	}
+	//TODO NOW recompile w/ SDK, set up SDK compile like ws
+	//TODO NOW basic docs like Shock
 	
 	private void fail(final String error) {
 		logErr(error);
@@ -537,7 +472,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			fail("Server startup failed - all calls will error out.");
 			us = null;
 			js = null;
-			aweUrl = null;
 			auth = null;
 		} else {
 			final String user = ujConfig.get(USER);
@@ -557,8 +491,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			final int mongoConnectRetry = getReconnectCount();
 			us = getUserState(host, dbs, user, pwd, mongoConnectRetry);
 			js = getUJSJobState(host, dbs, user, pwd, mongoConnectRetry);
-			final String aweUrlString = ujConfig.get(AWE_URL);
-			aweUrl = checkAweUrl(aweUrlString);
 			auth = setUpAuthClient(adminUser, adminPwd);
 		}
         //END_CONSTRUCTOR
@@ -789,11 +721,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			throw new IllegalArgumentException("Progress type cannot be null");
 		}
 		if (progress.getPtype().equals(JobState.PROG_NONE)) {
-			getJobState(job, authPart).startJob(authPart.getUserName(), job,
+			js.startJob(authPart.getUserName(), job,
 					getServiceName(token), status, desc,
 					parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
-			getJobState(job, authPart).startJobWithPercentProg(
+			js.startJobWithPercentProg(
 					authPart.getUserName(), job, getServiceName(token), status,
 					desc, parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
@@ -806,7 +738,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						"Max progress can be no greater than "
 						+ Integer.MAX_VALUE);
 			}
-			getJobState(job, authPart).startJob(authPart.getUserName(), job,
+			js.startJob(authPart.getUserName(), job,
 					getServiceName(token), status, desc,
 					(int) progress.getMax().longValue(),
 					parseDate(estComplete));
@@ -893,7 +825,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			}
 			progval = (int) prog.longValue();
 		}
-		getJobState(job, authPart).updateJob(authPart.getUserName(), job,
+		js.updateJob(authPart.getUserName(), job,
 				getServiceName(token), status, progval,
 				parseDate(estComplete));
         //END update_job_progress
@@ -912,7 +844,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.update_job")
     public void updateJob(String job, String token, String status, String estComplete, AuthToken authPart) throws Exception {
         //BEGIN update_job
-		getJobState(job, authPart).updateJob(authPart.getUserName(), job,
+		js.updateJob(authPart.getUserName(), job,
 				getServiceName(token), status, null, parseDate(estComplete));
         //END update_job
     }
@@ -933,7 +865,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
         String return4 = null;
         String return5 = null;
         //BEGIN get_job_description
-		final Job j = getJobState(job, authPart).getJob(
+		final Job j = js.getJob(
 				authPart.getUserName(), job);
 		return1 = j.getService();
 		return2 = j.getProgType();
@@ -969,7 +901,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
         Long return6 = null;
         Long return7 = null;
         //BEGIN get_job_status
-		final Job j = getJobState(job, authPart).getJob(
+		final Job j = js.getJob(
 				authPart.getUserName(), job);
 		return1 = formatDate(j.getLastUpdated());
 		return2 = j.getStage();
@@ -1006,7 +938,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.complete_job")
     public void completeJob(String job, String token, String status, String error, Results res, AuthToken authPart) throws Exception {
         //BEGIN complete_job
-		getJobState(job, authPart).completeJob(authPart.getUserName(), job,
+		js.completeJob(authPart.getUserName(), job,
 				getServiceName(token), status, error, unmakeResults(res));
         //END complete_job
     }
@@ -1023,7 +955,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public Results getResults(String job, AuthToken authPart) throws Exception {
         Results returnVal = null;
         //BEGIN get_results
-		returnVal = makeResults(getJobState(job, authPart).getJob(
+		returnVal = makeResults(js.getJob(
 				authPart.getUserName(), job).getResults());
         //END get_results
         return returnVal;
@@ -1041,7 +973,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public String getDetailedError(String job, AuthToken authPart) throws Exception {
         String returnVal = null;
         //BEGIN get_detailed_error
-		returnVal =  getJobState(job, authPart).getJob(
+		returnVal =  js.getJob(
 				authPart.getUserName(), job).getErrorMsg();
         //END get_detailed_error
         return returnVal;
@@ -1059,9 +991,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> getJobInfo(String job, AuthToken authPart) throws Exception {
         Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> returnVal = null;
         //BEGIN get_job_info
-		returnVal = jobToJobInfo(getJobState(job, authPart).getJob(
+		returnVal = jobToJobInfo(js.getJob(
 				authPart.getUserName(), job));
-		//TODO add job source to info and description? maybe not, backwards incompatible
         //END get_job_info
         return returnVal;
     }
@@ -1105,16 +1036,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		returnVal = new LinkedList<Tuple14<String, String, String, String,
 				String, String, Long, Long, String, String, Long,
 				Long, String, Results>>();
-		List<JobState> jobstatus = new LinkedList<JobState>();
-		jobstatus.add(js);
-		if (aweUrl != null) {
-			jobstatus.add(getAweJobState(authPart));
-		}
-		for (final JobState jobst: jobstatus) {
-			for (final Job j: jobst.listJobs(authPart.getUserName(), services,
-					queued, running, complete, error, shared)) {
-				returnVal.add(jobToJobInfo(j));
-			}
+		for (final Job j: js.listJobs(authPart.getUserName(), services,
+				queued, running, complete, error, shared)) {
+			returnVal.add(jobToJobInfo(j));
 		}
         //END list_jobs
         return returnVal;
@@ -1133,7 +1057,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
         //BEGIN list_job_services
 		returnVal = new ArrayList<String>(js.listServices(
 				authPart.getUserName()));
-		//TODO list awe services when awe provides DISTINCT query
         //END list_job_services
         return returnVal;
     }
@@ -1151,7 +1074,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public void shareJob(String job, List<String> users, AuthToken authPart) throws Exception {
         //BEGIN share_job
 		checkUsers(users, authPart);
-		getJobState(job, authPart).shareJob(
+		js.shareJob(
 				authPart.getUserName(), job, users);
         //END share_job
     }
@@ -1169,7 +1092,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public void unshareJob(String job, List<String> users, AuthToken authPart) throws Exception {
         //BEGIN unshare_job
 		checkUsers(users, authPart);
-		getJobState(job, authPart).unshareJob(
+		js.unshareJob(
 				authPart.getUserName(), job, users);
         //END unshare_job
     }
@@ -1186,7 +1109,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public String getJobOwner(String job, AuthToken authPart) throws Exception {
         String returnVal = null;
         //BEGIN get_job_owner
-		returnVal = getJobState(job, authPart).getJob(
+		returnVal = js.getJob(
 				authPart.getUserName(), job).getUser();
         //END get_job_owner
         return returnVal;
@@ -1205,7 +1128,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<String> getJobShared(String job, AuthToken authPart) throws Exception {
         List<String> returnVal = null;
         //BEGIN get_job_shared
-		final Job j = getJobState(job, authPart).getJob(
+		final Job j = js.getJob(
 				authPart.getUserName(), job);
 		if (!j.getUser().equals(authPart.getUserName())) {
 			throw new IllegalArgumentException(String.format(
@@ -1228,7 +1151,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.delete_job")
     public void deleteJob(String job, AuthToken authPart) throws Exception {
         //BEGIN delete_job
-		getJobState(job, authPart).deleteJob(
+		js.deleteJob(
 				authPart.getUserName(), job);
         //END delete_job
     }
@@ -1246,7 +1169,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.force_delete_job")
     public void forceDeleteJob(String token, String job, AuthToken authPart) throws Exception {
         //BEGIN force_delete_job
-		getJobState(job, authPart).deleteJob(authPart.getUserName(), job,
+		js.deleteJob(authPart.getUserName(), job,
 				getServiceName(token));
         //END force_delete_job
     }

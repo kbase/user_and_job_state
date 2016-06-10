@@ -16,9 +16,13 @@ import java.util.Set;
 
 import org.bson.types.ObjectId;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.mongodb.DB;
+
+import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.test.RegexMatcher;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.jobstate.Job;
@@ -32,6 +36,8 @@ import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 
 public class JobStateTests {
 	
+	private static final String DB_NAME = "JobStateTests";
+
 	private static MongoController mongo;
 	
 	private static JobState js;
@@ -44,7 +50,7 @@ public class JobStateTests {
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		js = new UJSJobState("localhost:" + mongo.getServerPort(),
-				"JobStateTests", "jobstate", 0);
+				DB_NAME, "jobstate", 0);
 	}
 	
 	@AfterClass
@@ -52,6 +58,13 @@ public class JobStateTests {
 		if (mongo != null) {
 			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
 		}
+	}
+	
+	@Before
+	public void clearDB() throws Exception {
+		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
+				DB_NAME);
+		UserJobStateTestCommon.destroyDB(db);
 	}
 	
 	private static final RegexMatcher OBJ_ID_MATCH = new RegexMatcher("[\\da-f]{24}");
