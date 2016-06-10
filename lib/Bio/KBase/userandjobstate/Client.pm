@@ -4410,7 +4410,7 @@ a reference to a list containing 12 items:
 =item Description
 
 Information about a job.
-@deprectated job_info2
+@deprecated job_info2
 
 
 =item Definition

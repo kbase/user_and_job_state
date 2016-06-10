@@ -320,7 +320,7 @@ module UserAndJobState {
 		job_description desc, Results res> job_info2;
 	
 	/* Information about a job.
-		@deprectated job_info2
+		@deprecated job_info2
 	 */
 	typedef tuple<job_id job, service_name service, job_stage stage,
 		timestamp started, job_status status, timestamp last_update,

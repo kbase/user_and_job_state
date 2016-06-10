@@ -528,7 +528,7 @@ class UserAndJobState(object):
         @deprecated get_job_info2
         :param job: instance of type "job_id" (A job id.)
         :returns: instance of type "job_info" (Information about a job.
-           @deprectated job_info2) -> tuple of size 14: parameter "job" of
+           @deprecated job_info2) -> tuple of size 14: parameter "job" of
            type "job_id" (A job id.), parameter "service" of type
            "service_name" (A service name. Alphanumerics and the underscore
            are allowed.), parameter "stage" of type "job_stage" (A string
@@ -715,7 +715,7 @@ class UserAndJobState(object):
            returned. The S filter is ignored for jobs not using the default
            authorization strategy.)
         :returns: instance of list of type "job_info" (Information about a
-           job. @deprectated job_info2) -> tuple of size 14: parameter "job"
+           job. @deprecated job_info2) -> tuple of size 14: parameter "job"
            of type "job_id" (A job id.), parameter "service" of type
            "service_name" (A service name. Alphanumerics and the underscore
            are allowed.), parameter "stage" of type "job_stage" (A string
