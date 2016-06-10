@@ -1024,6 +1024,103 @@ List all state services.
  
 
 
+=head2 create_job2
+
+  $job = $obj->create_job2($params)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$params is an UserAndJobState.CreateJobParams
+$job is an UserAndJobState.job_id
+CreateJobParams is a reference to a hash where the following keys are defined:
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparam has a value which is an UserAndJobState.auth_param
+	meta has a value which is an UserAndJobState.usermeta
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_id is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$params is an UserAndJobState.CreateJobParams
+$job is an UserAndJobState.job_id
+CreateJobParams is a reference to a hash where the following keys are defined:
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparam has a value which is an UserAndJobState.auth_param
+	meta has a value which is an UserAndJobState.usermeta
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_id is a string
+
+
+=end text
+
+=item Description
+
+Create a new job status report.
+
+=back
+
+=cut
+
+ sub create_job2
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 1)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function create_job2 (received $n, expecting 1)");
+    }
+    {
+	my($params) = @args;
+
+	my @_bad_arguments;
+        (ref($params) eq 'HASH') or push(@_bad_arguments, "Invalid type for argument 1 \"params\" (value was \"$params\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to create_job2:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'create_job2');
+	}
+    }
+
+    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
+	method => "UserAndJobState.create_job2",
+	params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'create_job2',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return wantarray ? @{$result->result} : $result->result->[0];
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method create_job2",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'create_job2',
+				       );
+    }
+}
+ 
+
+
 =head2 create_job
 
   $job = $obj->create_job()
@@ -1053,6 +1150,7 @@ job_id is a string
 =item Description
 
 Create a new job status report.
+@deprecated create_job2
 
 =back
 
@@ -2037,6 +2135,183 @@ Get the detailed error message, if any
  
 
 
+=head2 get_job_info2
+
+  $info = $obj->get_job_info2($job)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$job is an UserAndJobState.job_id
+$info is an UserAndJobState.job_info2
+job_id is a string
+job_info2 is a reference to a list containing 12 items:
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (status) an UserAndJobState.job_status
+	4: (times) an UserAndJobState.time_info
+	5: (progress) an UserAndJobState.progress_info
+	6: (complete) an UserAndJobState.boolean
+	7: (error) an UserAndJobState.boolean
+	8: (auth) an UserAndJobState.auth_info
+	9: (meta) an UserAndJobState.usermeta
+	10: (desc) an UserAndJobState.job_description
+	11: (res) an UserAndJobState.Results
+service_name is a string
+job_stage is a string
+job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$job is an UserAndJobState.job_id
+$info is an UserAndJobState.job_info2
+job_id is a string
+job_info2 is a reference to a list containing 12 items:
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (status) an UserAndJobState.job_status
+	4: (times) an UserAndJobState.time_info
+	5: (progress) an UserAndJobState.progress_info
+	6: (complete) an UserAndJobState.boolean
+	7: (error) an UserAndJobState.boolean
+	8: (auth) an UserAndJobState.auth_info
+	9: (meta) an UserAndJobState.usermeta
+	10: (desc) an UserAndJobState.job_description
+	11: (res) an UserAndJobState.Results
+service_name is a string
+job_stage is a string
+job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+
+=end text
+
+=item Description
+
+Get information about a job.
+
+=back
+
+=cut
+
+ sub get_job_info2
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 1)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function get_job_info2 (received $n, expecting 1)");
+    }
+    {
+	my($job) = @args;
+
+	my @_bad_arguments;
+        (!ref($job)) or push(@_bad_arguments, "Invalid type for argument 1 \"job\" (value was \"$job\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to get_job_info2:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'get_job_info2');
+	}
+    }
+
+    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
+	method => "UserAndJobState.get_job_info2",
+	params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'get_job_info2',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return wantarray ? @{$result->result} : $result->result->[0];
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method get_job_info2",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'get_job_info2',
+				       );
+    }
+}
+ 
+
+
 =head2 get_job_info
 
   $info = $obj->get_job_info($job)
@@ -2138,6 +2413,7 @@ Result is a reference to a hash where the following keys are defined:
 =item Description
 
 Get information about a job.
+@deprecated get_job_info2
 
 =back
 
@@ -2184,6 +2460,195 @@ Get information about a job.
         Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method get_job_info",
 					    status_line => $self->{client}->status_line,
 					    method_name => 'get_job_info',
+				       );
+    }
+}
+ 
+
+
+=head2 list_jobs2
+
+  $jobs = $obj->list_jobs2($params)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$params is an UserAndJobState.ListJobsParams
+$jobs is a reference to a list where each element is an UserAndJobState.job_info2
+ListJobsParams is a reference to a hash where the following keys are defined:
+	services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+	filter has a value which is an UserAndJobState.job_filter
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+service_name is a string
+job_filter is a string
+auth_strategy is a string
+auth_param is a string
+job_info2 is a reference to a list containing 12 items:
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (status) an UserAndJobState.job_status
+	4: (times) an UserAndJobState.time_info
+	5: (progress) an UserAndJobState.progress_info
+	6: (complete) an UserAndJobState.boolean
+	7: (error) an UserAndJobState.boolean
+	8: (auth) an UserAndJobState.auth_info
+	9: (meta) an UserAndJobState.usermeta
+	10: (desc) an UserAndJobState.job_description
+	11: (res) an UserAndJobState.Results
+job_id is a string
+job_stage is a string
+job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$params is an UserAndJobState.ListJobsParams
+$jobs is a reference to a list where each element is an UserAndJobState.job_info2
+ListJobsParams is a reference to a hash where the following keys are defined:
+	services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+	filter has a value which is an UserAndJobState.job_filter
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+service_name is a string
+job_filter is a string
+auth_strategy is a string
+auth_param is a string
+job_info2 is a reference to a list containing 12 items:
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (status) an UserAndJobState.job_status
+	4: (times) an UserAndJobState.time_info
+	5: (progress) an UserAndJobState.progress_info
+	6: (complete) an UserAndJobState.boolean
+	7: (error) an UserAndJobState.boolean
+	8: (auth) an UserAndJobState.auth_info
+	9: (meta) an UserAndJobState.usermeta
+	10: (desc) an UserAndJobState.job_description
+	11: (res) an UserAndJobState.Results
+job_id is a string
+job_stage is a string
+job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+
+=end text
+
+=item Description
+
+List jobs.
+
+=back
+
+=cut
+
+ sub list_jobs2
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 1)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function list_jobs2 (received $n, expecting 1)");
+    }
+    {
+	my($params) = @args;
+
+	my @_bad_arguments;
+        (ref($params) eq 'HASH') or push(@_bad_arguments, "Invalid type for argument 1 \"params\" (value was \"$params\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to list_jobs2:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'list_jobs2');
+	}
+    }
+
+    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
+	method => "UserAndJobState.list_jobs2",
+	params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'list_jobs2',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return wantarray ? @{$result->result} : $result->result->[0];
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method list_jobs2",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'list_jobs2',
 				       );
     }
 }
@@ -2296,6 +2761,8 @@ Result is a reference to a hash where the following keys are defined:
 
 List jobs. Leave 'services' empty or null to list jobs from all
 services.
+
+@deprecated list_jobs2
 
 =back
 
@@ -2452,7 +2919,7 @@ username is a string
 =item Description
 
 Share a job. Sharing a job to the same user twice or with the job owner
-has no effect.
+has no effect. Only valid for the default auth strategy.
 
 =back
 
@@ -2539,7 +3006,8 @@ username is a string
 =item Description
 
 Stop sharing a job. Removing sharing from a user that the job is not
-shared with or the job owner has no effect.
+shared with or the job owner has no effect. Only valid for the default
+auth strategy.
 
 =back
 
@@ -2625,7 +3093,7 @@ username is a string
 
 =item Description
 
-Get the owner of a job.
+Get the owner of a job. Only valid for the default auth strategy.
 
 =back
 
@@ -2711,7 +3179,7 @@ username is a string
 =item Description
 
 Get the list of users with which a job is shared. Only the job owner
-may access this method.
+may access this method. Only valid for the default auth strategy.
 
 =back
 
@@ -3614,6 +4082,325 @@ results has a value which is a reference to a list where each element is an User
 
 
 
+=head2 auth_strategy
+
+=over 4
+
+
+
+=item Description
+
+An authoriziation strategy to use for jobs. Other than the
+default strategy (ACLs local to the UJS and managed by the UJS
+sharing functions), currently the only other strategy is the workspace
+strategy, which consults the workspace service for authorization
+information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a string
+</pre>
+
+=end html
+
+=begin text
+
+a string
+
+=end text
+
+=back
+
+
+
+=head2 auth_param
+
+=over 4
+
+
+
+=item Description
+
+An authorization parameter. The contents of this parameter differ by
+auth_strategy, but for the workspace strategy it is the workspace id
+(an integer) as a string.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a string
+</pre>
+
+=end html
+
+=begin text
+
+a string
+
+=end text
+
+=back
+
+
+
+=head2 usermeta
+
+=over 4
+
+
+
+=item Description
+
+User provided metadata about a job.
+Arbitrary key-value pairs provided by the user.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a hash where the key is a string and the value is a string
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a hash where the key is a string and the value is a string
+
+=end text
+
+=back
+
+
+
+=head2 CreateJobParams
+
+=over 4
+
+
+
+=item Description
+
+Parameters for the create_job2 method.
+
+Optional parameters:
+auth_strategy authstrat - the authorization strategy to use for the
+        job. Omit to use the standard UJS authorization. If an
+        authorization strategy is supplied, in most cases an authparam must
+        be supplied as well.
+auth_param - a parameter for the authorization strategy.
+usermeta meta - metadata for the job.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a hash where the following keys are defined:
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparam has a value which is an UserAndJobState.auth_param
+meta has a value which is an UserAndJobState.usermeta
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a hash where the following keys are defined:
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparam has a value which is an UserAndJobState.auth_param
+meta has a value which is an UserAndJobState.usermeta
+
+
+=end text
+
+=back
+
+
+
+=head2 time_info
+
+=over 4
+
+
+
+=item Description
+
+Job timing information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 3 items:
+0: (started) an UserAndJobState.timestamp
+1: (last_update) an UserAndJobState.timestamp
+2: (est_complete) an UserAndJobState.timestamp
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 3 items:
+0: (started) an UserAndJobState.timestamp
+1: (last_update) an UserAndJobState.timestamp
+2: (est_complete) an UserAndJobState.timestamp
+
+
+=end text
+
+=back
+
+
+
+=head2 auth_info
+
+=over 4
+
+
+
+=item Description
+
+Job authorization strategy information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 2 items:
+0: (strat) an UserAndJobState.auth_strategy
+1: (param) an UserAndJobState.auth_param
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 2 items:
+0: (strat) an UserAndJobState.auth_strategy
+1: (param) an UserAndJobState.auth_param
+
+
+=end text
+
+=back
+
+
+
+=head2 progress_info
+
+=over 4
+
+
+
+=item Description
+
+Job progress information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 3 items:
+0: (prog) an UserAndJobState.total_progress
+1: (max) an UserAndJobState.max_progress
+2: (ptype) an UserAndJobState.progress_type
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 3 items:
+0: (prog) an UserAndJobState.total_progress
+1: (max) an UserAndJobState.max_progress
+2: (ptype) an UserAndJobState.progress_type
+
+
+=end text
+
+=back
+
+
+
+=head2 job_info2
+
+=over 4
+
+
+
+=item Description
+
+Information about a job.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 12 items:
+0: (job) an UserAndJobState.job_id
+1: (service) an UserAndJobState.service_name
+2: (stage) an UserAndJobState.job_stage
+3: (status) an UserAndJobState.job_status
+4: (times) an UserAndJobState.time_info
+5: (progress) an UserAndJobState.progress_info
+6: (complete) an UserAndJobState.boolean
+7: (error) an UserAndJobState.boolean
+8: (auth) an UserAndJobState.auth_info
+9: (meta) an UserAndJobState.usermeta
+10: (desc) an UserAndJobState.job_description
+11: (res) an UserAndJobState.Results
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 12 items:
+0: (job) an UserAndJobState.job_id
+1: (service) an UserAndJobState.service_name
+2: (stage) an UserAndJobState.job_stage
+3: (status) an UserAndJobState.job_status
+4: (times) an UserAndJobState.time_info
+5: (progress) an UserAndJobState.progress_info
+6: (complete) an UserAndJobState.boolean
+7: (error) an UserAndJobState.boolean
+8: (auth) an UserAndJobState.auth_info
+9: (meta) an UserAndJobState.usermeta
+10: (desc) an UserAndJobState.job_description
+11: (res) an UserAndJobState.Results
+
+
+=end text
+
+=back
+
+
+
 =head2 job_info
 
 =over 4
@@ -3623,6 +4410,7 @@ results has a value which is a reference to a list where each element is an User
 =item Description
 
 Information about a job.
+@deprectated job_info2
 
 
 =item Definition
@@ -3692,8 +4480,9 @@ A string-based filter for listing jobs.
                 'S' - shared jobs are returned.
         The string can contain any combination of these codes in any order.
         If the string contains none of the codes or is null, all self-owned 
-        jobs are returned. If only the S filter is
-        present, all jobs are returned.
+        jobs are returned. If only the S filter is present, all jobs are
+        returned. The S filter is ignored for jobs not using the default
+        authorization strategy.
 
 
 =item Definition
@@ -3709,6 +4498,57 @@ a string
 =begin text
 
 a string
+
+=end text
+
+=back
+
+
+
+=head2 ListJobsParams
+
+=over 4
+
+
+
+=item Description
+
+Input parameters for the list_jobs2 method.
+
+Optional parameters:
+list<service_name> services - the services from which to list jobs.
+        Omit to list jobs from all services.
+job_filter filter - the filter to apply to the set of jobs.
+auth_strategy authstrat - only return jobs with the specified
+        authorization strategy.
+list<auth_params> authparams - only return jobs with one of the
+        specified authorization parameters. An authorization strategy must
+        be provided if authparams is specified.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a hash where the following keys are defined:
+services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+filter has a value which is an UserAndJobState.job_filter
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a hash where the following keys are defined:
+services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+filter has a value which is an UserAndJobState.job_filter
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+
 
 =end text
 
