@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *         be provided if authparams is specified. In most cases, at least one
  *         authorization parameter must be supplied and there is an upper
  *         limit to the number of paramters allowed. In the case of the
- *         workspace strategy, these limits are 1 and 10, respectively.
+ *         kbaseworkspace strategy, these limits are 1 and 10, respectively.
  * </pre>
  * 
  */

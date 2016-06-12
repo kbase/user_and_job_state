@@ -4092,9 +4092,9 @@ results has a value which is a reference to a list where each element is an User
 
 An authoriziation strategy to use for jobs. Other than the
 default strategy (ACLs local to the UJS and managed by the UJS
-sharing functions), currently the only other strategy is the workspace
-strategy, which consults the workspace service for authorization
-information.
+sharing functions), currently the only other strategy is the
+'kbaseworkspace' strategy, which consults the workspace service for
+authorization information.
 
 
 =item Definition
@@ -4527,7 +4527,7 @@ list<auth_params> authparams - only return jobs with one of the
         be provided if authparams is specified. In most cases, at least one
         authorization parameter must be supplied and there is an upper
         limit to the number of paramters allowed. In the case of the
-        workspace strategy, these limits are 1 and 10, respectively.
+        kbaseworkspace strategy, these limits are 1 and 10, respectively.
 
 
 =item Definition
