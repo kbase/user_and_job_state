@@ -38,10 +38,10 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.MongoTimeoutException;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.AppenderBase;
 import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
@@ -168,9 +168,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		} catch (UnknownHostException uhe) {
 			fail("Couldn't find mongo host " + host + ": " +
 					uhe.getLocalizedMessage());
-		} catch (IOException io) {
+			//TODO NOW copy to WS
+		} catch (IOException | MongoTimeoutException e) {
 			fail("Couldn't connect to mongo host " + host + ": " +
-					io.getLocalizedMessage());
+					e.getLocalizedMessage());
 		} catch (MongoAuthException ae) {
 			fail("Not authorized: " + ae.getLocalizedMessage());
 		} catch (InvalidHostException ihe) {
@@ -198,9 +199,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		} catch (UnknownHostException uhe) {
 			fail("Couldn't find mongo host " + host + ": " +
 					uhe.getLocalizedMessage());
-		} catch (IOException io) {
+		} catch (IOException | MongoTimeoutException e) {
 			fail("Couldn't connect to mongo host " + host + ": " +
-					io.getLocalizedMessage());
+					e.getLocalizedMessage());
 		} catch (MongoAuthException ae) {
 			fail("Not authorized: " + ae.getLocalizedMessage());
 		} catch (InvalidHostException ihe) {
@@ -223,7 +224,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		startupFailed();
 	}
 	
-	private String getServiceName(String serviceToken)
+	private String getServiceUserName(String serviceToken)
 			throws TokenFormatException, TokenExpiredException, IOException {
 		if (serviceToken == null || serviceToken.isEmpty()) {
 			throw new IllegalArgumentException(
@@ -359,33 +360,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	public void setUpLogger() {
-		((Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME))
-				.setLevel(Level.OFF);
-		final Logger kbaseRootLogger = (Logger) LoggerFactory.getLogger(
-				"us.kbase");
-		//would be better to also set the level here on calls to the server
-		//setLogLevel, but meh for now
-		kbaseRootLogger.setLevel(Level.ALL);
-		final AppenderBase<ILoggingEvent> kbaseAppender =
-				new AppenderBase<ILoggingEvent>() {
-
-			@Override
-			protected void append(final ILoggingEvent event) {
-				//for now only INFO is tested; test others as they're needed
-				final Level l = event.getLevel();
-				if (l.equals(Level.TRACE)) {
-					logDebug(event.getFormattedMessage(), 3);
-				} else if (l.equals(Level.DEBUG)) {
-					logDebug(event.getFormattedMessage());
-				} else if (l.equals(Level.INFO) || l.equals(Level.WARN)) {
-					logInfo(event.getFormattedMessage());
-				} else if (l.equals(Level.ERROR)) {
-					logErr(event.getFormattedMessage());
-				}
-			}
-		};
-		kbaseAppender.start();
-		kbaseRootLogger.addAppender(kbaseAppender);
+		Logger l = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+		l.setLevel(Level.OFF);
+		l.detachAndStopAllAppenders();
 	}
 	
 	private int getReconnectCount() {
@@ -549,7 +526,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.set_state_auth", async=true)
     public void setStateAuth(String token, String key, UObject value, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN set_state_auth
-		us.setState(authPart.getUserName(), getServiceName(token), true, key,
+		us.setState(authPart.getUserName(), getServiceUserName(token), true, key,
 				value == null ? null : value.asClassInstance(Object.class));
         //END set_state_auth
     }
@@ -648,7 +625,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.remove_state_auth", async=true)
     public void removeStateAuth(String token, String key, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN remove_state_auth
-		us.removeState(authPart.getUserName(), getServiceName(token), true,
+		us.removeState(authPart.getUserName(), getServiceUserName(token), true,
 				key);	
         //END remove_state_auth
     }
@@ -747,11 +724,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		if (progress.getPtype().equals(JobState.PROG_NONE)) {
 			js.startJob(authPart.getUserName(), job,
-					getServiceName(token), status, desc,
+					getServiceUserName(token), status, desc,
 					parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
 			js.startJobWithPercentProg(
-					authPart.getUserName(), job, getServiceName(token), status,
+					authPart.getUserName(), job, getServiceUserName(token), status,
 					desc, parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
 			if (progress.getMax() == null) {
@@ -764,7 +741,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						+ Integer.MAX_VALUE);
 			}
 			js.startJob(authPart.getUserName(), job,
-					getServiceName(token), status, desc,
+					getServiceUserName(token), status, desc,
 					(int) progress.getMax().longValue(),
 					parseDate(estComplete));
 		} else {
@@ -800,10 +777,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		if (progress.getPtype().equals(JobState.PROG_NONE)) {
 			returnVal = js.createAndStartJob(authPart.getUserName(),
-					getServiceName(token), status, desc, parseDate(estComplete));
+					getServiceUserName(token), status, desc, parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
 			returnVal = js.createAndStartJobWithPercentProg(
-					authPart.getUserName(), getServiceName(token), status, desc,
+					authPart.getUserName(), getServiceUserName(token), status, desc,
 					parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
 			if (progress.getMax() == null) {
@@ -816,7 +793,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						+ Integer.MAX_VALUE);
 			}
 			returnVal = js.createAndStartJob(authPart.getUserName(),
-					getServiceName(token), status, desc,
+					getServiceUserName(token), status, desc,
 					(int) progress.getMax().longValue(),
 					parseDate(estComplete));
 		} else {
@@ -851,7 +828,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			progval = (int) prog.longValue();
 		}
 		js.updateJob(authPart.getUserName(), job,
-				getServiceName(token), status, progval,
+				getServiceUserName(token), status, progval,
 				parseDate(estComplete));
         //END update_job_progress
     }
@@ -870,7 +847,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public void updateJob(String job, String token, String status, String estComplete, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN update_job
 		js.updateJob(authPart.getUserName(), job,
-				getServiceName(token), status, null, parseDate(estComplete));
+				getServiceUserName(token), status, null, parseDate(estComplete));
         //END update_job
     }
 
@@ -964,7 +941,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public void completeJob(String job, String token, String status, String error, Results res, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN complete_job
 		js.completeJob(authPart.getUserName(), job,
-				getServiceName(token), status, error, unmakeResults(res));
+				getServiceUserName(token), status, error, unmakeResults(res));
         //END complete_job
     }
 
@@ -1229,7 +1206,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public void forceDeleteJob(String token, String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN force_delete_job
 		js.deleteJob(authPart.getUserName(), job,
-				getServiceName(token));
+				getServiceUserName(token));
         //END force_delete_job
     }
     @JsonServerMethod(rpc = "UserAndJobState.status")
