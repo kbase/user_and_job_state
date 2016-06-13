@@ -1,4 +1,4 @@
-package us.kbase.userandjobstate.common;
+package us.kbase.common.schemamanager;
 
 public interface SchemaUpgrader {
 

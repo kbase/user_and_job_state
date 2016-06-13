@@ -1,4 +1,4 @@
-package us.kbase.userandjobstate.exceptions;
+package us.kbase.common.schemamanager.exceptions;
 
 /** 
  * Parent class of all schema exceptions.

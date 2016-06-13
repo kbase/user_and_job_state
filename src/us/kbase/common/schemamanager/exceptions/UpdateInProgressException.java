@@ -1,4 +1,4 @@
-package us.kbase.userandjobstate.exceptions;
+package us.kbase.common.schemamanager.exceptions;
 
 /** 
  * Thrown when there is no way to upgrade from one schema version to another,

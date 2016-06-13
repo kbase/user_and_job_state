@@ -1,11 +1,11 @@
-package us.kbase.userandjobstate.common;
+package us.kbase.common.schemamanager;
 
 import org.apache.commons.lang.NullArgumentException;
 
+import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
+import us.kbase.common.schemamanager.exceptions.NoSchemaUpgradePathException;
+import us.kbase.common.schemamanager.exceptions.UpdateInProgressException;
 import us.kbase.userandjobstate.exceptions.CommunicationException;
-import us.kbase.userandjobstate.exceptions.InvalidSchemaRecordException;
-import us.kbase.userandjobstate.exceptions.NoSchemaUpgradePathException;
-import us.kbase.userandjobstate.exceptions.UpdateInProgressException;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -16,12 +16,13 @@ import com.mongodb.MongoException;
 
 public class SchemaManager {
 	
+	//these were deliberately set to be compatible with the workspace 
+	//schema collection, will port over there eventually
 	private final static String SCHEMA_KEY = "config";
 	private final static String UPDATE = "inupdate";
 	private final static String SCHEMA_VER = "schemaver";
 	
 	private final DBCollection schemaCol;
-	
 	
 	public SchemaManager(final DBCollection schemaCol) {
 		if (schemaCol == null) {

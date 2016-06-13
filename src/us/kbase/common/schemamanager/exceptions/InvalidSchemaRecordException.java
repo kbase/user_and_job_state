@@ -1,4 +1,4 @@
-package us.kbase.userandjobstate.exceptions;
+package us.kbase.common.schemamanager.exceptions;
 
 /** 
  * Thrown when the schema records in the schema database are corrupt.
