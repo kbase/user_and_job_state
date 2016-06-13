@@ -11,6 +11,9 @@ public interface Job {
 	public static final String ERROR = "error";
 	public static final String DELETED = "deleted";
 	
+	public static final String DEFAULT_AUTH_STRAT = "DEFAULT";
+	public static final String DEFAULT_AUTH_PARAM = "DEFAULT";
+	
 	public String getID();
 
 	public String getStage();

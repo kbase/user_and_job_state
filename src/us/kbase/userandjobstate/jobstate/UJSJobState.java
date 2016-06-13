@@ -325,7 +325,6 @@ public class UJSJobState implements JobState {
 	
 	//TODO NOW note that owner can always update and see job, regardless of auth strategy?
 	//TODO NOW composite index for auth strat / auth param
-	//TODO NOW update db and set schema
 	
 	/* (non-Javadoc)
 	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#updateJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.Integer, java.util.Date)

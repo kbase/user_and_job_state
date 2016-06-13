@@ -177,7 +177,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		} catch (UnknownHostException uhe) {
 			fail("Couldn't find mongo host " + host + ": " +
 					uhe.getLocalizedMessage());
-			//TODO NOW copy to WS
 		} catch (IOException | MongoTimeoutException e) {
 			fail("Couldn't connect to mongo host " + host + ": " +
 					e.getLocalizedMessage());

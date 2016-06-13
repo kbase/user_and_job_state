@@ -44,7 +44,7 @@ public class SchemaManager {
 	}
 	
 	//TODO NOW tests
-	//TODO NOW check changes so far and list tests necessary
+	//TODO NOW check changes so far and write tests
 	public void checkSchema(
 			final String schemaType,
 			final int currentVer)
