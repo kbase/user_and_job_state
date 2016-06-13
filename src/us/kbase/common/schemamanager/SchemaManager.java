@@ -1,11 +1,9 @@
 package us.kbase.common.schemamanager;
 
-import org.apache.commons.lang.NullArgumentException;
-
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
 import us.kbase.common.schemamanager.exceptions.NoSchemaUpgradePathException;
+import us.kbase.common.schemamanager.exceptions.SchemaManagerCommunicationException;
 import us.kbase.common.schemamanager.exceptions.UpdateInProgressException;
-import us.kbase.userandjobstate.exceptions.CommunicationException;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -26,7 +24,7 @@ public class SchemaManager {
 	
 	public SchemaManager(final DBCollection schemaCol) {
 		if (schemaCol == null) {
-			throw new NullArgumentException("schemaCol");
+			throw new NullPointerException("schemaCol");
 		}
 		this.schemaCol = schemaCol;
 		ensureIndexes(schemaCol);
@@ -38,7 +36,7 @@ public class SchemaManager {
 			final String schemaType,
 			final int currentVer)
 			throws InvalidSchemaRecordException, NoSchemaUpgradePathException,
-			UpdateInProgressException, CommunicationException {
+			UpdateInProgressException, SchemaManagerCommunicationException {
 		if (schemaType == null || schemaType.isEmpty()) {
 			throw new IllegalArgumentException(
 					"schemaType can't be null or empty");
@@ -82,7 +80,7 @@ public class SchemaManager {
 				upgrade(schemaType, dbver, currentVer);
 			}
 		} catch (MongoException me) {
-			throw new CommunicationException(
+			throw new SchemaManagerCommunicationException(
 					"There was a problem communicating with the database", me);
 		}
 	}
