@@ -3,8 +3,6 @@ package us.kbase.userandjobstate.jobstate;
 import static us.kbase.common.utils.StringUtils.checkString;
 import static us.kbase.common.utils.StringUtils.checkMaxLen;
 
-import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
@@ -17,14 +15,10 @@ import org.bson.types.ObjectId;
 import org.jongo.Jongo;
 import org.jongo.MongoCollection;
 
-import us.kbase.common.mongo.GetMongoDB;
-import us.kbase.common.mongo.exceptions.InvalidHostException;
-import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
@@ -62,25 +56,12 @@ public class UJSJobState implements JobState {
 	private final DBCollection jobcol;
 	private final MongoCollection jobjong;
 	
-	public UJSJobState(final String host, final String database,
-			final String collection, final int mongoReconnectRetry)
-			throws UnknownHostException, IOException, InvalidHostException,
-			InterruptedException {
-		final DB m = GetMongoDB.getDB(host, database, mongoReconnectRetry, 10);
-		jobcol = m.getCollection(collection);
-		jobjong = new Jongo(m).getCollection(collection);
-		ensureIndexes();
-	}
-
-	public UJSJobState(final String host, final String database,
-			final String collection, final String user, final String password,
-			final int mongoReconnectRetry)
-			throws UnknownHostException, IOException, InvalidHostException,
-			MongoAuthException, InterruptedException {
-		final DB m = GetMongoDB.getDB(host, database, user, password,
-				mongoReconnectRetry, 10);
-		jobcol = m.getCollection(collection);
-		jobjong = new Jongo(m).getCollection(collection);
+	public UJSJobState(DBCollection jobcol) {
+		if (jobcol == null) {
+			throw new NullPointerException("jobcol");
+		}
+		this.jobcol = jobcol;
+		jobjong = new Jongo(jobcol.getDB()).getCollection(jobcol.getName());
 		ensureIndexes();
 	}
 

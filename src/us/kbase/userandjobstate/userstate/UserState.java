@@ -2,8 +2,6 @@ package us.kbase.userandjobstate.userstate;
 
 import static us.kbase.common.utils.StringUtils.checkString;
 
-import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -13,15 +11,11 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 
-import us.kbase.common.mongo.GetMongoDB;
-import us.kbase.common.mongo.exceptions.InvalidHostException;
-import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
 
@@ -46,23 +40,11 @@ public class UserState {
 	private final static Pattern INVALID_SERV_NAMES = 
 			Pattern.compile("[^\\w]");
 	
-	public UserState(final String host, final String database,
-			final String collection, final int mongoReconnectRetry)
-			throws UnknownHostException, IOException, InvalidHostException,
-			InterruptedException {
-		final DB m = GetMongoDB.getDB(host, database, mongoReconnectRetry, 10);
-		uscol = m.getCollection(collection);
-		ensureIndexes();
-	}
-
-	public UserState(final String host, final String database,
-			final String collection, final String user, final String password,
-			final int mongoReconnectRetry)
-			throws UnknownHostException, IOException, InvalidHostException,
-			MongoAuthException, InterruptedException {
-		final DB m = GetMongoDB.getDB(host, database, user, password,
-				mongoReconnectRetry, 10);
-		uscol = m.getCollection(collection);
+	public UserState(final DBCollection usercol) {
+		if (usercol == null) {
+			throw new NullPointerException("usercol");
+		}
+		uscol = usercol;
 		ensureIndexes();
 	}
 

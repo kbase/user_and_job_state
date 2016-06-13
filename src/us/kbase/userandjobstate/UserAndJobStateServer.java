@@ -38,6 +38,7 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.DB;
 import com.mongodb.MongoTimeoutException;
 
 import ch.qos.logback.classic.Level;
@@ -47,6 +48,7 @@ import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.auth.TokenExpiredException;
 import us.kbase.auth.TokenFormatException;
+import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.userandjobstate.jobstate.Job;
@@ -135,6 +137,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private static final String USER_COLLECTION = "userstate";
 	private static final String JOB_COLLECTION = "jobstate";
 	
+	private static final int MONGO_RETRY_LOG_INTERVAL = 10;
+	
 	public final static int MAX_LEN_SERVTYPE = 100;
 	public final static int MAX_LEN_DESC = 1000;
 	
@@ -154,51 +158,24 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private final static DateTimeFormatter DATE_FORMATTER =
 			DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ssZ").withZoneUTC();
 	
-	private UserState getUserState(final String host, final String dbs,
-			final String user, final String pwd,
+	private DB getDB(
+			final String host,
+			final String dbs,
+			final String user,
+			final String pwd,
 			final int mongoReconnectRetry) {
 		try {
 			if (user != null) {
-				return new UserState(host, dbs, USER_COLLECTION, user, pwd,
-						mongoReconnectRetry);
+				return GetMongoDB.getDB(host, dbs, user, pwd,
+						mongoReconnectRetry, MONGO_RETRY_LOG_INTERVAL);
 			} else {
-				return new UserState(host, dbs, USER_COLLECTION,
-						mongoReconnectRetry);
+				return GetMongoDB.getDB(host, dbs, mongoReconnectRetry,
+						MONGO_RETRY_LOG_INTERVAL);
 			}
 		} catch (UnknownHostException uhe) {
 			fail("Couldn't find mongo host " + host + ": " +
 					uhe.getLocalizedMessage());
 			//TODO NOW copy to WS
-		} catch (IOException | MongoTimeoutException e) {
-			fail("Couldn't connect to mongo host " + host + ": " +
-					e.getLocalizedMessage());
-		} catch (MongoAuthException ae) {
-			fail("Not authorized: " + ae.getLocalizedMessage());
-		} catch (InvalidHostException ihe) {
-			fail(host + " is an invalid database host: "  +
-					ihe.getLocalizedMessage());
-		} catch (InterruptedException ie) {
-			fail("Connection to MongoDB was interrupted. This should never " +
-					"happen and indicates a programming problem. Error: " +
-					ie.getLocalizedMessage());
-		}
-		return null;
-	}
-	
-	private JobState getUJSJobState(final String host, final String dbs,
-			final String user, final String pwd,
-			final int mongoReconnectRetry) {
-		try {
-			if (user != null) {
-				return new UJSJobState(host, dbs, JOB_COLLECTION, user, pwd,
-						mongoReconnectRetry);
-			} else {
-				return new UJSJobState(host, dbs, JOB_COLLECTION,
-						mongoReconnectRetry);
-			}
-		} catch (UnknownHostException uhe) {
-			fail("Couldn't find mongo host " + host + ": " +
-					uhe.getLocalizedMessage());
 		} catch (IOException | MongoTimeoutException e) {
 			fail("Couldn't connect to mongo host " + host + ": " +
 					e.getLocalizedMessage());
@@ -473,8 +450,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					+ params);
 			logInfo("Starting server using connection parameters:\n" + params);
 			final int mongoConnectRetry = getReconnectCount();
-			us = getUserState(host, dbs, user, pwd, mongoConnectRetry);
-			js = getUJSJobState(host, dbs, user, pwd, mongoConnectRetry);
+			final DB ujsDB = getDB(host, dbs, user, pwd, mongoConnectRetry);
+			us = new UserState(ujsDB.getCollection(USER_COLLECTION));
+			js = new UJSJobState(ujsDB.getCollection(JOB_COLLECTION));
 			auth = setUpAuthClient(adminUser, adminPwd);
 		}
         //END_CONSTRUCTOR

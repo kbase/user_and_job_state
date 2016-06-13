@@ -49,8 +49,9 @@ public class JobStateTests {
 				Paths.get(UserJobStateTestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		js = new UJSJobState("localhost:" + mongo.getServerPort(),
-				DB_NAME, "jobstate", 0);
+		js = new UJSJobState(GetMongoDB.getDB(
+				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0)
+				.getCollection("jobstate"));
 	}
 	
 	@AfterClass
