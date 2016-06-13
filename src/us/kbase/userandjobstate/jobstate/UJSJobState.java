@@ -15,6 +15,8 @@ import org.bson.types.ObjectId;
 import org.jongo.Jongo;
 import org.jongo.MongoCollection;
 
+import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.SchemaException;
 import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 
@@ -53,16 +55,20 @@ public class UJSJobState implements JobState {
 	
 	private final static String MONGO_ID = "_id";
 	
+	private final static int SCHEMA_VER = 1;
+	
 	private final DBCollection jobcol;
 	private final MongoCollection jobjong;
 	
-	public UJSJobState(DBCollection jobcol) {
+	public UJSJobState(final DBCollection jobcol, final SchemaManager sm)
+			throws SchemaException {
 		if (jobcol == null) {
 			throw new NullPointerException("jobcol");
 		}
 		this.jobcol = jobcol;
 		jobjong = new Jongo(jobcol.getDB()).getCollection(jobcol.getName());
 		ensureIndexes();
+		sm.checkSchema("jobstate", SCHEMA_VER);
 	}
 
 	private void ensureIndexes() {

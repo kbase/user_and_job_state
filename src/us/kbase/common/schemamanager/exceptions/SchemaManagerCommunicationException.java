@@ -5,7 +5,7 @@ package us.kbase.common.schemamanager.exceptions;
  * @author gaprice@lbl.gov
  *
  */
-public class SchemaManagerCommunicationException extends Exception {
+public class SchemaManagerCommunicationException extends SchemaException {
 
 	private static final long serialVersionUID = 1L;
 	

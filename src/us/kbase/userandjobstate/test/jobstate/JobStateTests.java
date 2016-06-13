@@ -23,6 +23,7 @@ import org.junit.Test;
 import com.mongodb.DB;
 
 import us.kbase.common.mongo.GetMongoDB;
+import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.test.RegexMatcher;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.jobstate.Job;
@@ -49,9 +50,11 @@ public class JobStateTests {
 				Paths.get(UserJobStateTestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		js = new UJSJobState(GetMongoDB.getDB(
-				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0)
-				.getCollection("jobstate"));
+		final DB db = GetMongoDB.getDB(
+				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		js = new UJSJobState(db.getCollection("jobstate"),
+				new SchemaManager(db.getCollection("schema")));
+				
 	}
 	
 	@AfterClass

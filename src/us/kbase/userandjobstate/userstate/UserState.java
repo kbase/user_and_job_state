@@ -16,6 +16,8 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 
+import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.SchemaException;
 import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
 
@@ -34,18 +36,22 @@ public class UserState {
 	
 	private final static String IDX_UNIQ = "unique";
 	
+	private static final int SCHEMA_VER = 1;
+	
 	private final DBCollection uscol;
 	
 	private final static ObjectMapper MAPPER = new ObjectMapper();
 	private final static Pattern INVALID_SERV_NAMES = 
 			Pattern.compile("[^\\w]");
 	
-	public UserState(final DBCollection usercol) {
+	public UserState(final DBCollection usercol, final SchemaManager sm)
+			throws SchemaException {
 		if (usercol == null) {
 			throw new NullPointerException("usercol");
 		}
 		uscol = usercol;
 		ensureIndexes();
+		sm.checkSchema("userstate", SCHEMA_VER);
 	}
 
 	private void ensureIndexes() {

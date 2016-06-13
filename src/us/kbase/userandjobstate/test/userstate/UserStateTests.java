@@ -20,6 +20,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import us.kbase.common.mongo.GetMongoDB;
+import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.userandjobstate.userstate.UserState;
@@ -44,9 +45,10 @@ public class UserStateTests {
 				Paths.get(UserJobStateTestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		us = new UserState(GetMongoDB.getDB(
-				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0)
-				.getCollection("userstate"));
+		final DB db = GetMongoDB.getDB(
+				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		us = new UserState(db.getCollection("userstate"),
+				new SchemaManager(db.getCollection("schema")));
 	}
 	
 	@AfterClass

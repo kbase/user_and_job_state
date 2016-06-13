@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import us.kbase.auth.AuthToken;
+import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.service.JsonServerMethod;
 import us.kbase.common.service.JsonServerServlet;
 import us.kbase.common.service.JsonServerSyslog;
@@ -136,6 +137,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	
 	private static final String USER_COLLECTION = "userstate";
 	private static final String JOB_COLLECTION = "jobstate";
+	private static final String SCHEMA_VERS_COLLECTION = "schemavers";
 	
 	private static final int MONGO_RETRY_LOG_INTERVAL = 10;
 	
@@ -451,8 +453,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			logInfo("Starting server using connection parameters:\n" + params);
 			final int mongoConnectRetry = getReconnectCount();
 			final DB ujsDB = getDB(host, dbs, user, pwd, mongoConnectRetry);
-			us = new UserState(ujsDB.getCollection(USER_COLLECTION));
-			js = new UJSJobState(ujsDB.getCollection(JOB_COLLECTION));
+			final SchemaManager sm = new SchemaManager(
+					ujsDB.getCollection(SCHEMA_VERS_COLLECTION));
+			us = new UserState(ujsDB.getCollection(USER_COLLECTION), sm);
+			js = new UJSJobState(ujsDB.getCollection(JOB_COLLECTION), sm);
 			auth = setUpAuthClient(adminUser, adminPwd);
 		}
         //END_CONSTRUCTOR
