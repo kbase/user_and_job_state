@@ -8,8 +8,6 @@ import java.util.List;
 
 import org.bson.types.ObjectId;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 public class UJSJob implements Job {
 	
 	private ObjectId _id;
@@ -28,9 +26,8 @@ public class UJSJob implements Job {
 	private String errormsg;
 	private JobResults results;
 	private List<String> shared;
-	
-	@JsonIgnore
-	private static final String SOURCE = "UJS";
+	private String authstrat;
+	private String authparam;
 	
 	private UJSJob() {}
 
@@ -192,23 +189,55 @@ public class UJSJob implements Job {
 	}
 
 	@Override
-	public String getSource() {
-		return SOURCE;
-	}
-	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.Job#toString()
-	 */
-	@Override
-	public String toString() {
-		return "Job [_id=" + _id + ", user=" + user +
-				", service=" + service + ", desc=" + desc +
-				", progtype=" + progtype + ", prog=" + getProgress() +
-				", maxprog=" + getMaxProgress() + ", status=" + getStatus() +
-				", started=" + started + ", estcompl=" + estcompl +
-				", updated=" + updated + ", complete=" + complete +
-				", error=" + error + ", errormsg=" + errormsg +
-				", results=" + results + ", shared=" + shared + "]";
+	public String getAuthorizationStrategy() {
+		return authstrat;
 	}
 
+	@Override
+	public String getAuthorizationParameter() {
+		return authparam;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("UJSJob [_id=");
+		builder.append(_id);
+		builder.append(", user=");
+		builder.append(user);
+		builder.append(", service=");
+		builder.append(service);
+		builder.append(", desc=");
+		builder.append(desc);
+		builder.append(", progtype=");
+		builder.append(progtype);
+		builder.append(", prog=");
+		builder.append(prog);
+		builder.append(", maxprog=");
+		builder.append(maxprog);
+		builder.append(", status=");
+		builder.append(status);
+		builder.append(", started=");
+		builder.append(started);
+		builder.append(", updated=");
+		builder.append(updated);
+		builder.append(", estcompl=");
+		builder.append(estcompl);
+		builder.append(", complete=");
+		builder.append(complete);
+		builder.append(", error=");
+		builder.append(error);
+		builder.append(", errormsg=");
+		builder.append(errormsg);
+		builder.append(", results=");
+		builder.append(results);
+		builder.append(", shared=");
+		builder.append(shared);
+		builder.append(", authstrat=");
+		builder.append(authstrat);
+		builder.append(", authparam=");
+		builder.append(authparam);
+		builder.append("]");
+		return builder.toString();
+	}
 }

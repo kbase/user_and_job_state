@@ -44,9 +44,12 @@ public interface Job {
 	public JobResults getResults();
 
 	public List<String> getShared();
-
-	public String toString();
 	
-	public String getSource();
+	public String getAuthorizationStrategy();
+	
+	public String getAuthorizationParameter();
+
+	@Override
+	public String toString();
 
 }
