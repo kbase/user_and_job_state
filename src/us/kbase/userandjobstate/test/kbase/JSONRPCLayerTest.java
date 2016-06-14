@@ -51,6 +51,8 @@ import us.kbase.userandjobstate.test.UserJobStateTestCommon;
  */
 public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
+	//TODO NOW implement and test 3 new methods
+	
 	private static UserAndJobStateServer SERVER = null;
 	private static UserAndJobStateClient CLIENT1 = null;
 	private static String USER1 = null;

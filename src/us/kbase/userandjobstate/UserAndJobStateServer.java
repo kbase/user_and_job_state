@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import us.kbase.auth.AuthToken;
 import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
+import us.kbase.common.schemamanager.exceptions.SchemaException;
 import us.kbase.common.service.JsonServerMethod;
 import us.kbase.common.service.JsonServerServlet;
 import us.kbase.common.service.JsonServerSyslog;
@@ -160,7 +162,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private final static DateTimeFormatter DATE_FORMATTER =
 			DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ssZ").withZoneUTC();
 	
-	private DB getDB(
+	private DB getMongoDB(
 			final String host,
 			final String dbs,
 			final String user,
@@ -189,6 +191,48 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			fail("Connection to MongoDB was interrupted. This should never " +
 					"happen and indicates a programming problem. Error: " +
 					ie.getLocalizedMessage());
+		}
+		return null;
+	}
+	
+	private SchemaManager getSchemaManager(final DB db, final String host) {
+		try {
+			 return new SchemaManager(
+						db.getCollection(SCHEMA_VERS_COLLECTION));
+		} catch (MongoTimeoutException e) {
+			fail("Couldn't connect to mongo host " + host + ": " +
+					e.getLocalizedMessage());
+		} catch (InvalidSchemaRecordException e) {
+			fail("The schema version records are corrupt: " +
+					e.getLocalizedMessage());
+		}
+		return null;
+	}
+	
+	private UserState getUserState(final DB db, final SchemaManager sm,
+			final String host) {
+		try {
+			return new UserState(db.getCollection(USER_COLLECTION), sm);
+		} catch (MongoTimeoutException e) {
+			fail("Couldn't connect to mongo host " + host + ": " +
+					e.getLocalizedMessage());
+		} catch (SchemaException e) {
+			fail("An error occured while checking the database schema: " +
+					e.getLocalizedMessage());
+		}
+		return null;
+	}
+	
+	private UJSJobState getJobState(final DB db, final SchemaManager sm,
+			final String host) {
+		try {
+			return new UJSJobState(db.getCollection(JOB_COLLECTION), sm);
+		} catch (MongoTimeoutException e) {
+			fail("Couldn't connect to mongo host " + host + ": " +
+					e.getLocalizedMessage());
+		} catch (SchemaException e) {
+			fail("An error occured while checking the database schema: " +
+					e.getLocalizedMessage());
 		}
 		return null;
 	}
@@ -452,12 +496,18 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					+ params);
 			logInfo("Starting server using connection parameters:\n" + params);
 			final int mongoConnectRetry = getReconnectCount();
-			final DB ujsDB = getDB(host, dbs, user, pwd, mongoConnectRetry);
-			final SchemaManager sm = new SchemaManager(
-					ujsDB.getCollection(SCHEMA_VERS_COLLECTION));
-			us = new UserState(ujsDB.getCollection(USER_COLLECTION), sm);
-			js = new UJSJobState(ujsDB.getCollection(JOB_COLLECTION), sm);
-			auth = setUpAuthClient(adminUser, adminPwd);
+			final DB ujsDB = getMongoDB(host, dbs, user, pwd, mongoConnectRetry);
+			final SchemaManager sm = getSchemaManager(ujsDB, host);
+			if (ujsDB == null || sm == null) {
+				us = null;
+				js = null;
+				auth = null;
+			} else {
+				//TODO TEST test server startup with schema problem - need to check logs.
+				us = getUserState(ujsDB, sm, host);
+				js = getJobState(ujsDB, sm, host);
+				auth = setUpAuthClient(adminUser, adminPwd);
+			}
 		}
         //END_CONSTRUCTOR
     }
