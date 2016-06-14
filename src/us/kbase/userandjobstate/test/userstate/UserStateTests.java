@@ -21,7 +21,9 @@ import org.junit.Test;
 
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.userandjobstate.jobstate.UJSJobState;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
@@ -29,6 +31,7 @@ import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
+import com.mongodb.DBCollection;
 
 public class UserStateTests {
 	
@@ -36,6 +39,8 @@ public class UserStateTests {
 
 	private static MongoController mongo;
 	
+	private static DBCollection usercol;
+	private static DBCollection schemacol;
 	private static UserState us;
 	
 	@BeforeClass
@@ -47,8 +52,9 @@ public class UserStateTests {
 		
 		final DB db = GetMongoDB.getDB(
 				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
-		us = new UserState(db.getCollection("userstate"),
-				new SchemaManager(db.getCollection("schema")));
+		usercol = db.getCollection("userstate");
+		schemacol = db.getCollection("schema");
+		us = new UserState(usercol, new SchemaManager(schemacol));
 	}
 	
 	@AfterClass
@@ -71,6 +77,21 @@ public class UserStateTests {
 		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
 				DB_NAME);
 		UserJobStateTestCommon.destroyDB(db);
+	}
+	
+	@Test
+	public void checkSchema() throws Exception {
+		/* this just tests that the schema manager is doing something.
+		 * The schema manager tests should handle everything else.
+		 */
+		new SchemaManager(schemacol).setRecord("userstate", 0, false);
+		try {
+			new UJSJobState(usercol, new SchemaManager(schemacol));
+		} catch (IncompatibleSchemaException e) {
+			assertThat("incorrect exception message", e.getLocalizedMessage(),
+					is("Incompatible database schema for schema type " +
+							"userstate. DB is v0, codebase is v1"));
+		}
 	}
 	
 	@Test
