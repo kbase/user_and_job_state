@@ -377,6 +377,10 @@ public class JobStateTests {
 		if (shared != null) {
 			assertThat("shared list ok", j.getShared(), is(shared));
 		}
+		assertThat("not default auth strat", j.getAuthorizationStrategy(),
+				is("DEFAULT"));
+		assertThat("not default auth param", j.getAuthorizationParameter(),
+				is("DEFAULT"));
 	}
 	
 	@Test

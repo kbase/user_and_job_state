@@ -400,7 +400,7 @@ module UserAndJobState {
 	*/
 	funcdef unshare_job(job_id job, list<username> users) returns();
 	
-	/* Get the owner of a job. Only valid for the default auth strategy. */
+	/* Get the owner of a job. */
 	funcdef get_job_owner(job_id job) returns(username owner);
 	
 	/* Get the list of users with which a job is shared. Only the job owner

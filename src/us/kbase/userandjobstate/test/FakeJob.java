@@ -32,6 +32,8 @@ public class FakeJob {
 	private final Boolean error;
 	private final String errormsg;
 	private final JobResults results;
+	private final String authstrat;
+	private final String authparam;
 	
 	public FakeJob(final Job j) {
 		id = j.getID();
@@ -49,6 +51,8 @@ public class FakeJob {
 		error = j.hasError();
 		errormsg = j.getErrorMsg();
 		results = j.getResults();
+		authstrat = "DEFAULT";
+		authparam = "DEFAULT";
 	}
 
 	public FakeJob(final String id, final String user, final String service,
@@ -70,6 +74,8 @@ public class FakeJob {
 		this.error = error;
 		this.errormsg = errormsg;
 		this.results = results;
+		authstrat = "DEFAULT";
+		authparam = "DEFAULT";
 	}
 	
 	private final SimpleDateFormat utc =
@@ -110,6 +116,8 @@ public class FakeJob {
 					r.getShockurl(),
 					r.getShocknodes());
 		}
+		authstrat = "DEFAULT";
+		authparam = "DEFAULT";
 	}
 	
 	//no checking, assumes the cast is ok
@@ -126,12 +134,43 @@ public class FakeJob {
 
 	@Override
 	public String toString() {
-		return "FakeJob [id=" + id + ", user=" + user + ", service=" + service
-				+ ", stage=" + stage + ", estcompl=" + estcompl + ", desc="
-				+ desc + ", progtype=" + progtype + ", prog=" + prog
-				+ ", maxprog=" + maxprog + ", status=" + status + ", complete="
-				+ complete + ", error=" + error + ", errormsg=" + errormsg
-				+ ", results=" + results + "]";
+		StringBuilder builder = new StringBuilder();
+		builder.append("FakeJob [id=");
+		builder.append(id);
+		builder.append(", user=");
+		builder.append(user);
+		builder.append(", service=");
+		builder.append(service);
+		builder.append(", stage=");
+		builder.append(stage);
+		builder.append(", estcompl=");
+		builder.append(estcompl);
+		builder.append(", desc=");
+		builder.append(desc);
+		builder.append(", progtype=");
+		builder.append(progtype);
+		builder.append(", prog=");
+		builder.append(prog);
+		builder.append(", maxprog=");
+		builder.append(maxprog);
+		builder.append(", status=");
+		builder.append(status);
+		builder.append(", complete=");
+		builder.append(complete);
+		builder.append(", error=");
+		builder.append(error);
+		builder.append(", errormsg=");
+		builder.append(errormsg);
+		builder.append(", results=");
+		builder.append(results);
+		builder.append(", authstrat=");
+		builder.append(authstrat);
+		builder.append(", authparam=");
+		builder.append(authparam);
+		builder.append(", utc=");
+		builder.append(utc);
+		builder.append("]");
+		return builder.toString();
 	}
 
 	@Override
@@ -139,10 +178,15 @@ public class FakeJob {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result
+				+ ((authparam == null) ? 0 : authparam.hashCode());
+		result = prime * result
+				+ ((authstrat == null) ? 0 : authstrat.hashCode());
+		result = prime * result
 				+ ((complete == null) ? 0 : complete.hashCode());
 		result = prime * result + ((desc == null) ? 0 : desc.hashCode());
-		result = prime * result + ((errormsg == null) ? 0 : errormsg.hashCode());
 		result = prime * result + ((error == null) ? 0 : error.hashCode());
+		result = prime * result
+				+ ((errormsg == null) ? 0 : errormsg.hashCode());
 		result = prime * result
 				+ ((estcompl == null) ? 0 : estcompl.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
@@ -155,119 +199,104 @@ public class FakeJob {
 		result = prime * result + ((stage == null) ? 0 : stage.hashCode());
 		result = prime * result + ((status == null) ? 0 : status.hashCode());
 		result = prime * result + ((user == null) ? 0 : user.hashCode());
+		result = prime * result + ((utc == null) ? 0 : utc.hashCode());
 		return result;
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		if (this == obj) {
+		if (this == obj)
 			return true;
-		}
-		if (obj == null) {
+		if (obj == null)
 			return false;
-		}
-		if (!(obj instanceof FakeJob)) {
+		if (getClass() != obj.getClass())
 			return false;
-		}
 		FakeJob other = (FakeJob) obj;
+		if (authparam == null) {
+			if (other.authparam != null)
+				return false;
+		} else if (!authparam.equals(other.authparam))
+			return false;
+		if (authstrat == null) {
+			if (other.authstrat != null)
+				return false;
+		} else if (!authstrat.equals(other.authstrat))
+			return false;
 		if (complete == null) {
-			if (other.complete != null) {
+			if (other.complete != null)
 				return false;
-			}
-		} else if (!complete.equals(other.complete)) {
+		} else if (!complete.equals(other.complete))
 			return false;
-		}
 		if (desc == null) {
-			if (other.desc != null) {
+			if (other.desc != null)
 				return false;
-			}
-		} else if (!desc.equals(other.desc)) {
+		} else if (!desc.equals(other.desc))
 			return false;
-		}
-		if (errormsg == null) {
-			if (other.errormsg != null) {
-				return false;
-			}
-		} else if (!errormsg.equals(other.errormsg)) {
-			return false;
-		}
 		if (error == null) {
-			if (other.error != null) {
+			if (other.error != null)
 				return false;
-			}
-		} else if (!error.equals(other.error)) {
+		} else if (!error.equals(other.error))
 			return false;
-		}
+		if (errormsg == null) {
+			if (other.errormsg != null)
+				return false;
+		} else if (!errormsg.equals(other.errormsg))
+			return false;
 		if (estcompl == null) {
-			if (other.estcompl != null) {
+			if (other.estcompl != null)
 				return false;
-			}
-		} else if (!estcompl.equals(other.estcompl)) {
+		} else if (!estcompl.equals(other.estcompl))
 			return false;
-		}
 		if (id == null) {
-			if (other.id != null) {
+			if (other.id != null)
 				return false;
-			}
-		} else if (!id.equals(other.id)) {
+		} else if (!id.equals(other.id))
 			return false;
-		}
 		if (maxprog == null) {
-			if (other.maxprog != null) {
+			if (other.maxprog != null)
 				return false;
-			}
-		} else if (!maxprog.equals(other.maxprog)) {
+		} else if (!maxprog.equals(other.maxprog))
 			return false;
-		}
 		if (prog == null) {
-			if (other.prog != null) {
+			if (other.prog != null)
 				return false;
-			}
-		} else if (!prog.equals(other.prog)) {
+		} else if (!prog.equals(other.prog))
 			return false;
-		}
 		if (progtype == null) {
-			if (other.progtype != null) {
+			if (other.progtype != null)
 				return false;
-			}
-		} else if (!progtype.equals(other.progtype)) {
+		} else if (!progtype.equals(other.progtype))
 			return false;
-		}
 		if (results == null) {
-			if (other.results != null) {
+			if (other.results != null)
 				return false;
-			}
-		} else if (!results.equals(other.results)) {
+		} else if (!results.equals(other.results))
 			return false;
-		}
 		if (service == null) {
-			if (other.service != null) {
+			if (other.service != null)
 				return false;
-			}
-		} else if (!service.equals(other.service)) {
+		} else if (!service.equals(other.service))
 			return false;
-		}
 		if (stage == null) {
-			if (other.stage != null) {
+			if (other.stage != null)
 				return false;
-			}
-		} else if (!stage.equals(other.stage)) {
+		} else if (!stage.equals(other.stage))
 			return false;
-		}
 		if (status == null) {
-			if (other.status != null) {
+			if (other.status != null)
 				return false;
-			}
-		} else if (!status.equals(other.status)) {
+		} else if (!status.equals(other.status))
 			return false;
-		}
 		if (user == null) {
-			if (other.user != null) {
+			if (other.user != null)
 				return false;
-			}
-		} else if (!user.equals(other.user)) {
+		} else if (!user.equals(other.user))
 			return false;
-		}
+		if (utc == null) {
+			if (other.utc != null)
+				return false;
+		} else if (!utc.equals(other.utc))
+			return false;
 		return true;
 	}
 }

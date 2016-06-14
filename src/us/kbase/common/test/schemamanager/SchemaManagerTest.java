@@ -27,7 +27,7 @@ import com.mongodb.DBObject;
 
 public class SchemaManagerTest {
 
-	//TODO TEST add shutdown /startup capability to mongo controller and test against shutdown mongo
+	//TODO TEST LATER add shutdown /startup capability to mongo controller and test against shutdown mongo
 	
 	private static final String DB_NAME = "SchemaManagerTests";
 	

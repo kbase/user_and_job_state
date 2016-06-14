@@ -52,6 +52,8 @@ public class UJSJobState implements JobState {
 	private final static String STATUS = "status";
 	private final static String RESULT = "results";
 	private final static String SHARED = "shared";
+	public static final String AUTH_STRAT = "authstrat";
+	public static final String AUTH_PARAM = "authparam";
 	
 	private final static String MONGO_ID = "_id";
 	
@@ -74,6 +76,7 @@ public class UJSJobState implements JobState {
 	private void ensureIndexes() {
 		ensureUserIndex(USER);
 		ensureUserIndex(SHARED);
+		ensureAuthIndex();
 //		final DBObject ttlidx = new BasicDBObject(CREATED, 1);
 //		final DBObject opts = new BasicDBObject("expireAfterSeconds",
 //				JOB_EXPIRES);
@@ -87,7 +90,14 @@ public class UJSJobState implements JobState {
 		idx.put(COMPLETE, 1);
 		jobcol.createIndex(idx);
 	}
+	//TODO NOW check manually
 	
+	private void ensureAuthIndex() {
+		final DBObject idx = new BasicDBObject();
+		idx.put(AUTH_STRAT, 1);
+		idx.put(AUTH_PARAM, 1);
+		jobcol.createIndex(idx);
+	}
 	/* (non-Javadoc)
 	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#createJob(java.lang.String)
 	 */
@@ -96,6 +106,8 @@ public class UJSJobState implements JobState {
 		checkString(user, "user", MAX_LEN_USER);
 		final DBObject job = new BasicDBObject(USER, user);
 		final Date date = new Date();
+		job.put(AUTH_STRAT, Job.DEFAULT_AUTH_STRAT);
+		job.put(AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
 		job.put(CREATED, date);
 		job.put(UPDATED, date);
 		job.put(EST_COMP, null);
@@ -138,7 +150,8 @@ public class UJSJobState implements JobState {
 		final ObjectId oi = checkJobID(jobID);
 		return getJob(user, oi);
 	}
-		
+	
+	//TODO NOW user will have to go, auth outside of this class
 	private Job getJob(final String user, final ObjectId jobID)
 			throws CommunicationException, NoSuchJobException {
 		final Job j;
@@ -323,8 +336,8 @@ public class UJSJobState implements JobState {
 		return jobid;
 	}
 	
-	//TODO NOW note that owner can always update and see job, regardless of auth strategy?
-	//TODO NOW composite index for auth strat / auth param
+	//TODO NOW note that owner can always write and read job, regardless of auth strategy
+	//TODO NOW better explanation of auth strategy in header
 	
 	/* (non-Javadoc)
 	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#updateJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.Integer, java.util.Date)
@@ -557,6 +570,8 @@ public class UJSJobState implements JobState {
 		return jobs;
 	}
 	
+	//TODO NOW shareJob, unshareJob, getJobOwner should throw exception or do nothing for non-default auth jobs
+	
 	//note sharing with an already shared user or sharing with the owner has
 	//no effect
 	/* (non-Javadoc)
@@ -573,6 +588,7 @@ public class UJSJobState implements JobState {
 				us.add(u);
 			}
 		}
+		//TODO NOW add default auth to query
 		final WriteResult wr;
 		try {
 			wr = jobjong.update(QRY_FIND_JOB_BY_OWNER, id, owner)
@@ -620,6 +636,7 @@ public class UJSJobState implements JobState {
 		} catch (NoSuchJobException nsje) {
 			throw e;
 		}
+		//TODO NOW check default auth here
 		if (j.getUser().equals(user)) {
 			//it's the owner, can do whatever
 		} else if (j.getShared().contains(user)) {
