@@ -21,9 +21,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.mongodb.DB;
+import com.mongodb.DBCollection;
 
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.RegexMatcher;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.jobstate.Job;
@@ -41,6 +43,8 @@ public class JobStateTests {
 
 	private static MongoController mongo;
 	
+	private static DBCollection jobcol;
+	private static DBCollection schemacol;
 	private static JobState js;
 	
 	@BeforeClass
@@ -52,8 +56,9 @@ public class JobStateTests {
 		
 		final DB db = GetMongoDB.getDB(
 				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
-		js = new UJSJobState(db.getCollection("jobstate"),
-				new SchemaManager(db.getCollection("schema")));
+		jobcol = db.getCollection("jobstate");
+		schemacol = db.getCollection("schema");
+		js = new UJSJobState(jobcol, new SchemaManager(schemacol));
 				
 	}
 	
@@ -99,6 +104,21 @@ public class JobStateTests {
 		long201 += "f";
 		long1001 += "f";
 		long100001 += "f";
+	}
+	
+	@Test
+	public void checkSchema() throws Exception {
+		/* this just tests that the schema manager is doing something.
+		 * The schema manager tests should handle everything else.
+		 */
+		new SchemaManager(schemacol).setRecord("jobstate", 1, false);
+		try {
+			new UJSJobState(jobcol, new SchemaManager(schemacol));
+		} catch (IncompatibleSchemaException e) {
+			assertThat("incorrect exception message", e.getLocalizedMessage(),
+					is("Incompatible database schema for schema type " +
+							"jobstate. DB is v1, codebase is v2"));
+		}
 	}
 	
 	@Test
