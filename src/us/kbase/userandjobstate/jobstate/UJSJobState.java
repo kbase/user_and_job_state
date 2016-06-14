@@ -68,7 +68,7 @@ public class UJSJobState implements JobState {
 		this.jobcol = jobcol;
 		jobjong = new Jongo(jobcol.getDB()).getCollection(jobcol.getName());
 		ensureIndexes();
-		sm.checkSchema("jobstate", SCHEMA_VER);
+		sm.checkSchema("jobstate", SCHEMA_VER); //TODO NOW test this
 	}
 
 	private void ensureIndexes() {

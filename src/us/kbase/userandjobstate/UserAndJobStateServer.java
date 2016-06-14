@@ -194,6 +194,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	//TODO NOW basic docs like Shock
+	//TODO NOW check UJS changes so far and write tests
 	
 	private void fail(final String error) {
 		logErr(error);

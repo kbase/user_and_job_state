@@ -51,7 +51,7 @@ public class UserState {
 		}
 		uscol = usercol;
 		ensureIndexes();
-		sm.checkSchema("userstate", SCHEMA_VER);
+		sm.checkSchema("userstate", SCHEMA_VER); //TODO NOW test this.
 	}
 
 	private void ensureIndexes() {

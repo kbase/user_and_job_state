@@ -190,17 +190,11 @@ public class UJSJob implements Job {
 
 	@Override
 	public String getAuthorizationStrategy() {
-		if (authstrat == null || authstrat.isEmpty()) {
-			return Job.DEFAULT_AUTH_STRAT;
-		}
 		return authstrat;
 	}
 
 	@Override
 	public String getAuthorizationParameter() {
-		if (authparam == null || authstrat.isEmpty()) {
-			return Job.DEFAULT_AUTH_PARAM;
-		}
 		return authparam;
 	}
 

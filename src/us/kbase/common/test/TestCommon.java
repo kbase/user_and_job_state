@@ -1,11 +1,11 @@
-package us.kbase.userandjobstate.test;
+package us.kbase.common.test;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 
 import us.kbase.common.test.TestException;
 
-public class UserJobStateTestCommon {
+public class TestCommon {
 	
 	public static final String MONGOEXE = "test.mongo.exe";
 	
