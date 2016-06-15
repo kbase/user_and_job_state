@@ -42,6 +42,7 @@ import org.joda.time.format.DateTimeFormatterBuilder;
 import org.slf4j.LoggerFactory;
 
 import com.mongodb.DB;
+import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
 
 import ch.qos.logback.classic.Level;
@@ -184,6 +185,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					e.getLocalizedMessage());
 		} catch (MongoAuthException ae) {
 			fail("Not authorized: " + ae.getLocalizedMessage());
+		} catch (MongoException e) {
+			fail("There was an error connecting to the mongo database: " +
+					e.getLocalizedMessage());
 		} catch (InvalidHostException ihe) {
 			fail(host + " is an invalid database host: "  +
 					ihe.getLocalizedMessage());
@@ -196,6 +200,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	private SchemaManager getSchemaManager(final DB db, final String host) {
+		if (db == null) {
+			return null;
+		}
 		try {
 			 return new SchemaManager(
 						db.getCollection(SCHEMA_VERS_COLLECTION));
@@ -237,6 +244,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return null;
 	}
 	
+	//TODO NOW db converter
 	//TODO NOW basic docs like Shock
 	//TODO NOW recompile when spec is complete
 	
@@ -503,7 +511,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				js = null;
 				auth = null;
 			} else {
-				//TODO TEST test server startup with schema problem - need to check logs.
+				//TODO TEST LATER add server startup tests.
 				us = getUserState(ujsDB, sm, host);
 				js = getJobState(ujsDB, sm, host);
 				auth = setUpAuthClient(adminUser, adminPwd);

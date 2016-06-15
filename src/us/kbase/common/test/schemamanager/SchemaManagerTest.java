@@ -64,6 +64,7 @@ public class SchemaManagerTest {
 	public void testNullCollection() throws Exception {
 		try {
 			new SchemaManager(null);
+			fail("expected npe");
 		} catch (NullPointerException npe) {
 			assertThat("incorrect exception message", npe.getLocalizedMessage(),
 					is("schemaCol"));
@@ -105,15 +106,22 @@ public class SchemaManagerTest {
 		DBObject dbo1 = new BasicDBObject("config", "myschema");
 		dbo1.put("inupdate", false);
 		dbo1.put("schemaver", 1);
+		dbc.insert(dbo1);
 		DBObject dbo2 = new BasicDBObject("config", "myschema");
 		dbo2.put("inupdate", true);
 		dbo2.put("schemaver", 3);
 		dbc.insert(dbo2);
 		try {
 			new SchemaManager(dbc);
+			fail("created manager with bad schema docs");
 		} catch (InvalidSchemaRecordException e) {
-			assertThat("incorrect exception message", e.getLocalizedMessage(),
-					is("Multiple schema records exist in the database"));
+			final String msg = e.getLocalizedMessage();
+			assertThat("incorrect exception message",
+					msg.contains("Multiple schema records exist in the database: {"),
+					is(true));
+			assertThat("incorrect exception message",
+					msg.contains("E11000 duplicate key error index: SchemaManagerTests.noindexes.$config_1"),
+					is(true));
 		}
 	}
 	

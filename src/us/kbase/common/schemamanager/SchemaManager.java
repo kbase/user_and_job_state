@@ -144,7 +144,8 @@ public class SchemaManager {
 			schemaCol.createIndex(keys, uniq);
 		} catch (DuplicateKeyException dke) {
 			throw new InvalidSchemaRecordException(
-					"Multiple schema records exist in the database");
+					"Multiple schema records exist in the database: " +
+					dke.getLocalizedMessage(), dke);
 		}
 	}
 	

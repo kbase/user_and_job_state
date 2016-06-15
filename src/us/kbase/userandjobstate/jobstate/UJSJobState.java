@@ -90,8 +90,6 @@ public class UJSJobState implements JobState {
 		idx.put(COMPLETE, 1);
 		jobcol.createIndex(idx);
 	}
-	//TODO NOW check manually
-	
 	private void ensureAuthIndex() {
 		final DBObject idx = new BasicDBObject();
 		idx.put(AUTH_STRAT, 1);
