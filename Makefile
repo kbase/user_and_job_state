@@ -137,6 +137,9 @@ undeploy:
 	-rm -rfv $(TARGET)/lib/javascript/$(SERVICE) 
 	-rm -rfv $(TARGET)/lib/$(CLIENT_JAR)
 
+create-db-update-script:
+	$(ANT) updatescript
+
 clean:
 	-rm -rf docs
 	-rm -rf dist

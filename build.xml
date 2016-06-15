@@ -50,6 +50,7 @@
     <include name="logback/logback-classic-1.1.2.jar"/>
     <include name="logback/logback-core-1.1.2.jar"/>
     <include name="apache_commons/commons-logging-1.1.1.jar"/>
+    <include name="jcommander/jcommander-1.48.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="testlib">
@@ -205,6 +206,14 @@
     <fail message="Test failure detected, check test results." if="test.failed" />
   </target>
 
+  <target name="updatescript" depends="compile" description="create script to run DB updater">
+    <pathconvert targetos="unix" property="lib.classpath" refid="compile.classpath"/>
+    <echo file="./db_update">#!/bin/sh
+java -cp ${dist}/${jar.file}:${lib.classpath} us.kbase.userandjobstate.updater.UjsUpdater $@
+    </echo>
+    <chmod file="./db_update" perm="a+x"/>
+  </target>
+	
   <target name="clean" description="clean up" >
     <!-- Clean up internal temporary files and folders-->
     <delete dir="${classes}"/>
