@@ -30,6 +30,8 @@ import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.RegexMatcher;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
@@ -37,6 +39,7 @@ import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 import us.kbase.userandjobstate.test.FakeJob;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class JobStateTests {
 	
@@ -125,20 +128,8 @@ public class JobStateTests {
 	
 	@Test
 	public void createJob() throws Exception {
-		try {
-			js.createJob(null);
-			fail("created job with invalid user");
-		} catch (IllegalArgumentException iae) {
-			assertThat("correct exception", iae.getLocalizedMessage(), 
-					is("user cannot be null or the empty string"));
-		}
-		try {
-			js.createJob("");
-			fail("created job with invalid user");
-		} catch (IllegalArgumentException iae) {
-			assertThat("correct exception", iae.getLocalizedMessage(), 
-					is("user cannot be null or the empty string"));
-		}
+		failCreateJob(null, "user cannot be null or the empty string");
+		failCreateJob("", "user cannot be null or the empty string");
 		String jobid = js.createJob("foo");
 		assertThat("get job id", jobid, OBJ_ID_MATCH);
 		Job j = js.getJob("foo", jobid);
@@ -149,7 +140,9 @@ public class JobStateTests {
 			fail("Got a non-existant job");
 		} catch (NoSuchJobException nsje) {
 			assertThat("correct exception", nsje.getLocalizedMessage(),
-					is(String.format("There is no job %s viewable by user foo1", jobid)));
+					is(String.format(
+							"There is no job %s viewable by user foo1",
+							jobid)));
 		}
 		try {
 			js.getJob("foo", "a" + jobid.substring(1));
@@ -166,6 +159,26 @@ public class JobStateTests {
 			assertThat("correct exception", iae.getLocalizedMessage(),
 					is(String.format("Job ID %s is not a legal ID",
 					"a" + jobid)));
+		}
+	}
+	
+	private static void failCreateJob(String user, String exp)
+			throws Exception {
+		try {
+			js.createJob(user);
+			fail("created job with invalid user");
+		} catch (IllegalArgumentException iae) {
+			assertThat("correct exception", iae.getLocalizedMessage(), 
+					is(exp));
+		}
+		try {
+			js.createJob(user, new DefaultUJSAuthorizer(),
+					UJSAuthorizer.DEFAULT_AUTH_STRAT,
+					UJSAuthorizer.DEFAULT_AUTH_PARAM,
+					new WorkspaceUserMetadata());
+		} catch (IllegalArgumentException iae) {
+			assertThat("correct exception", iae.getLocalizedMessage(), 
+					is(exp));
 		}
 	}
 	

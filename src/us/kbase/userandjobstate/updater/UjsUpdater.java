@@ -124,7 +124,7 @@ public class UjsUpdater {
 			final SchemaManager sm)
 					throws SchemaManagerCommunicationException {
 		final DBObject update = new BasicDBObject(JobState.AUTH_STRAT,
-				UJSAuthorizer.DEFAULT_AUTHSTRAT.getStrat());
+				UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat());
 		update.put(JobState.AUTH_PARAM, UJSAuthorizer.DEFAULT_AUTH_PARAM);
 		update.put(JobState.METADATA,
 				new LinkedList<Map<String, String>>());

@@ -117,7 +117,7 @@ public class JobState {
 			throws CommunicationException {
 		try {
 			return createJob(user, new DefaultUJSAuthorizer(),
-					UJSAuthorizer.DEFAULT_AUTHSTRAT,
+					UJSAuthorizer.DEFAULT_AUTH_STRAT,
 					UJSAuthorizer.DEFAULT_AUTH_PARAM,
 					new WorkspaceUserMetadata());
 		} catch (UJSAuthorizationException e) {
@@ -125,9 +125,6 @@ public class JobState {
 					"This should be impossible, but there you go", e);
 		}
 	}
-	
-	//TODO NOW remove interface
-	//TODO NOW remove default auth strat
 	
 	//TODO NOW this needs testing, usermeta & different auth params for default auth strat, and differnt implementations of auth strat
 	public String createJob(
