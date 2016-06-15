@@ -30,7 +30,7 @@ import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.RegexMatcher;
 import us.kbase.common.test.controllers.mongo.MongoController;
-import us.kbase.userandjobstate.jobstate.Job;
+import us.kbase.userandjobstate.jobstate.UJSJob;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.jobstate.JobState;
@@ -141,7 +141,7 @@ public class JobStateTests {
 		}
 		String jobid = js.createJob("foo");
 		assertThat("get job id", jobid, OBJ_ID_MATCH);
-		Job j = js.getJob("foo", jobid);
+		UJSJob j = js.getJob("foo", jobid);
 		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
 				null, null, null, null, null, null);
 		try {
@@ -175,7 +175,7 @@ public class JobStateTests {
 		Date nearpast = new Date(new Date().getTime() - 10);
 		String jobid = js.createJob("foo");
 		js.startJob("foo", jobid, "serv1", "started job", "job desc", null);
-		Job j = js.getJob("foo", jobid);
+		UJSJob j = js.getJob("foo", jobid);
 		checkJob(j, jobid, "started", null, "foo", "started job", "serv1",
 				"job desc", "none", null, null, false, false, null, null);
 		testStartJobBadArgs("foo", jobid, "serv2", "started job", "job desc", null,
@@ -334,7 +334,7 @@ public class JobStateTests {
 		}
 	}
 	
-	private void checkJob(Job j, String id, String stage, Date estComplete, 
+	private void checkJob(UJSJob j, String id, String stage, Date estComplete, 
 			String user, String status, String service, String desc,
 			String progtype, Integer prog, Integer maxproj, Boolean complete,
 			Boolean error, String errmsg, JobResults results) {
@@ -353,7 +353,7 @@ public class JobStateTests {
 				results, shared);
 	}
 	
-	private void checkJob(Job j, String id, String stage, Date estComplete, 
+	private void checkJob(UJSJob j, String id, String stage, Date estComplete, 
 			String user, String status, String service, String desc,
 			String progtype, Integer prog, Integer maxproj, Boolean complete,
 			Boolean error, String errmsg, JobResults results,
@@ -394,7 +394,7 @@ public class JobStateTests {
 		//task based progress
 		String jobid = js.createAndStartJob("bar", "service1", "st", "de", 33,
 				null);
-		Job j = js.getJob("bar", jobid);
+		UJSJob j = js.getJob("bar", jobid);
 		checkJob(j, jobid, "started", null, "bar", "st", "service1", "de",
 				"task", 0, 33, false, false, null, null);
 		
@@ -529,7 +529,7 @@ public class JobStateTests {
 		JobResults res1 = new JobResults(null, null, null, null,
 				Arrays.asList("node1", "node2"));
 		js.completeJob("comp", jobid, "cserv1", "cstat1-3", "thing", res1);
-		Job j = js.getJob("comp", jobid);
+		UJSJob j = js.getJob("comp", jobid);
 		checkJob(j, jobid, "error", null, "comp", "cstat1-3", "cserv1", "cdesc1",
 				"task", 5, 5, true, true, "thing", res1);
 		try {
@@ -637,7 +637,7 @@ public class JobStateTests {
 	@Test
 	public void checkDateUpdates() throws Exception {
 		String jobid = js.createJob("date");
-		Job j = js.getJob("date", jobid);
+		UJSJob j = js.getJob("date", jobid);
 		Date create = j.getLastUpdated();
 		js.startJob("date", jobid, "serv1", "stat", "desc", null);
 		j = js.getJob("date", jobid);
@@ -663,7 +663,7 @@ public class JobStateTests {
 		String jobid = js.createAndStartJob("delete", "serv1", "st", "dsc",
 				null);
 		js.completeJob("delete", jobid, "serv1", "st", null, null);
-		Job j = js.getJob("delete", jobid); //should work
+		UJSJob j = js.getJob("delete", jobid); //should work
 		checkJob(j, jobid, "complete", null, "delete", "st", "serv1", "dsc",
 				"none", null, null, true, false, null, null);
 		succeedAtDeletingJob("delete", jobid);
@@ -857,10 +857,10 @@ public class JobStateTests {
 		
 	}
 	
-	private void checkListJobs(List<FakeJob> expected, List<Job> result)
+	private void checkListJobs(List<FakeJob> expected, List<UJSJob> result)
 		throws Exception {
 		HashSet<FakeJob> res = new HashSet<FakeJob>();
-		for (Job j: result) {
+		for (UJSJob j: result) {
 			res.add(new FakeJob(j));
 		}
 		assertThat("got expected jobs back", res, is(new HashSet<FakeJob>(expected)));
