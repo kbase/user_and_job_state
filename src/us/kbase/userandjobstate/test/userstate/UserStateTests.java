@@ -23,7 +23,6 @@ import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.controllers.mongo.MongoController;
-import us.kbase.userandjobstate.jobstate.UJSJobState;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
@@ -86,7 +85,8 @@ public class UserStateTests {
 		 */
 		new SchemaManager(schemacol).setRecord("userstate", 2, false);
 		try {
-			new UJSJobState(usercol, new SchemaManager(schemacol));
+			new UserState(usercol, new SchemaManager(schemacol));
+			fail("created userstate with bad schema");
 		} catch (IncompatibleSchemaException e) {
 			assertThat("incorrect exception message", e.getLocalizedMessage(),
 					is("Incompatible database schema for schema type " +

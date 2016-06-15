@@ -33,7 +33,7 @@ import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
-import us.kbase.userandjobstate.jobstate.UJSJobState;
+import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 import us.kbase.userandjobstate.test.FakeJob;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
@@ -46,7 +46,7 @@ public class JobStateTests {
 	
 	private static DBCollection jobcol;
 	private static DBCollection schemacol;
-	private static UJSJobState js;
+	private static JobState js;
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
@@ -59,7 +59,7 @@ public class JobStateTests {
 				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
 		jobcol = db.getCollection("jobstate");
 		schemacol = db.getCollection("schema");
-		js = new UJSJobState(jobcol, new SchemaManager(schemacol));
+		js = new JobState(jobcol, new SchemaManager(schemacol));
 				
 	}
 	
@@ -114,7 +114,8 @@ public class JobStateTests {
 		 */
 		new SchemaManager(schemacol).setRecord("jobstate", 1, false);
 		try {
-			new UJSJobState(jobcol, new SchemaManager(schemacol));
+			new JobState(jobcol, new SchemaManager(schemacol));
+			fail("created job state with bad schema");
 		} catch (IncompatibleSchemaException e) {
 			assertThat("incorrect exception message", e.getLocalizedMessage(),
 					is("Incompatible database schema for schema type " +

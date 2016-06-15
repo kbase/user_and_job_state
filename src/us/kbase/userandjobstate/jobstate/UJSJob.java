@@ -1,8 +1,8 @@
 package us.kbase.userandjobstate.jobstate;
 
-import static us.kbase.userandjobstate.jobstate.UJSJobState.PROG_NONE;
-import static us.kbase.userandjobstate.jobstate.UJSJobState.META_KEY;
-import static us.kbase.userandjobstate.jobstate.UJSJobState.META_VALUE;
+import static us.kbase.userandjobstate.jobstate.JobState.PROG_NONE;
+import static us.kbase.userandjobstate.jobstate.JobState.META_KEY;
+import static us.kbase.userandjobstate.jobstate.JobState.META_VALUE;
 
 import java.util.Date;
 import java.util.HashMap;

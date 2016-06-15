@@ -25,7 +25,7 @@ import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
 import us.kbase.common.schemamanager.exceptions.SchemaManagerCommunicationException;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
-import us.kbase.userandjobstate.jobstate.UJSJobState;
+import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.userstate.UserState;
 
 
@@ -106,15 +106,15 @@ public class UjsUpdater {
 					throws SchemaManagerCommunicationException {
 		//don't check upgrade state since upgrade could've halted partway
 		//through
-		final int ver = sm.getDBVersion(UJSJobState.SCHEMA_TYPE);
+		final int ver = sm.getDBVersion(JobState.SCHEMA_TYPE);
 		if (ver == -1) {
 			System.out.println("Upgrading jobs database to version 2.");
 			final int num = upgradeJobsTo2(jobs, sm);
 			System.out.println("Upgraded " + num + " documents.");
-		} else if (ver != UJSJobState.SCHEMA_VER) {
+		} else if (ver != JobState.SCHEMA_VER) {
 			throw new IllegalStateException(String.format(
 					"There is no upgrade path from %s DB version %s to %s",
-					UJSJobState.SCHEMA_TYPE, ver, UJSJobState.SCHEMA_VER));
+					JobState.SCHEMA_TYPE, ver, JobState.SCHEMA_VER));
 		} else {
 			System.out.println("No upgrade needed.");
 		}
@@ -123,15 +123,15 @@ public class UjsUpdater {
 	private int upgradeJobsTo2(final DBCollection jobs,
 			final SchemaManager sm)
 					throws SchemaManagerCommunicationException {
-		final DBObject update = new BasicDBObject(UJSJobState.AUTH_STRAT,
+		final DBObject update = new BasicDBObject(JobState.AUTH_STRAT,
 				UJSAuthorizer.DEFAULT_AUTHSTRAT.getStrat());
-		update.put(UJSJobState.AUTH_PARAM, UJSAuthorizer.DEFAULT_AUTH_PARAM);
-		update.put(UJSJobState.METADATA,
+		update.put(JobState.AUTH_PARAM, UJSAuthorizer.DEFAULT_AUTH_PARAM);
+		update.put(JobState.METADATA,
 				new LinkedList<Map<String, String>>());
-		sm.setRecord(UJSJobState.SCHEMA_TYPE, -1, true);
+		sm.setRecord(JobState.SCHEMA_TYPE, -1, true);
 		WriteResult wr = jobs.update(new BasicDBObject(),
 				new BasicDBObject("$set", update), false, true);
-		sm.setRecord(UJSJobState.SCHEMA_TYPE, UJSJobState.SCHEMA_VER, false);
+		sm.setRecord(JobState.SCHEMA_TYPE, JobState.SCHEMA_VER, false);
 		return wr.getN();
 	}
 
