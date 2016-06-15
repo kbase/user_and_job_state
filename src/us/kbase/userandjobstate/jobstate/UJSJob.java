@@ -3,8 +3,10 @@ package us.kbase.userandjobstate.jobstate;
 import static us.kbase.userandjobstate.jobstate.JobState.PROG_NONE;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import org.bson.types.ObjectId;
 
@@ -28,6 +30,11 @@ public class UJSJob implements Job {
 	private List<String> shared;
 	private String authstrat;
 	private String authparam;
+	private List<Map<String, String>> meta;
+	
+	public static final String META_KEY = "k";
+	public static final String META_VALUE = "v";
+	
 	
 	private UJSJob() {}
 
@@ -196,6 +203,16 @@ public class UJSJob implements Job {
 	@Override
 	public String getAuthorizationParameter() {
 		return authparam;
+	}
+	
+	@Override
+	public Map<String, String> getMetadata() {
+		final Map<String, String> ret = new HashMap<String, String>();
+		for (final Map<String, String> o: meta) {
+			ret.put((String) o.get(META_KEY),
+					(String) o.get(META_VALUE));
+		}
+		return ret;
 	}
 
 	@Override

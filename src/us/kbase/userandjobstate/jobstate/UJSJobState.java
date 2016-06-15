@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
@@ -54,6 +55,7 @@ public class UJSJobState implements JobState {
 	private final static String SHARED = "shared";
 	public static final String AUTH_STRAT = "authstrat";
 	public static final String AUTH_PARAM = "authparam";
+	public static final String METADATA = "meta";
 	
 	private final static String MONGO_ID = "_id";
 	
@@ -107,6 +109,7 @@ public class UJSJobState implements JobState {
 		final Date date = new Date();
 		job.put(AUTH_STRAT, Job.DEFAULT_AUTH_STRAT);
 		job.put(AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
+		job.put(METADATA, new LinkedList<Map<String, String>>());
 		job.put(CREATED, date);
 		job.put(UPDATED, date);
 		job.put(EST_COMP, null);

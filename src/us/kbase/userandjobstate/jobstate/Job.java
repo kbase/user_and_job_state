@@ -2,6 +2,7 @@ package us.kbase.userandjobstate.jobstate;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 public interface Job {
 
@@ -51,6 +52,8 @@ public interface Job {
 	public String getAuthorizationStrategy();
 	
 	public String getAuthorizationParameter();
+	
+	public Map<String, String> getMetadata();
 
 	@Override
 	public String toString();

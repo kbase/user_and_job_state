@@ -6,8 +6,10 @@ import static org.junit.Assert.assertThat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import us.kbase.common.service.Tuple14;
 import us.kbase.userandjobstate.Result;
@@ -34,6 +36,7 @@ public class FakeJob {
 	private final JobResults results;
 	private final String authstrat;
 	private final String authparam;
+	private final Map<String, String> metadata;
 	
 	public FakeJob(final Job j) {
 		id = j.getID();
@@ -51,8 +54,9 @@ public class FakeJob {
 		error = j.hasError();
 		errormsg = j.getErrorMsg();
 		results = j.getResults();
-		authstrat = "DEFAULT";
-		authparam = "DEFAULT";
+		authstrat = j.getAuthorizationStrategy();
+		authparam = j.getAuthorizationParameter();
+		metadata = j.getMetadata(); 
 	}
 
 	public FakeJob(final String id, final String user, final String service,
@@ -76,6 +80,7 @@ public class FakeJob {
 		this.results = results;
 		authstrat = "DEFAULT";
 		authparam = "DEFAULT";
+		metadata = new HashMap<String, String>();
 	}
 	
 	private final SimpleDateFormat utc =
@@ -118,6 +123,7 @@ public class FakeJob {
 		}
 		authstrat = "DEFAULT";
 		authparam = "DEFAULT";
+		metadata = new HashMap<String, String>();
 	}
 	
 	//no checking, assumes the cast is ok
@@ -167,6 +173,8 @@ public class FakeJob {
 		builder.append(authstrat);
 		builder.append(", authparam=");
 		builder.append(authparam);
+		builder.append(", metadata=");
+		builder.append(metadata);
 		builder.append(", utc=");
 		builder.append(utc);
 		builder.append("]");
@@ -191,6 +199,8 @@ public class FakeJob {
 				+ ((estcompl == null) ? 0 : estcompl.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
 		result = prime * result + ((maxprog == null) ? 0 : maxprog.hashCode());
+		result = prime * result
+				+ ((metadata == null) ? 0 : metadata.hashCode());
 		result = prime * result + ((prog == null) ? 0 : prog.hashCode());
 		result = prime * result
 				+ ((progtype == null) ? 0 : progtype.hashCode());
@@ -256,6 +266,11 @@ public class FakeJob {
 			if (other.maxprog != null)
 				return false;
 		} else if (!maxprog.equals(other.maxprog))
+			return false;
+		if (metadata == null) {
+			if (other.metadata != null)
+				return false;
+		} else if (!metadata.equals(other.metadata))
 			return false;
 		if (prog == null) {
 			if (other.prog != null)

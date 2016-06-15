@@ -9,9 +9,11 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.bson.types.ObjectId;
@@ -381,6 +383,8 @@ public class JobStateTests {
 				is("DEFAULT"));
 		assertThat("not default auth param", j.getAuthorizationParameter(),
 				is("DEFAULT"));
+		assertThat("incorrect metadata", j.getMetadata(),
+				is((Map<String, String>) new HashMap<String, String>()));
 	}
 	
 	@Test

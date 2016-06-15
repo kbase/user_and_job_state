@@ -13,6 +13,7 @@ import static us.kbase.userandjobstate.UserAndJobStateServer.SCHEMA_VERS_COLLECT
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.file.Paths;
+import java.util.LinkedList;
 import java.util.Map;
 
 import org.ini4j.Ini;
@@ -125,6 +126,8 @@ public class UjsUpdater {
 		final DBObject update = new BasicDBObject(UJSJobState.AUTH_STRAT,
 				Job.DEFAULT_AUTH_STRAT);
 		update.put(UJSJobState.AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
+		update.put(UJSJobState.METADATA,
+				new LinkedList<Map<String, String>>());
 		sm.setRecord(UJSJobState.SCHEMA_TYPE, -1, true);
 		WriteResult wr = jobs.update(new BasicDBObject(),
 				new BasicDBObject("$set", update), false, true);
