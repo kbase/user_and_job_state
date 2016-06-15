@@ -3,9 +3,11 @@ package us.kbase.userandjobstate.jobstate;
 import static us.kbase.common.utils.StringUtils.checkString;
 import static us.kbase.common.utils.StringUtils.checkMaxLen;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +20,13 @@ import org.jongo.MongoCollection;
 
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.SchemaException;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
+import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
+import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -27,7 +34,7 @@ import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 import com.mongodb.WriteResult;
 
-public class UJSJobState implements JobState {
+public class UJSJobState {
 
 //	private final static int JOB_EXPIRES = 180 * 24 * 60 * 60; // 180 days
 	
@@ -57,7 +64,14 @@ public class UJSJobState implements JobState {
 	public static final String AUTH_PARAM = "authparam";
 	public static final String METADATA = "meta";
 	
+	public final static String PROG_NONE = "none";
+	public final static String PROG_TASK = "task";
+	public final static String PROG_PERC = "percent";
+	
 	private final static String MONGO_ID = "_id";
+	
+	public static final String META_KEY = "k";
+	public static final String META_VALUE = "v";
 	
 	public static final String SCHEMA_TYPE = "jobstate";
 	public final static int SCHEMA_VER = 2;
@@ -99,17 +113,41 @@ public class UJSJobState implements JobState {
 		idx.put(AUTH_PARAM, 1);
 		jobcol.createIndex(idx);
 	}
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#createJob(java.lang.String)
-	 */
-	@Override
-	public String createJob(final String user) throws CommunicationException {
+	public String createJob(final String user)
+			throws CommunicationException {
+		try {
+			return createJob(user, new DefaultUJSAuthorizer(),
+					UJSAuthorizer.DEFAULT_AUTHSTRAT,
+					UJSAuthorizer.DEFAULT_AUTH_PARAM,
+					new WorkspaceUserMetadata());
+		} catch (UJSAuthorizationException e) {
+			throw new RuntimeException(
+					"This should be impossible, but there you go", e);
+		}
+	}
+	
+	//TODO NOW remove interface
+	//TODO NOW remove default auth strat
+	
+	//TODO NOW this needs testing, usermeta & different auth params for default auth strat, and differnt implementations of auth strat
+	public String createJob(
+			final String user,
+			final UJSAuthorizer auth,
+			final AuthorizationStrategy strat,
+			final String authParam,
+			//TODO LATER this class should be renamed
+			final WorkspaceUserMetadata meta)
+			throws CommunicationException, UJSAuthorizationException {
 		checkString(user, "user", MAX_LEN_USER);
+		auth.authorizeCreate(strat, authParam);
+		if (meta == null) {
+			throw new NullPointerException("meta");
+		}
 		final DBObject job = new BasicDBObject(USER, user);
 		final Date date = new Date();
-		job.put(AUTH_STRAT, Job.DEFAULT_AUTH_STRAT);
-		job.put(AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
-		job.put(METADATA, new LinkedList<Map<String, String>>());
+		job.put(AUTH_STRAT, strat.getStrat());
+		job.put(AUTH_PARAM, authParam);
+		job.put(METADATA, metaToMongoArray(meta));
 		job.put(CREATED, date);
 		job.put(UPDATED, date);
 		job.put(EST_COMP, null);
@@ -121,6 +159,19 @@ public class UJSJobState implements JobState {
 					"There was a problem communicating with the database", me);
 		}
 		return ((ObjectId) job.get(MONGO_ID)).toString();
+	}
+	
+	private static List<Map<String, String>> metaToMongoArray(
+			final WorkspaceUserMetadata wum) {
+		final List<Map<String, String>> meta = 
+				new ArrayList<Map<String, String>>();
+		for (String key: wum.getMetadata().keySet()) {
+			Map<String, String> m = new LinkedHashMap<String, String>(2);
+			m.put(META_KEY, key);
+			m.put(META_VALUE, wum.getMetadata().get(key));
+			meta.add(m);
+		}
+		return meta;
 	}
 	
 	private static ObjectId checkJobID(final String id) {
@@ -142,10 +193,6 @@ public class UJSJobState implements JobState {
 	private final static String QRY_FIND_JOB_NO_USER = String.format(
 			"{%s: #}", MONGO_ID);
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#getJob(java.lang.String, java.lang.String)
-	 */
-	@Override
 	public Job getJob(final String user, final String jobID)
 			throws CommunicationException, NoSuchJobException {
 		checkString(user, "user", MAX_LEN_USER);
@@ -175,10 +222,6 @@ public class UJSJobState implements JobState {
 		return j;
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#startJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.Date)
-	 */
-	@Override
 	public void startJob(final String user, final String jobID,
 			final String service, final String status,
 			final String description, final Date estComplete)
@@ -187,10 +230,6 @@ public class UJSJobState implements JobState {
 				estComplete);
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#startJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, int, java.util.Date)
-	 */
-	@Override
 	public void startJob(final String user, final String jobID,
 			final String service, final String status,
 			final String description, final int maxProg,
@@ -200,10 +239,6 @@ public class UJSJobState implements JobState {
 				estComplete);
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#startJobWithPercentProg(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.Date)
-	 */
-	@Override
 	public void startJobWithPercentProg(final String user, final String jobID,
 			final String service, final String status,
 			final String description, final Date estComplete)
@@ -286,10 +321,6 @@ public class UJSJobState implements JobState {
 		}
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#createAndStartJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.Date)
-	 */
-	@Override
 	public String createAndStartJob(final String user, final String service,
 			final String status, final String description,
 			final Date estComplete)
@@ -298,10 +329,6 @@ public class UJSJobState implements JobState {
 				null, estComplete);
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#createAndStartJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, int, java.util.Date)
-	 */
-	@Override
 	public String createAndStartJob(final String user, final String service,
 			final String status, final String description, final int maxProg,
 			final Date estComplete)
@@ -310,10 +337,6 @@ public class UJSJobState implements JobState {
 				maxProg, estComplete);
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#createAndStartJobWithPercentProg(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.Date)
-	 */
-	@Override
 	public String createAndStartJobWithPercentProg(final String user,
 			final String service, final String status,
 			final String description, final Date estComplete)
@@ -341,10 +364,6 @@ public class UJSJobState implements JobState {
 	//TODO NOW note that owner can always write and read job, regardless of auth strategy
 	//TODO NOW better explanation of auth strategy in header
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#updateJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.Integer, java.util.Date)
-	 */
-	@Override
 	public void updateJob(final String user, final String jobID,
 			final String service, final String status, final Integer progress,
 			final Date estComplete)
@@ -381,10 +400,6 @@ public class UJSJobState implements JobState {
 	}
 	
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#completeJob(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.util.Map)
-	 */
-	@Override
 	public void completeJob(final String user, final String jobID,
 			final String service, final String status, final String error,
 			final JobResults results)
@@ -454,19 +469,11 @@ public class UJSJobState implements JobState {
 		return query;
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#deleteJob(java.lang.String, java.lang.String)
-	 */
-	@Override
 	public void deleteJob(final String user, final String jobID)
 			throws NoSuchJobException, CommunicationException {
 		deleteJob(user, jobID, null);
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#deleteJob(java.lang.String, java.lang.String, java.lang.String)
-	 */
-	@Override
 	public void deleteJob(final String user, final String jobID,
 			final String service)
 			throws NoSuchJobException, CommunicationException {
@@ -494,10 +501,6 @@ public class UJSJobState implements JobState {
 		}
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#listServices(java.lang.String)
-	 */
-	@Override
 	public Set<String> listServices(final String user)
 			throws CommunicationException {
 		checkString(user, "user");
@@ -517,10 +520,6 @@ public class UJSJobState implements JobState {
 		return services;
 	}
 	
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#listJobs(java.lang.String, java.util.List, boolean, boolean, boolean, boolean)
-	 */
-	@Override
 	public List<Job> listJobs(final String user, final List<String> services,
 			final boolean queued, final boolean running,
 			final boolean complete, final boolean error, final boolean shared)
@@ -576,10 +575,6 @@ public class UJSJobState implements JobState {
 	
 	//note sharing with an already shared user or sharing with the owner has
 	//no effect
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#shareJob(java.lang.String, java.lang.String, java.util.List)
-	 */
-	@Override
 	public void shareJob(final String owner, final String jobID,
 			final List<String> users)
 			throws CommunicationException, NoSuchJobException {
@@ -622,10 +617,6 @@ public class UJSJobState implements JobState {
 	}
 	
 	//removing the owner or an unshared user has no effect
-	/* (non-Javadoc)
-	 * @see us.kbase.userandjobstate.jobstate.JobStateInter#unshareJob(java.lang.String, java.lang.String, java.util.List)
-	 */
-	@Override
 	public void unshareJob(final String user, final String jobID,
 			final List<String> users) throws CommunicationException,
 			NoSuchJobException {

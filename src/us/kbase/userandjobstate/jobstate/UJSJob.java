@@ -1,6 +1,8 @@
 package us.kbase.userandjobstate.jobstate;
 
-import static us.kbase.userandjobstate.jobstate.JobState.PROG_NONE;
+import static us.kbase.userandjobstate.jobstate.UJSJobState.PROG_NONE;
+import static us.kbase.userandjobstate.jobstate.UJSJobState.META_KEY;
+import static us.kbase.userandjobstate.jobstate.UJSJobState.META_VALUE;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -31,10 +33,6 @@ public class UJSJob implements Job {
 	private String authstrat;
 	private String authparam;
 	private List<Map<String, String>> meta;
-	
-	public static final String META_KEY = "k";
-	public static final String META_VALUE = "v";
-	
 	
 	private UJSJob() {}
 

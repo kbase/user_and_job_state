@@ -24,7 +24,7 @@ import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
 import us.kbase.common.schemamanager.exceptions.SchemaManagerCommunicationException;
-import us.kbase.userandjobstate.jobstate.Job;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.jobstate.UJSJobState;
 import us.kbase.userandjobstate.userstate.UserState;
 
@@ -124,8 +124,8 @@ public class UjsUpdater {
 			final SchemaManager sm)
 					throws SchemaManagerCommunicationException {
 		final DBObject update = new BasicDBObject(UJSJobState.AUTH_STRAT,
-				Job.DEFAULT_AUTH_STRAT);
-		update.put(UJSJobState.AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
+				UJSAuthorizer.DEFAULT_AUTHSTRAT.getStrat());
+		update.put(UJSJobState.AUTH_PARAM, UJSAuthorizer.DEFAULT_AUTH_PARAM);
 		update.put(UJSJobState.METADATA,
 				new LinkedList<Map<String, String>>());
 		sm.setRecord(UJSJobState.SCHEMA_TYPE, -1, true);

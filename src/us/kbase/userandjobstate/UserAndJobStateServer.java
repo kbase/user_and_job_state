@@ -59,7 +59,6 @@ import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.jobstate.UJSJobState;
-import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
 //END_HEADER
@@ -150,7 +149,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private final static int TOKEN_REFRESH_INTERVAL_SEC = 24 * 60 * 60;
 	
 	private final UserState us;
-	private final JobState js;
+	private final UJSJobState js;
 	private final ConfigurableAuthService auth;
 	
 	private final static DateTimeFormatter DATE_PARSER =
@@ -761,15 +760,15 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		if (progress.getPtype() == null) {
 			throw new IllegalArgumentException("Progress type cannot be null");
 		}
-		if (progress.getPtype().equals(JobState.PROG_NONE)) {
+		if (progress.getPtype().equals(UJSJobState.PROG_NONE)) {
 			js.startJob(authPart.getUserName(), job,
 					getServiceUserName(token), status, desc,
 					parseDate(estComplete));
-		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
+		} else if (progress.getPtype().equals(UJSJobState.PROG_PERC)) {
 			js.startJobWithPercentProg(
 					authPart.getUserName(), job, getServiceUserName(token), status,
 					desc, parseDate(estComplete));
-		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
+		} else if (progress.getPtype().equals(UJSJobState.PROG_TASK)) {
 			if (progress.getMax() == null) {
 				throw new IllegalArgumentException(
 						"Max progress cannot be null for task based progress");
@@ -814,14 +813,14 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		if (progress.getPtype() == null) {
 			throw new IllegalArgumentException("Progress type cannot be null");
 		}
-		if (progress.getPtype().equals(JobState.PROG_NONE)) {
+		if (progress.getPtype().equals(UJSJobState.PROG_NONE)) {
 			returnVal = js.createAndStartJob(authPart.getUserName(),
 					getServiceUserName(token), status, desc, parseDate(estComplete));
-		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
+		} else if (progress.getPtype().equals(UJSJobState.PROG_PERC)) {
 			returnVal = js.createAndStartJobWithPercentProg(
 					authPart.getUserName(), getServiceUserName(token), status, desc,
 					parseDate(estComplete));
-		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
+		} else if (progress.getPtype().equals(UJSJobState.PROG_TASK)) {
 			if (progress.getMax() == null) {
 				throw new IllegalArgumentException(
 						"Max progress cannot be null for task based progress");

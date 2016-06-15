@@ -34,7 +34,6 @@ import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.jobstate.UJSJobState;
-import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 import us.kbase.userandjobstate.test.FakeJob;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
@@ -47,7 +46,7 @@ public class JobStateTests {
 	
 	private static DBCollection jobcol;
 	private static DBCollection schemacol;
-	private static JobState js;
+	private static UJSJobState js;
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
