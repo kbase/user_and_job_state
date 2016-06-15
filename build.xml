@@ -51,7 +51,7 @@
     <include name="logback/logback-core-1.1.2.jar"/>
     <include name="apache_commons/commons-logging-1.1.1.jar"/>
     <include name="jcommander/jcommander-1.48.jar"/>
-    <include name="workspace/WorkspaceService-0.4.1.jar"/>
+    <include name="kbase/workspace/WorkspaceService-0.4.1.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="testlib">

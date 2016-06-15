@@ -4,12 +4,15 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.DateTimeFormatterBuilder;
 
 import us.kbase.common.service.Tuple14;
 import us.kbase.userandjobstate.Result;
@@ -83,8 +86,12 @@ public class FakeJob {
 		metadata = new HashMap<String, String>();
 	}
 	
-	private final SimpleDateFormat utc =
-			new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ");
+	private final static DateTimeFormatter DATE_PARSER =
+			new DateTimeFormatterBuilder()
+				.append(DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss"))
+				.appendOptional(DateTimeFormat.forPattern(".SSS").getParser())
+				.append(DateTimeFormat.forPattern("Z"))
+				.toFormatter();
 
 	public FakeJob(Tuple14<String, String, String, String, String, String,
 			Long, Long, String, String, Long, Long, String,
@@ -98,7 +105,8 @@ public class FakeJob {
 		this.prog = longToInt(ji.getE7());
 		this.maxprog = longToInt(ji.getE8());
 		this.progtype = ji.getE9();
-		this.estcompl = ji.getE10() == null ? null : utc.parse(ji.getE4());
+		this.estcompl = ji.getE10() == null ? null :
+			DATE_PARSER.parseDateTime(ji.getE4()).toDate();
 		this.complete = ji.getE11() != 0;
 		this.error = ji.getE12() != 0;
 		this.desc = ji.getE13();
@@ -175,8 +183,6 @@ public class FakeJob {
 		builder.append(authparam);
 		builder.append(", metadata=");
 		builder.append(metadata);
-		builder.append(", utc=");
-		builder.append(utc);
 		builder.append("]");
 		return builder.toString();
 	}
@@ -209,7 +215,6 @@ public class FakeJob {
 		result = prime * result + ((stage == null) ? 0 : stage.hashCode());
 		result = prime * result + ((status == null) ? 0 : status.hashCode());
 		result = prime * result + ((user == null) ? 0 : user.hashCode());
-		result = prime * result + ((utc == null) ? 0 : utc.hashCode());
 		return result;
 	}
 
@@ -342,13 +347,6 @@ public class FakeJob {
 				return false;
 			}
 		} else if (!user.equals(other.user)) {
-			return false;
-		}
-		if (utc == null) {
-			if (other.utc != null) {
-				return false;
-			}
-		} else if (!utc.equals(other.utc)) {
 			return false;
 		}
 		return true;
