@@ -215,103 +215,142 @@ public class FakeJob {
 
 	@Override
 	public boolean equals(Object obj) {
-		if (this == obj)
+		if (this == obj) {
 			return true;
-		if (obj == null)
+		}
+		if (obj == null) {
 			return false;
-		if (getClass() != obj.getClass())
+		}
+		if (getClass() != obj.getClass()) {
 			return false;
+		}
 		FakeJob other = (FakeJob) obj;
 		if (authparam == null) {
-			if (other.authparam != null)
+			if (other.authparam != null) {
 				return false;
-		} else if (!authparam.equals(other.authparam))
+			}
+		} else if (!authparam.equals(other.authparam)) {
 			return false;
+		}
 		if (authstrat == null) {
-			if (other.authstrat != null)
+			if (other.authstrat != null) {
 				return false;
-		} else if (!authstrat.equals(other.authstrat))
+			}
+		} else if (!authstrat.equals(other.authstrat)) {
 			return false;
+		}
 		if (complete == null) {
-			if (other.complete != null)
+			if (other.complete != null) {
 				return false;
-		} else if (!complete.equals(other.complete))
+			}
+		} else if (!complete.equals(other.complete)) {
 			return false;
+		}
 		if (desc == null) {
-			if (other.desc != null)
+			if (other.desc != null) {
 				return false;
-		} else if (!desc.equals(other.desc))
+			}
+		} else if (!desc.equals(other.desc)) {
 			return false;
+		}
 		if (error == null) {
-			if (other.error != null)
+			if (other.error != null) {
 				return false;
-		} else if (!error.equals(other.error))
+			}
+		} else if (!error.equals(other.error)) {
 			return false;
+		}
 		if (errormsg == null) {
-			if (other.errormsg != null)
+			if (other.errormsg != null) {
 				return false;
-		} else if (!errormsg.equals(other.errormsg))
+			}
+		} else if (!errormsg.equals(other.errormsg)) {
 			return false;
+		}
 		if (estcompl == null) {
-			if (other.estcompl != null)
+			if (other.estcompl != null) {
 				return false;
-		} else if (!estcompl.equals(other.estcompl))
+			}
+		} else if (!estcompl.equals(other.estcompl)) {
 			return false;
+		}
 		if (id == null) {
-			if (other.id != null)
+			if (other.id != null) {
 				return false;
-		} else if (!id.equals(other.id))
+			}
+		} else if (!id.equals(other.id)) {
 			return false;
+		}
 		if (maxprog == null) {
-			if (other.maxprog != null)
+			if (other.maxprog != null) {
 				return false;
-		} else if (!maxprog.equals(other.maxprog))
+			}
+		} else if (!maxprog.equals(other.maxprog)) {
 			return false;
+		}
 		if (metadata == null) {
-			if (other.metadata != null)
+			if (other.metadata != null) {
 				return false;
-		} else if (!metadata.equals(other.metadata))
+			}
+		} else if (!metadata.equals(other.metadata)) {
 			return false;
+		}
 		if (prog == null) {
-			if (other.prog != null)
+			if (other.prog != null) {
 				return false;
-		} else if (!prog.equals(other.prog))
+			}
+		} else if (!prog.equals(other.prog)) {
 			return false;
+		}
 		if (progtype == null) {
-			if (other.progtype != null)
+			if (other.progtype != null) {
 				return false;
-		} else if (!progtype.equals(other.progtype))
+			}
+		} else if (!progtype.equals(other.progtype)) {
 			return false;
+		}
 		if (results == null) {
-			if (other.results != null)
+			if (other.results != null) {
 				return false;
-		} else if (!results.equals(other.results))
+			}
+		} else if (!results.equals(other.results)) {
 			return false;
+		}
 		if (service == null) {
-			if (other.service != null)
+			if (other.service != null) {
 				return false;
-		} else if (!service.equals(other.service))
+			}
+		} else if (!service.equals(other.service)) {
 			return false;
+		}
 		if (stage == null) {
-			if (other.stage != null)
+			if (other.stage != null) {
 				return false;
-		} else if (!stage.equals(other.stage))
+			}
+		} else if (!stage.equals(other.stage)) {
 			return false;
+		}
 		if (status == null) {
-			if (other.status != null)
+			if (other.status != null) {
 				return false;
-		} else if (!status.equals(other.status))
+			}
+		} else if (!status.equals(other.status)) {
 			return false;
+		}
 		if (user == null) {
-			if (other.user != null)
+			if (other.user != null) {
 				return false;
-		} else if (!user.equals(other.user))
+			}
+		} else if (!user.equals(other.user)) {
 			return false;
+		}
 		if (utc == null) {
-			if (other.utc != null)
+			if (other.utc != null) {
 				return false;
-		} else if (!utc.equals(other.utc))
+			}
+		} else if (!utc.equals(other.utc)) {
 			return false;
+		}
 		return true;
 	}
 }
