@@ -244,7 +244,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return null;
 	}
 	
-	//TODO NOW db converter
+	//TODO NOW update to 0.2.0
 	//TODO NOW basic docs like Shock
 	//TODO NOW recompile when spec is complete
 	

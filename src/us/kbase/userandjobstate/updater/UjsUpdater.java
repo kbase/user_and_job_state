@@ -38,6 +38,7 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
+import com.mongodb.WriteResult;
 
 public class UjsUpdater {
 
@@ -91,6 +92,7 @@ public class UjsUpdater {
 		} catch (Exception e) {
 			throw showError(e);
 		}
+		System.out.println("Updating job state database");
 		try {
 			updateJobStateDB(db.getCollection(JOB_COLLECTION), sm);
 		} catch (Exception e) {
@@ -106,26 +108,28 @@ public class UjsUpdater {
 		final int ver = sm.getDBVersion(UJSJobState.SCHEMA_TYPE);
 		if (ver == -1) {
 			System.out.println("Upgrading jobs database to version 2.");
-			upgradeJobsTo2(jobs, sm);
-			System.out.println("Upgrade complete.");
+			final int num = upgradeJobsTo2(jobs, sm);
+			System.out.println("Upgraded " + num + " documents.");
 		} else if (ver != UJSJobState.SCHEMA_VER) {
 			throw new IllegalStateException(String.format(
 					"There is no upgrade path from %s DB version %s to %s",
 					UJSJobState.SCHEMA_TYPE, ver, UJSJobState.SCHEMA_VER));
+		} else {
+			System.out.println("No upgrade needed.");
 		}
-		System.out.println("No upgrade needed.");
 	}
 
-	private void upgradeJobsTo2(final DBCollection jobs,
+	private int upgradeJobsTo2(final DBCollection jobs,
 			final SchemaManager sm)
 					throws SchemaManagerCommunicationException {
 		final DBObject update = new BasicDBObject(UJSJobState.AUTH_STRAT,
 				Job.DEFAULT_AUTH_STRAT);
 		update.put(UJSJobState.AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
 		sm.setRecord(UJSJobState.SCHEMA_TYPE, -1, true);
-		jobs.update(new BasicDBObject(), new BasicDBObject("$set", update),
-				false, true);
+		WriteResult wr = jobs.update(new BasicDBObject(),
+				new BasicDBObject("$set", update), false, true);
 		sm.setRecord(UJSJobState.SCHEMA_TYPE, UJSJobState.SCHEMA_VER, false);
+		return wr.getN();
 	}
 
 	private void updateUserStateDB(final DBCollection user,
@@ -136,13 +140,16 @@ public class UjsUpdater {
 		final int ver = sm.getDBVersion(UserState.SCHEMA_TYPE);
 		
 		if (ver == -1) {
+			System.out.println("Setting user db version to "
+					+ UserState.SCHEMA_VER);
 			sm.setRecord(UserState.SCHEMA_TYPE, UserState.SCHEMA_VER, false);
 		} else if (ver != UserState.SCHEMA_VER) {
 			throw new IllegalStateException(String.format(
 					"There is no upgrade path from %s DB version %s to %s",
 					UserState.SCHEMA_TYPE, ver, UserState.SCHEMA_VER));
+		} else {
+			System.out.println("No upgrade needed.");
 		}
-		System.out.println("No upgrade needed.");
 	}
 
 	//TODO LATER generalize these methods with the method in the server class
@@ -165,6 +172,9 @@ public class UjsUpdater {
 		}
 		final String user = config.get(USER);
 		final String pwd = config.get(PWD);
+		System.out.println(String.format(
+				"Connecting to mongoDB %s at %s with user [%s]",
+				dbs, host, user));
 		return getMongoDB(host, dbs, user, pwd);
 	}
 
