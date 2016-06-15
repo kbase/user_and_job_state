@@ -125,11 +125,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private static final String VER = "0.1.2";
 
 	//required deploy parameters:
-	private static final String HOST = "mongodb-host";
-	private static final String DB = "mongodb-database";
+	public static final String HOST = "mongodb-host";
+	public static final String DB = "mongodb-database";
 	//auth params:
-	private static final String USER = "mongodb-user";
-	private static final String PWD = "mongodb-pwd";
+	public static final String USER = "mongodb-user";
+	public static final String PWD = "mongodb-pwd";
 	//mongo connection attempt limit
 	private static final String MONGO_RECONNECT = "mongodb-retry";
 	//credentials to use for user queries
@@ -138,14 +138,14 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			
 	private static Map<String, String> ujConfig = null;
 	
-	private static final String USER_COLLECTION = "userstate";
-	private static final String JOB_COLLECTION = "jobstate";
-	private static final String SCHEMA_VERS_COLLECTION = "schemavers";
+	public static final String USER_COLLECTION = "userstate";
+	public static final String JOB_COLLECTION = "jobstate";
+	public static final String SCHEMA_VERS_COLLECTION = "schemavers";
 	
 	private static final int MONGO_RETRY_LOG_INTERVAL = 10;
 	
-	public final static int MAX_LEN_SERVTYPE = 100;
-	public final static int MAX_LEN_DESC = 1000;
+	private final static int MAX_LEN_SERVTYPE = 100;
+	private final static int MAX_LEN_DESC = 1000;
 	
 	private final static int TOKEN_REFRESH_INTERVAL_SEC = 24 * 60 * 60;
 	

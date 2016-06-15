@@ -83,16 +83,16 @@ public class SchemaManagerTest {
 	public void testGetSet() throws Exception {
 		final String sc = "myschema";
 		SchemaManager sm = new SchemaManager(db.getCollection("foo"));
-		sm.setRecord(sc, 0, false);
-		assertThat("incorrect version", sm.getDBVersion(sc), is(0));
+		sm.setRecord(sc, 1, false);
+		assertThat("incorrect version", sm.getDBVersion(sc), is(1));
 		assertThat("incorrect in update", sm.inUpdate(sc), is(false));
 		
 		sm.setRecord(sc, 2, true);
 		assertThat("incorrect version", sm.getDBVersion(sc), is(2));
 		assertThat("incorrect in update", sm.inUpdate(sc), is(true));
 		
-		failSetRecord(sm, sc, -1, true,
-				new IllegalArgumentException("currentVer must be >= 0"));
+		failSetRecord(sm, sc, 0, true,
+				new IllegalArgumentException("currentVer must be > 0"));
 		failSetRecord(sm, null, 1, true,
 				new IllegalArgumentException("schemaType can't be null or empty"));
 		failSetRecord(sm, "", 1, true,

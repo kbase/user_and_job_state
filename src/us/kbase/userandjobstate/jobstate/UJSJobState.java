@@ -57,7 +57,8 @@ public class UJSJobState implements JobState {
 	
 	private final static String MONGO_ID = "_id";
 	
-	private final static int SCHEMA_VER = 2;
+	public static final String SCHEMA_TYPE = "jobstate";
+	public final static int SCHEMA_VER = 2;
 	
 	private final DBCollection jobcol;
 	private final MongoCollection jobjong;
@@ -70,7 +71,7 @@ public class UJSJobState implements JobState {
 		this.jobcol = jobcol;
 		jobjong = new Jongo(jobcol.getDB()).getCollection(jobcol.getName());
 		ensureIndexes();
-		sm.checkSchema("jobstate", SCHEMA_VER);
+		sm.checkSchema(SCHEMA_TYPE, SCHEMA_VER);
 	}
 
 	private void ensureIndexes() {

@@ -36,7 +36,8 @@ public class UserState {
 	
 	private final static String IDX_UNIQ = "unique";
 	
-	private static final int SCHEMA_VER = 1;
+	public static final String SCHEMA_TYPE = "userstate";
+	public static final int SCHEMA_VER = 1;
 	
 	private final DBCollection uscol;
 	
@@ -51,7 +52,7 @@ public class UserState {
 		}
 		uscol = usercol;
 		ensureIndexes();
-		sm.checkSchema("userstate", SCHEMA_VER);
+		sm.checkSchema(SCHEMA_TYPE, SCHEMA_VER);
 	}
 
 	private void ensureIndexes() {

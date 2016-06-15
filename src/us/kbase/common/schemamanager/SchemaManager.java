@@ -154,8 +154,7 @@ public class SchemaManager {
 	 * @return the database version as stored in the database.
 	 * @throws InvalidSchemaRecordException if the schema records are invalid.
 	 */
-	public synchronized int getDBVersion(final String schemaType)
-			throws InvalidSchemaRecordException {
+	public synchronized int getDBVersion(final String schemaType) {
 		return getVersionAndUpdateState(schemaType, false).ver;
 	}
 	
@@ -165,15 +164,13 @@ public class SchemaManager {
 	 * otherwise.
 	 * @throws InvalidSchemaRecordException if the schema records are invalid.
 	 */
-	public synchronized boolean inUpdate(final String schemaType)
-			throws InvalidSchemaRecordException {
+	public synchronized boolean inUpdate(final String schemaType) {
 		return getVersionAndUpdateState(schemaType, false).inupdate;
 	}
 	
 	/** Only use this method on an offline database from a single application.
 	 * @param schemaType the type of schema to access.
-	 * @param the version of the database. Use 0 to represent an unversioned
-	 * database.
+	 * @param the version of the database.
 	 * @param inupdate true to set the database to an update in progress state,
 	 * false to remove the upgrade in progress state.
 	 * @throws SchemaManagerCommunicationException 
@@ -188,8 +185,8 @@ public class SchemaManager {
 			throw new IllegalArgumentException(
 					"schemaType can't be null or empty");
 		}
-		if (version < 0) {
-			throw new IllegalArgumentException("currentVer must be >= 0");
+		if (version < 1) {
+			throw new IllegalArgumentException("currentVer must be > 0");
 		}
 		final DBObject cfg = new BasicDBObject(UPDATE, inupdate);
 		cfg.put(SCHEMA_VER, version);

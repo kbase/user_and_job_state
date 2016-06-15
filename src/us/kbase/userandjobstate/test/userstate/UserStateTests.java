@@ -84,13 +84,13 @@ public class UserStateTests {
 		/* this just tests that the schema manager is doing something.
 		 * The schema manager tests should handle everything else.
 		 */
-		new SchemaManager(schemacol).setRecord("userstate", 0, false);
+		new SchemaManager(schemacol).setRecord("userstate", 2, false);
 		try {
 			new UJSJobState(usercol, new SchemaManager(schemacol));
 		} catch (IncompatibleSchemaException e) {
 			assertThat("incorrect exception message", e.getLocalizedMessage(),
 					is("Incompatible database schema for schema type " +
-							"userstate. DB is v0, codebase is v1"));
+							"userstate. DB is v2, codebase is v1"));
 		}
 	}
 	
