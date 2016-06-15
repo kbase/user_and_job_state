@@ -3,7 +3,7 @@ package us.kbase.userandjobstate.authorization;
 import java.util.List;
 
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
-import us.kbase.userandjobstate.jobstate.UJSJob;
+import us.kbase.userandjobstate.jobstate.Job;
 
 public abstract class UJSAuthorizer {
 	
@@ -50,7 +50,7 @@ public abstract class UJSAuthorizer {
 			final AuthorizationStrategy strat,
 			final String user,
 			final String authParam,
-			final UJSJob j)
+			final Job j)
 			throws UJSAuthorizationException {
 		checkAuthParam(authParam);
 		checkUser(user);
@@ -71,7 +71,7 @@ public abstract class UJSAuthorizer {
 			final AuthorizationStrategy strat,
 			final String user,
 			final String authParam,
-			final UJSJob j)
+			final Job j)
 			throws UJSAuthorizationException;
 
 	public void authorizeRead(

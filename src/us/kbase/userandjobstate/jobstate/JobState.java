@@ -193,7 +193,7 @@ public class JobState {
 	private final static String QRY_FIND_JOB_NO_USER = String.format(
 			"{%s: #}", MONGO_ID);
 	
-	public UJSJob getJob(final String user, final String jobID)
+	public Job getJob(final String user, final String jobID)
 			throws CommunicationException, NoSuchJobException {
 		checkString(user, "user", MAX_LEN_USER);
 		final ObjectId oi = checkJobID(jobID);
@@ -201,15 +201,15 @@ public class JobState {
 	}
 	
 	//TODO NOW user will have to go, auth outside of this class
-	private UJSJob getJob(final String user, final ObjectId jobID)
+	private Job getJob(final String user, final ObjectId jobID)
 			throws CommunicationException, NoSuchJobException {
-		final UJSJob j;
+		final Job j;
 		try {
 			if (user == null) {
-				j = jobjong.findOne(QRY_FIND_JOB_NO_USER, jobID).as(UJSJob.class);
+				j = jobjong.findOne(QRY_FIND_JOB_NO_USER, jobID).as(Job.class);
 			} else {
 				j = jobjong.findOne(QRY_FIND_JOB_BY_USER, jobID, user, user)
-						.as(UJSJob.class);
+						.as(Job.class);
 			}
 		} catch (MongoException me) {
 			throw new CommunicationException(
@@ -520,7 +520,7 @@ public class JobState {
 		return services;
 	}
 	
-	public List<UJSJob> listJobs(final String user, final List<String> services,
+	public List<Job> listJobs(final String user, final List<String> services,
 			final boolean queued, final boolean running,
 			final boolean complete, final boolean error, final boolean shared)
 			throws CommunicationException {
@@ -558,10 +558,10 @@ public class JobState {
 		} else {
 			query += "}";
 		}
-		final List<UJSJob> jobs = new LinkedList<UJSJob>();
+		final List<Job> jobs = new LinkedList<Job>();
 		try {
-			final Iterable<UJSJob> j  = jobjong.find(query).as(UJSJob.class);
-			for (final UJSJob job: j) {
+			final Iterable<Job> j  = jobjong.find(query).as(Job.class);
+			for (final Job job: j) {
 				jobs.add(job);
 			}
 		} catch (MongoException me) {
@@ -623,7 +623,7 @@ public class JobState {
 		final NoSuchJobException e = new NoSuchJobException(String.format(
 				"There is no job %s visible to user %s", jobID, user));
 		final ObjectId id = checkShareParams(user, jobID, users, "user");
-		final UJSJob j;
+		final Job j;
 		try {
 			j= getJob(null, id);
 		} catch (NoSuchJobException nsje) {

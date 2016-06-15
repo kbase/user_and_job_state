@@ -12,7 +12,7 @@ import java.util.Map;
 
 import org.bson.types.ObjectId;
 
-public class UJSJob {
+public class Job {
 	
 	public static final String CREATED = "created";
 	public static final String STARTED = "started";
@@ -40,7 +40,7 @@ public class UJSJob {
 	private String authparam;
 	private List<Map<String, String>> meta;
 	
-	private UJSJob() {}
+	private Job() {}
 
 	public String getID() {
 		return _id.toString();

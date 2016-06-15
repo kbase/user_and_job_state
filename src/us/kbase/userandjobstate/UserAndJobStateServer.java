@@ -55,7 +55,7 @@ import us.kbase.auth.TokenFormatException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.mongo.exceptions.MongoAuthException;
-import us.kbase.userandjobstate.jobstate.UJSJob;
+import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.jobstate.JobState;
@@ -268,7 +268,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	
 	private Tuple14<String, String, String, String, String, String, Long,
 			Long, String, String, Long, Long, String, Results>
-			jobToJobInfo(final UJSJob j) {
+			jobToJobInfo(final Job j) {
 		return new Tuple14<String, String, String, String, String, String,
 				Long, Long, String, String, Long, Long, String,
 				Results>()
@@ -905,7 +905,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
         String return4 = null;
         String return5 = null;
         //BEGIN get_job_description
-		final UJSJob j = js.getJob(
+		final Job j = js.getJob(
 				authPart.getUserName(), job);
 		return1 = j.getService();
 		return2 = j.getProgType();
@@ -941,7 +941,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
         Long return6 = null;
         Long return7 = null;
         //BEGIN get_job_status
-		final UJSJob j = js.getJob(
+		final Job j = js.getJob(
 				authPart.getUserName(), job);
 		return1 = formatDate(j.getLastUpdated());
 		return2 = j.getStage();
@@ -1110,7 +1110,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		returnVal = new LinkedList<Tuple14<String, String, String, String,
 				String, String, Long, Long, String, String, Long,
 				Long, String, Results>>();
-		for (final UJSJob j: js.listJobs(authPart.getUserName(), services,
+		for (final Job j: js.listJobs(authPart.getUserName(), services,
 				queued, running, complete, error, shared)) {
 			returnVal.add(jobToJobInfo(j));
 		}
@@ -1203,7 +1203,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<String> getJobShared(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<String> returnVal = null;
         //BEGIN get_job_shared
-		final UJSJob j = js.getJob(
+		final Job j = js.getJob(
 				authPart.getUserName(), job);
 		if (!j.getUser().equals(authPart.getUserName())) {
 			throw new IllegalArgumentException(String.format(

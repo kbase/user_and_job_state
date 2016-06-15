@@ -17,7 +17,7 @@ import org.joda.time.format.DateTimeFormatterBuilder;
 import us.kbase.common.service.Tuple14;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
-import us.kbase.userandjobstate.jobstate.UJSJob;
+import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 
@@ -41,7 +41,7 @@ public class FakeJob {
 	private final String authparam;
 	private final Map<String, String> metadata;
 	
-	public FakeJob(final UJSJob j) {
+	public FakeJob(final Job j) {
 		id = j.getID();
 		user = j.getUser();
 		service = j.getService();
