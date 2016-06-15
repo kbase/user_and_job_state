@@ -23,6 +23,7 @@ import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
 import us.kbase.common.schemamanager.exceptions.SchemaManagerCommunicationException;
+import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.UJSJobState;
 import us.kbase.userandjobstate.userstate.UserState;
 
@@ -31,8 +32,10 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
+import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
 
@@ -85,34 +88,64 @@ public class UjsUpdater {
 		System.out.println("Updating user state database");
 		try {
 			updateUserStateDB(db.getCollection(USER_COLLECTION), sm);
-		} catch (SchemaManagerCommunicationException e) {
+		} catch (Exception e) {
 			throw showError(e);
-			
 		}
-		updateJobStateDB(db.getCollection(JOB_COLLECTION), sm);
+		try {
+			updateJobStateDB(db.getCollection(JOB_COLLECTION), sm);
+		} catch (Exception e) {
+			throw showError(e);
+		}
 	}
 	
 	private void updateJobStateDB(final DBCollection jobs,
-			final SchemaManager sm) {
+			final SchemaManager sm)
+					throws SchemaManagerCommunicationException {
+		//don't check upgrade state since upgrade could've halted partway
+		//through
 		final int ver = sm.getDBVersion(UJSJobState.SCHEMA_TYPE);
-		// TODO Auto-generated method stub
-		
+		if (ver == -1) {
+			System.out.println("Upgrading jobs database to version 2.");
+			upgradeJobsTo2(jobs, sm);
+			System.out.println("Upgrade complete.");
+		} else if (ver != UJSJobState.SCHEMA_VER) {
+			throw new IllegalStateException(String.format(
+					"There is no upgrade path from %s DB version %s to %s",
+					UJSJobState.SCHEMA_TYPE, ver, UJSJobState.SCHEMA_VER));
+		}
+		System.out.println("No upgrade needed.");
+	}
+
+	private void upgradeJobsTo2(final DBCollection jobs,
+			final SchemaManager sm)
+					throws SchemaManagerCommunicationException {
+		final DBObject update = new BasicDBObject(UJSJobState.AUTH_STRAT,
+				Job.DEFAULT_AUTH_STRAT);
+		update.put(UJSJobState.AUTH_PARAM, Job.DEFAULT_AUTH_PARAM);
+		sm.setRecord(UJSJobState.SCHEMA_TYPE, -1, true);
+		jobs.update(new BasicDBObject(), new BasicDBObject("$set", update),
+				false, true);
+		sm.setRecord(UJSJobState.SCHEMA_TYPE, UJSJobState.SCHEMA_VER, false);
 	}
 
 	private void updateUserStateDB(final DBCollection user,
 			final SchemaManager sm)
 			throws SchemaManagerCommunicationException {
+		//don't check upgrade state since upgrade could've halted partway
+		//through
 		final int ver = sm.getDBVersion(UserState.SCHEMA_TYPE);
 		
 		if (ver == -1) {
 			sm.setRecord(UserState.SCHEMA_TYPE, UserState.SCHEMA_VER, false);
 		} else if (ver != UserState.SCHEMA_VER) {
 			throw new IllegalStateException(String.format(
-					"There is no upgrade path from DB version %s to %s",
-					ver, UserState.SCHEMA_VER));
+					"There is no upgrade path from %s DB version %s to %s",
+					UserState.SCHEMA_TYPE, ver, UserState.SCHEMA_VER));
 		}
+		System.out.println("No upgrade needed.");
 	}
 
+	//TODO LATER generalize these methods with the method in the server class
 	private DB getDatabase(Map<String, String> config) {
 		if (!config.containsKey(HOST)) {
 			throw new IllegalStateException(
@@ -135,7 +168,6 @@ public class UjsUpdater {
 		return getMongoDB(host, dbs, user, pwd);
 	}
 
-	//TODO LATER generalize this with the method in the server class
 	private DB getMongoDB(
 			final String host,
 			final String dbs,
@@ -209,11 +241,6 @@ public class UjsUpdater {
 		@Parameter(names={"-d","--deploy"}, required = true,
 				description="Path to the deploy.cfg file")
 		String deploy;
-		
-		@Parameter(names={"-c","--commit"}, description="Make changes to " +
-				"the database. If this parameter is not set, a dry run will " +
-				"be performed.")
-		boolean commit = false;
 		
 		@Parameter(names={"-v","--verbose"},
 				description="Print error stacktraces.")

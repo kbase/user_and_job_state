@@ -53,7 +53,9 @@ public class SchemaManager {
 	}
 	
 	/** Check that the database schema for a schema type matches the code
-	 * version.
+	 * version. If there is no schema document, one is inserted with the
+	 * current codebase version (e.g. the server has been started for the
+	 * first time).
 	 * @param schemaType the type of schema to check.
 	 * @param currentVer the codebase version to compare against the db
 	 * version.
@@ -85,16 +87,16 @@ public class SchemaManager {
 			//ok, the version doc is already there, this isn't the first
 			//startup
 			final VerUpdate vu = getVersionAndUpdateState(schemaType, true);
+			if (vu.inupdate) {
+				throw new UpdateInProgressException(String.format(
+						"Update from version %s in progress for the %s database.",
+						vu.ver, schemaType));
+			}
 			if (vu.ver != currentVer) {
 				throw new IncompatibleSchemaException(String.format(
 						"Incompatible database schema for schema type %s. " +
 						"DB is v%s, codebase is v%s",
 						schemaType, vu.ver, currentVer));
-			}
-			if (vu.inupdate) {
-				throw new UpdateInProgressException(String.format(
-						"Update from version %s in progress for the %s database.",
-						vu.ver, schemaType));
 			}
 		} catch (MongoException me) {
 			throw new SchemaManagerCommunicationException(
@@ -170,7 +172,8 @@ public class SchemaManager {
 	
 	/** Only use this method on an offline database from a single application.
 	 * @param schemaType the type of schema to access.
-	 * @param the version of the database.
+	 * @param the version of the database. Set to -1 to keep the current
+	 * version.
 	 * @param inupdate true to set the database to an update in progress state,
 	 * false to remove the upgrade in progress state.
 	 * @throws SchemaManagerCommunicationException 
@@ -178,15 +181,18 @@ public class SchemaManager {
 	 */
 	public synchronized void setRecord(
 			final String schemaType,
-			final int version,
+			int version,
 			final boolean inupdate)
 			throws SchemaManagerCommunicationException {
 		if (schemaType == null || schemaType.isEmpty()) {
 			throw new IllegalArgumentException(
 					"schemaType can't be null or empty");
 		}
-		if (version < 1) {
-			throw new IllegalArgumentException("currentVer must be > 0");
+		if (version != -1 && version < 1) {
+			throw new IllegalArgumentException("currentVer must be -1 or > 0");
+		}
+		if (version == -1) {
+			version = getDBVersion(schemaType);
 		}
 		final DBObject cfg = new BasicDBObject(UPDATE, inupdate);
 		cfg.put(SCHEMA_VER, version);

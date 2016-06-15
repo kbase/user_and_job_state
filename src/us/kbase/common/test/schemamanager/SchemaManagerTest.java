@@ -91,8 +91,14 @@ public class SchemaManagerTest {
 		assertThat("incorrect version", sm.getDBVersion(sc), is(2));
 		assertThat("incorrect in update", sm.inUpdate(sc), is(true));
 		
+		sm.setRecord(sc, -1, false);
+		assertThat("incorrect version", sm.getDBVersion(sc), is(2));
+		assertThat("incorrect in update", sm.inUpdate(sc), is(false));
+		
 		failSetRecord(sm, sc, 0, true,
-				new IllegalArgumentException("currentVer must be > 0"));
+				new IllegalArgumentException("currentVer must be -1 or > 0"));
+		failSetRecord(sm, sc, -2, true,
+				new IllegalArgumentException("currentVer must be -1 or > 0"));
 		failSetRecord(sm, null, 1, true,
 				new IllegalArgumentException("schemaType can't be null or empty"));
 		failSetRecord(sm, "", 1, true,
@@ -144,6 +150,12 @@ public class SchemaManagerTest {
 		sm.setRecord(sc, 1, true);
 		
 		failCheckSchema(sm, sc, 1,
+				new UpdateInProgressException(
+						"Update from version 1 in progress for the myschema database."));
+		
+		// check that the upgrade exception takes precedence over the bad
+		// version exception
+		failCheckSchema(sm, sc, 2,
 				new UpdateInProgressException(
 						"Update from version 1 in progress for the myschema database."));
 		
