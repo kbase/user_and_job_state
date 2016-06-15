@@ -9,7 +9,7 @@ import us.kbase.userandjobstate.jobstate.Job;
 public class DefaultUJSAuthorizer extends UJSAuthorizer {
 
 	@Override
-	public void externallyAuthorizeCreate(
+	protected void externallyAuthorizeCreate(
 			final AuthorizationStrategy strat,
 			final String authParam)
 			throws UJSAuthorizationException {
@@ -17,7 +17,7 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 	}
 
 	@Override
-	public void externallyAuthorizeRead(
+	protected void externallyAuthorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
 			final String authParam,
@@ -27,7 +27,7 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 	}
 
 	@Override
-	public void externallyAuthorizeRead(
+	protected void externallyAuthorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
 			final List<String> authParams)

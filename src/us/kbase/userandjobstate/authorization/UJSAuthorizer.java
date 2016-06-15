@@ -7,8 +7,6 @@ import us.kbase.userandjobstate.jobstate.Job;
 
 public abstract class UJSAuthorizer {
 	
-	//TODO NOW tests
-	
 	public static final AuthorizationStrategy DEFAULT_AUTH_STRAT = 
 			new AuthorizationStrategy("DEFAULT");
 	
@@ -41,7 +39,7 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
-	public abstract void externallyAuthorizeCreate(
+	protected abstract void externallyAuthorizeCreate(
 			final AuthorizationStrategy strat,
 			final String authParam)
 			throws UJSAuthorizationException;
@@ -67,7 +65,7 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
-	public abstract void externallyAuthorizeRead(
+	protected abstract void externallyAuthorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
 			final String authParam,
@@ -79,9 +77,10 @@ public abstract class UJSAuthorizer {
 			final String user,
 			final List<String> authParams)
 			throws UJSAuthorizationException {
+		checkUser(user);
 		if (authParams == null || authParams.isEmpty()) {
 			throw new IllegalArgumentException(
-					"authParams cannot be null or emtpy");
+					"authParams cannot be null or empty");
 		}
 		for (final String p: authParams) {
 			checkAuthParam(p);
@@ -95,7 +94,7 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
-	public abstract void externallyAuthorizeRead(
+	protected abstract void externallyAuthorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
 			final List<String> authParams)

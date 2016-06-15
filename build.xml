@@ -191,6 +191,7 @@
       <test name="us.kbase.userandjobstate.test.jobstate.JobResultsTest"/>
       <test name="us.kbase.userandjobstate.test.userstate.UserStateTests"/>
       <test name="us.kbase.userandjobstate.test.kbase.JSONRPCLayerTest"/>
+      <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
       <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
     </junit>
     <fail message="Test failure detected, check test results." if="test.failed" />
