@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -30,6 +31,7 @@ import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.RegexMatcher;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.jobstate.Job;
@@ -135,38 +137,40 @@ public class JobStateTests {
 		Job j = js.getJob("foo", jobid);
 		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
 				null, null, null, null, null, null);
-		try {
-			js.getJob("foo1", jobid);
-			fail("Got a non-existant job");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception", nsje.getLocalizedMessage(),
-					is(String.format(
+		
+		failGetJob("foo1", jobid, new NoSuchJobException(String.format(
 							"There is no job %s viewable by user foo1",
 							jobid)));
-		}
-		try {
-			js.getJob("foo", "a" + jobid.substring(1));
-			fail("Got a non-existant job");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception", nsje.getLocalizedMessage(),
-					is(String.format("There is no job %s viewable by user foo",
-					"a" + jobid.substring(1))));
-		}
-		try {
-			js.getJob("foo", "a" + jobid);
-			fail("Got a job with a bad id");
-		} catch (IllegalArgumentException iae) {
-			assertThat("correct exception", iae.getLocalizedMessage(),
-					is(String.format("Job ID %s is not a legal ID",
-					"a" + jobid)));
-		}
+		failGetJob("foo", "a" + jobid.substring(1), new NoSuchJobException(
+				String.format("There is no job %s viewable by user foo",
+						"a" + jobid.substring(1))));
+		failGetJob("foo", "a" + jobid, new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID", "a" + jobid)));
+		
+		jobid = js.createJob("foo", new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new WorkspaceUserMetadata());
+		assertThat("get job id", jobid, OBJ_ID_MATCH);
+		j = js.getJob("foo", jobid);
+		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
+				null, null, null, null, null, null);
+		
+		failGetJob("foo1", jobid, new NoSuchJobException(String.format(
+							"There is no job %s viewable by user foo1",
+							jobid)));
+		failGetJob("foo", "a" + jobid.substring(1), new NoSuchJobException(
+				String.format("There is no job %s viewable by user foo",
+						"a" + jobid.substring(1))));
+		failGetJob("foo", "a" + jobid, new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID", "a" + jobid)));
 	}
 	
 	private static void failCreateJob(String user, String exp)
 			throws Exception {
 		try {
 			js.createJob(user);
-			fail("created job with invalid user");
+			fail("created job with invalid params");
 		} catch (IllegalArgumentException iae) {
 			assertThat("correct exception", iae.getLocalizedMessage(), 
 					is(exp));
@@ -176,10 +180,64 @@ public class JobStateTests {
 					UJSAuthorizer.DEFAULT_AUTH_STRAT,
 					UJSAuthorizer.DEFAULT_AUTH_PARAM,
 					new WorkspaceUserMetadata());
+			fail("created job with invalid params");
 		} catch (IllegalArgumentException iae) {
 			assertThat("correct exception", iae.getLocalizedMessage(), 
 					is(exp));
 		}
+	}
+	
+	private static void failCreateJob(String user, UJSAuthorizer auth,
+			AuthorizationStrategy strat, String authParam,
+			WorkspaceUserMetadata meta, Exception exp)
+			throws Exception {
+		try {
+			js.createJob(user, auth, strat, authParam, meta);
+			fail("created job with bad params");
+		} catch (Exception e) {
+			assertExceptionCorrect(e, exp);
+		}
+	}
+	
+	private static void assertExceptionCorrect(
+			Exception got, Exception expected) {
+		assertThat("incorrect exception. trace:\n" +
+				ExceptionUtils.getStackTrace(got),
+				got.getLocalizedMessage(),
+				is(expected.getLocalizedMessage()));
+		assertThat("incorrect exception type", got, is(expected.getClass()));
+	}
+	
+	@Test
+	public void metadata() throws Exception {
+		String user = "foo";
+		AuthorizationStrategy as = UJSAuthorizer.DEFAULT_AUTH_STRAT;
+		String ap = UJSAuthorizer.DEFAULT_AUTH_PARAM;
+		Map<String, String> m = new HashMap<String, String>();
+		m.put("bar", "baz");
+		m.put("whoo", "wee");
+		String id = js.createJob(user, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new WorkspaceUserMetadata(m));
+		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
+				null, null, null, null, null, null, null, as, ap, m);
+		checkJob(fj);
+		js.startJob(user, id, "serv", "stat", "desc", null);
+		fj = new FakeJob(id, user, "serv", "started", null, "desc", "none",
+				null, null, "stat", false, false, null, null, as, ap, m);
+		checkJob(fj);
+		js.updateJob(user, id, "serv", "stat1", null, null);
+		fj = new FakeJob(id, user, "serv", "started", null, "desc", "none",
+				null, null, "stat1", false, false, null, null, as, ap, m);
+		checkJob(fj);
+		js.completeJob(user, id, "serv", "stat2", null, null);
+		fj = new FakeJob(id, user, "serv", "complete", null, "desc", "none",
+				null, null, "stat2", true, false, null, null, as, ap, m);
+		checkJob(fj);
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(), as, ap, null,
+				new NullPointerException("meta"));
 	}
 	
 	@Test
@@ -353,7 +411,9 @@ public class JobStateTests {
 			Boolean error, String errmsg, JobResults results) {
 		checkJob(j, id, stage, estComplete, user, status, service, desc,
 				progtype, prog, maxproj, complete, error, errmsg, results,
-				null);
+				null, UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new HashMap<String, String>());
 	}
 	
 	private void checkJob(String id, String stage, Date estComplete, 
@@ -363,14 +423,25 @@ public class JobStateTests {
 			List<String> shared) throws Exception {
 		checkJob(js.getJob(user, id), id, stage, estComplete, user, status,
 				service, desc, progtype, prog, maxproj, complete, error, errmsg,
-				results, shared);
+				results, shared,
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new HashMap<String, String>());
+	}
+	
+	private void checkJob(FakeJob fj) throws Exception {
+		checkJob(js.getJob(fj.user, fj.id), fj.id, fj.stage, fj.estcompl,
+				fj.user, fj.status, fj.service, fj.desc, fj.progtype, fj.prog,
+				fj.maxprog, fj.complete, fj.error, fj.errormsg, fj.results,
+				null, fj.authstrat, fj.authparam, fj.metadata);
 	}
 	
 	private void checkJob(Job j, String id, String stage, Date estComplete, 
 			String user, String status, String service, String desc,
 			String progtype, Integer prog, Integer maxproj, Boolean complete,
 			Boolean error, String errmsg, JobResults results,
-			List<String> shared) {
+			List<String> shared, AuthorizationStrategy strat,
+			String authParam, Map<String, String> meta) {
 		assertThat("job id ok", j.getID(), is(id));
 		assertThat("job stage ok", j.getStage(), is(stage));
 		assertThat("job user ok", j.getUser(), is(user));
@@ -393,11 +464,11 @@ public class JobStateTests {
 			assertThat("shared list ok", j.getShared(), is(shared));
 		}
 		assertThat("not default auth strat", j.getAuthorizationStrategy(),
-				is("DEFAULT"));
+				is(strat));
 		assertThat("not default auth param", j.getAuthorizationParameter(),
-				is("DEFAULT"));
+				is(authParam));
 		assertThat("incorrect metadata", j.getMetadata(),
-				is((Map<String, String>) new HashMap<String, String>()));
+				is(meta));
 	}
 	
 	@Test

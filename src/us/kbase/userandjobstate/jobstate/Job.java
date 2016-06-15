@@ -12,6 +12,8 @@ import java.util.Map;
 
 import org.bson.types.ObjectId;
 
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
+
 public class Job {
 	
 	public static final String CREATED = "created";
@@ -131,8 +133,8 @@ public class Job {
 		return new LinkedList<String>(shared);
 	}
 
-	public String getAuthorizationStrategy() {
-		return authstrat;
+	public AuthorizationStrategy getAuthorizationStrategy() {
+		return new AuthorizationStrategy(authstrat);
 	}
 
 	public String getAuthorizationParameter() {

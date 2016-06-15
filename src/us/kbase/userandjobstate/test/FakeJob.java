@@ -17,29 +17,30 @@ import org.joda.time.format.DateTimeFormatterBuilder;
 import us.kbase.common.service.Tuple14;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 
 public class FakeJob {
 	
-	private final String id;
-	private final String user;
-	private final String service;
-	private final String stage;
-	private final Date estcompl;
-	private final String desc;
-	private final String progtype;
-	private final Integer prog;
-	private final Integer maxprog;
-	private final String status;
-	private final Boolean complete;
-	private final Boolean error;
-	private final String errormsg;
-	private final JobResults results;
-	private final String authstrat;
-	private final String authparam;
-	private final Map<String, String> metadata;
+	public final String id;
+	public final String user;
+	public final String service;
+	public final String stage;
+	public final Date estcompl;
+	public final String desc;
+	public final String progtype;
+	public final Integer prog;
+	public final Integer maxprog;
+	public final String status;
+	public final Boolean complete;
+	public final Boolean error;
+	public final String errormsg;
+	public final JobResults results;
+	public final AuthorizationStrategy authstrat;
+	public final String authparam;
+	public final Map<String, String> metadata;
 	
 	public FakeJob(final Job j) {
 		id = j.getID();
@@ -81,9 +82,35 @@ public class FakeJob {
 		this.error = error;
 		this.errormsg = errormsg;
 		this.results = results;
-		authstrat = "DEFAULT";
+		authstrat = new AuthorizationStrategy("DEFAULT");
 		authparam = "DEFAULT";
 		metadata = new HashMap<String, String>();
+	}
+	
+	public FakeJob(final String id, final String user, final String service,
+			final String stage, final Date estComplete, final String desc,
+			final String progtype, final Integer prog, final Integer maxprog,
+			final String status, final Boolean complete, final Boolean error,
+			final String errormsg, final JobResults results,
+			final AuthorizationStrategy authstrat, final String authparam,
+			final Map<String, String> metadata) {
+		this.id = id;
+		this.user = user;
+		this.service = service;
+		this.stage = stage;
+		this.estcompl = estComplete;
+		this.desc = desc;
+		this.progtype = progtype;
+		this.prog = prog;
+		this.maxprog = maxprog;
+		this.status = status;
+		this.complete = complete;
+		this.error = error;
+		this.errormsg = errormsg;
+		this.results = results;
+		this.authstrat = authstrat;
+		this.authparam = authparam;
+		this.metadata = metadata;
 	}
 	
 	private final static DateTimeFormatter DATE_PARSER =
@@ -129,7 +156,7 @@ public class FakeJob {
 					r.getShockurl(),
 					r.getShocknodes());
 		}
-		authstrat = "DEFAULT";
+		authstrat = new AuthorizationStrategy("DEFAULT");
 		authparam = "DEFAULT";
 		metadata = new HashMap<String, String>();
 	}
