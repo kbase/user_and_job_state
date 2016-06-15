@@ -4,7 +4,7 @@ import java.util.List;
 
 import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
-import us.kbase.userandjobstate.jobstate.Job;
+import us.kbase.userandjobstate.jobstate.UJSJob;
 
 public class DefaultUJSAuthorizer extends UJSAuthorizer {
 
@@ -21,7 +21,7 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 			final AuthorizationStrategy strat,
 			final String user,
 			final String authParam,
-			final Job j)
+			final UJSJob j)
 			throws UJSAuthorizationException {
 		throw new UnimplementedException();
 	}
@@ -34,5 +34,4 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 			throws UJSAuthorizationException {
 		throw new UnimplementedException();
 	}
-
 }
