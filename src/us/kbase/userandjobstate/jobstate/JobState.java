@@ -184,36 +184,46 @@ public class JobState {
 	
 	private final static String QRY_FIND_JOB_BY_OWNER = String.format(
 			"{%s: #, %s: #}", MONGO_ID, USER);
-	private final static String QRY_FIND_JOB_BY_USER = String.format(
-			"{%s: #, $or: [{%s: #}, {%s: #}]}", MONGO_ID, USER, SHARED);
 	private final static String QRY_FIND_JOB_NO_USER = String.format(
 			"{%s: #}", MONGO_ID);
 	
 	public Job getJob(final String user, final String jobID)
 			throws CommunicationException, NoSuchJobException {
-		checkString(user, "user", MAX_LEN_USER);
-		final ObjectId oi = checkJobID(jobID);
-		return getJob(user, oi);
+		return getJob(user, jobID, new DefaultUJSAuthorizer());
 	}
 	
-	//TODO NOW user will have to go, auth outside of this class
-	private Job getJob(final String user, final ObjectId jobID)
+	//TODO NOW test
+	public Job getJob(
+			final String user,
+			final String jobID,
+			final UJSAuthorizer auth)
+			throws CommunicationException, NoSuchJobException {
+		checkString(user, "user", MAX_LEN_USER);
+		final ObjectId oi = checkJobID(jobID);
+		final Job j;
+		try {
+			j =  getJob(oi);
+			auth.authorizeRead(j.getAuthorizationStrategy(), user,
+					j.getAuthorizationParameter(), j);
+		} catch (NoSuchJobException | UJSAuthorizationException e) {
+			throw new NoSuchJobException(String.format(
+					"There is no job %s viewable by user %s", jobID, user));
+		}
+		return j;
+	}
+	
+	private Job getJob(final ObjectId jobID)
 			throws CommunicationException, NoSuchJobException {
 		final Job j;
 		try {
-			if (user == null) {
-				j = jobjong.findOne(QRY_FIND_JOB_NO_USER, jobID).as(Job.class);
-			} else {
-				j = jobjong.findOne(QRY_FIND_JOB_BY_USER, jobID, user, user)
-						.as(Job.class);
-			}
+			j = jobjong.findOne(QRY_FIND_JOB_NO_USER, jobID).as(Job.class);
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
 		}
 		if (j == null) {
 			throw new NoSuchJobException(String.format(
-					"There is no job %s viewable by user %s", jobID, user));
+					"There is no job %s", jobID));
 		}
 		return j;
 	}
@@ -516,6 +526,7 @@ public class JobState {
 		return services;
 	}
 	
+	//TODO NOW auth
 	public List<Job> listJobs(final String user, final List<String> services,
 			final boolean queued, final boolean running,
 			final boolean complete, final boolean error, final boolean shared)
@@ -567,7 +578,7 @@ public class JobState {
 		return jobs;
 	}
 	
-	//TODO NOW shareJob, unshareJob, getJobOwner should throw exception or do nothing for non-default auth jobs
+	//TODO NOW shareJob, unshareJob, should throw exception or do nothing for non-default auth jobs
 	
 	//note sharing with an already shared user or sharing with the owner has
 	//no effect
@@ -621,7 +632,7 @@ public class JobState {
 		final ObjectId id = checkShareParams(user, jobID, users, "user");
 		final Job j;
 		try {
-			j= getJob(null, id);
+			j = getJob(id);
 		} catch (NoSuchJobException nsje) {
 			throw e;
 		}
