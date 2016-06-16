@@ -522,8 +522,8 @@ public class JobState {
 	
 	//TODO NOW auth
 	public List<Job> listJobs(final String user, final List<String> services,
-			final boolean queued, final boolean running,
-			final boolean complete, final boolean error, final boolean shared)
+			final boolean running, final boolean complete, final boolean error,
+			final boolean shared)
 			throws CommunicationException {
 		//queued is ignored
 		checkString(user, "user");

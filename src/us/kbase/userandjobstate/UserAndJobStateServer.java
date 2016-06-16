@@ -1085,15 +1085,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> listJobs(List<String> services, String filter, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> returnVal = null;
         //BEGIN list_jobs
-		boolean queued = false;
 		boolean running = false;
 		boolean complete = false;
 		boolean error = false;
 		boolean shared = false;
 		if (filter != null) {
-			if (filter.indexOf("Q") > -1) {
-				queued = true;
-			}
 			if (filter.indexOf("R") > -1) {
 				running = true;
 			}
@@ -1111,7 +1107,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				String, String, Long, Long, String, String, Long,
 				Long, String, Results>>();
 		for (final Job j: js.listJobs(authPart.getUserName(), services,
-				queued, running, complete, error, shared)) {
+				running, complete, error, shared)) {
 			returnVal.add(jobToJobInfo(j));
 		}
         //END list_jobs
@@ -1251,7 +1247,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public Map<String, Object> status() {
         Map<String, Object> returnVal = null;
         //BEGIN_STATUS
-        //TODO check mongo & memory
+        //TODO ZZLATER check mongo & memory
 		returnVal = new LinkedHashMap<String, Object>();
 		returnVal.put("state", "OK");
 		returnVal.put("message", "");
