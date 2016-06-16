@@ -9,6 +9,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.LoggerFactory;
+
 import us.kbase.auth.AuthToken;
 import us.kbase.common.service.JsonClientException;
 import us.kbase.common.service.UnauthorizedException;
@@ -36,6 +38,7 @@ public class WorkspaceAuthorizationFactory {
 			new AuthorizationStrategy("kbaseworkspace");
 	
 	private final URL wsURL;
+	private final boolean insecure;
 	
 	/** Construct the factory.
 	 * @param workspaceURL the url of the workspace to contact.
@@ -48,6 +51,13 @@ public class WorkspaceAuthorizationFactory {
 			throw new NullPointerException("workspaceURL");
 		}
 		wsURL = workspaceURL;
+		if (!wsURL.getProtocol().equals("https")) {
+			insecure = true;
+			LoggerFactory.getLogger(getClass()).warn("The url " + wsURL +
+					" is not secure. Use an https:// url if possible.");
+		} else {
+			insecure = false;
+		}
 		new WorkspaceClient(wsURL).ver();
 	}
 	
@@ -62,7 +72,7 @@ public class WorkspaceAuthorizationFactory {
 		if (token == null) {
 			throw new NullPointerException("token");
 		}
-		return new WorkspaceAuthorizer(wsURL, token);
+		return new WorkspaceAuthorizer(wsURL, token, insecure);
 	}
 	
 	private static void checkStrat(final AuthorizationStrategy strat)
@@ -83,10 +93,16 @@ public class WorkspaceAuthorizationFactory {
 		private WorkspaceClient client;
 		private String username;
 		
-		private WorkspaceAuthorizer(final URL wsURL, final AuthToken token)
+		private WorkspaceAuthorizer(
+				final URL wsURL,
+				final AuthToken token,
+				final boolean insecure)
 				throws UnauthorizedException, IOException {
 			username = token.getUserName();
 			client = new WorkspaceClient(wsURL, token);
+			if (insecure) {
+				client.setIsInsecureHttpConnectionAllowed(true);
+			}
 		}
 		
 		private void checkWSUser(final String user) {

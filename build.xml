@@ -59,12 +59,19 @@
     <include name="apache_commons/commons-collections-3.2.1.jar"/>
     <include name="apache_commons/commons-lang-2.4.jar"/>
   </fileset>
+
+  <fileset dir="${jardir}" id="workspacelib">
+    <include name="easystream/easystream-1.2.13.jar"/>
+    <include name="google/guava-14.0.1.jar"/>
+    <include name="kbase/kidl/kbase-kidl-parser-1409261812-7863aef.jar"/>
+  </fileset>
 	
   <union id="serverside">
     <fileset refid="serverlib"/>
     <fileset refid="clientserverlib"/>
     <fileset refid="applicationlib"/>
     <fileset refid="testlib"/>
+    <fileset refid="workspacelib"/>
   </union>
 
   <fileset id="client-jdoc-files" dir="${src}/us/kbase" defaultexcludes="yes">
@@ -191,6 +198,7 @@
       <test name="us.kbase.userandjobstate.test.jobstate.JobResultsTest"/>
       <test name="us.kbase.userandjobstate.test.userstate.UserStateTests"/>
       <test name="us.kbase.userandjobstate.test.kbase.JSONRPCLayerTest"/>
+      <test name="us.kbase.userandjobstate.test.kbase.WorkspaceAuthTest"/>
       <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
       <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
     </junit>
