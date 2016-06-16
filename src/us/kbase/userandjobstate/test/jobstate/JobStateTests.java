@@ -35,6 +35,7 @@ import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
+import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
@@ -206,6 +207,60 @@ public class JobStateTests {
 				new AuthorizationStrategy("DEFAULT"), "whoo",
 				new HashMap<String, String>());
 		checkJob(fj);
+	}
+	
+	@Test
+	public void alternateAuth() throws Exception {
+		UJSAuthorizer lenientauth = new UJSAuthorizer() {
+			
+			@Override
+			protected void externallyAuthorizeRead(AuthorizationStrategy strat,
+					String user, List<String> authParams)
+					throws UJSAuthorizationException {
+				throw new UnimplementedException(); // will probably need to implement
+			}
+			
+			@Override
+			protected void externallyAuthorizeRead(AuthorizationStrategy strat,
+					String user, String authParam, Job j)
+					throws UJSAuthorizationException {
+				if ("fail single".equals(authParam)) {
+					throw new UJSAuthorizationException("fail single req");
+				}
+			}
+			
+			@Override
+			protected void externallyAuthorizeCreate(
+					AuthorizationStrategy strat, String authParam)
+					throws UJSAuthorizationException {
+				if ("fail create".equals(authParam)) {
+					throw new UJSAuthorizationException("fail create req");
+				}
+			}
+		};
+		String user = "foo";
+		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		failCreateJob(user, lenientauth, new AuthorizationStrategy("foo"),
+				"fail create", mt,
+				new UJSAuthorizationException("fail create req"));
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"),
+				"fail create", mt, new UnimplementedException());
+		
+		String id = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "whee", mt);
+		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
+				null, null, null, null, null, null, null,
+				new AuthorizationStrategy("strat1"), "whee",
+				new HashMap<String, String>());
+		checkJob(lenientauth, fj);
+		
+		id = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail single", mt);
+		failGetJob(user, id, new UnimplementedException());
+		failGetJob(user, id, lenientauth,
+				new NoSuchJobException(String.format(
+						"There is no job %s viewable by user %s", id, user)));
 	}
 	
 	private static void failCreateJob(String user, String exp)
@@ -472,7 +527,11 @@ public class JobStateTests {
 	}
 	
 	private void checkJob(FakeJob fj) throws Exception {
-		checkJob(js.getJob(fj.user, fj.id), fj.id, fj.stage, fj.estcompl,
+		checkJob(new DefaultUJSAuthorizer(), fj);
+	}
+	
+	private void checkJob(UJSAuthorizer auth, FakeJob fj) throws Exception {
+		checkJob(js.getJob(fj.user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
 				fj.user, fj.status, fj.service, fj.desc, fj.progtype, fj.prog,
 				fj.maxprog, fj.complete, fj.error, fj.errormsg, fj.results,
 				null, fj.authstrat, fj.authparam, fj.metadata);
@@ -1136,9 +1195,14 @@ public class JobStateTests {
 					is(e.getLocalizedMessage()));
 			assertThat("correct exception type", exp, is(e.getClass()));
 		}
+		failGetJob(user, jobid, new DefaultUJSAuthorizer(), e);
+	}
+	
+	private void failGetJob(String user, String jobid, UJSAuthorizer auth,
+			Exception e) {
 		try {
-			js.getJob(user, jobid, new DefaultUJSAuthorizer());
-			fail("got job sucessfully but expected fail");
+			js.getJob(user, jobid, auth);
+			fail("got job successfully but expected fail");
 		} catch (Exception exp) {
 			assertThat("correct exception", exp.getLocalizedMessage(),
 					is(e.getLocalizedMessage()));
