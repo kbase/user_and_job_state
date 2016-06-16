@@ -129,9 +129,10 @@ public abstract class UJSAuthorizer {
 			checkAuthParam(p);
 		}
 		if (strat.equals(DEFAULT_AUTH_STRAT)) {
-			//do nothing. A user can read ujs jobs shared with him/her.
-			//however, the job fetching logic needs to pull back the right
-			//jobs.
+			/* do nothing. A user can read ujs jobs shared with him/her.
+			 * however, the job fetching logic in JobState needs to pull back
+			 * the right jobs.
+			 */
 		} else {
 			externallyAuthorizeRead(strat, user, authParams);
 		}

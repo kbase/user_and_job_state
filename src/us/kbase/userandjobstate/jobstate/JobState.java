@@ -520,7 +520,6 @@ public class JobState {
 		return services;
 	}
 	
-	//TODO NOW auth
 	public List<Job> listJobs(final String user, final List<String> services,
 			final boolean running, final boolean complete, final boolean error,
 			final boolean shared)
@@ -536,7 +535,6 @@ public class JobState {
 		}
 	}
 	
-	//TODO NOW test alternate auth
 	public List<Job> listJobs(
 			final String user,
 			final List<String> services,

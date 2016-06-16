@@ -217,7 +217,9 @@ public class JobStateTests {
 			protected void externallyAuthorizeRead(AuthorizationStrategy strat,
 					String user, List<String> authParams)
 					throws UJSAuthorizationException {
-				throw new UnimplementedException(); // will probably need to implement
+				if (authParams.contains("fail multiple")) {
+					throw new UJSAuthorizationException("fail mult req");
+				}
 			}
 			
 			@Override
@@ -240,6 +242,8 @@ public class JobStateTests {
 		};
 		String user = "foo";
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		Map<String, String> mth = new HashMap<String, String>();
+		// test creating job with alternate auth
 		failCreateJob(user, lenientauth, new AuthorizationStrategy("foo"),
 				"fail create", mt,
 				new UJSAuthorizationException("fail create req"));
@@ -247,29 +251,74 @@ public class JobStateTests {
 				new AuthorizationStrategy("foo"),
 				"fail create", mt, new UnimplementedException());
 		
-		String id = js.createJob(user, lenientauth,
+		String id1 = js.createJob(user, lenientauth,
 				new AuthorizationStrategy("strat1"), "whee", mt);
-		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
+		FakeJob fj1c = new FakeJob(id1, user, null, "created", null, null, null,
 				null, null, null, null, null, null, null,
 				new AuthorizationStrategy("strat1"), "whee",
 				new HashMap<String, String>());
-		checkJob(lenientauth, fj);
-		failShareJob(user, id, Arrays.asList("bar"),
-				new NoSuchJobException(String.format(
-						"There is no job %s with default authorization " +
-						"owned by user %s", id, user)));
-		failUnshareJob(user, id, Arrays.asList("foo"),
-				new NoSuchJobException(String.format(
-						"There is no job %s with default authorization " +
-						"visible to user %s", id, user)));
-		checkJob(lenientauth, fj, new LinkedList<String>());
 		
-		id = js.createJob(user, lenientauth,
-				new AuthorizationStrategy("strat1"), "fail single", mt);
-		failGetJob(user, id, new UnimplementedException());
-		failGetJob(user, id, lenientauth,
+		//test getting and sharing jobs with alternate auth
+		checkJob(lenientauth, fj1c);
+		failShareJob(user, id1, Arrays.asList("bar"),
 				new NoSuchJobException(String.format(
-						"There is no job %s viewable by user %s", id, user)));
+						"There is no job %s with default authorization " +
+						"owned by user %s", id1, user)));
+		failUnshareJob(user, id1, Arrays.asList("foo"),
+				new NoSuchJobException(String.format(
+						"There is no job %s with default authorization " +
+						"visible to user %s", id1, user)));
+		checkJob(lenientauth, fj1c, new LinkedList<String>());
+		
+		//test fail getting jobs with alternate auth
+		String id2 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail single", mt);
+		failGetJob(user, id2, new UnimplementedException());
+		failGetJob(user, id2, lenientauth,
+				new NoSuchJobException(String.format(
+						"There is no job %s viewable by user %s", id2, user)));
+		
+		//test listing jobs with alternate auth
+			// start & create some jobs
+		js.startJob(user, id1, "serv1", "stat1", "desc1", null);
+		FakeJob fj1s = new FakeJob(id1, user, "serv1", "started", null,
+				"desc1", "none", null, null, "stat1", false, false, null, null,
+				new AuthorizationStrategy("strat1"), "whee", mth);
+		js.startJob(user, id2, "serv2", "stat2", "desc2", null);
+		FakeJob fj2s = new FakeJob(id2, user, "serv2", "started", null,
+				"desc2", "none", null, null, "stat2", false, false, null, null,
+				new AuthorizationStrategy("strat1"), "fail single", mth);
+		String id3 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat2"), "whee", mt);
+		js.startJob(user, id3, "serv3", "stat3", "desc3", null);
+		FakeJob fj3s = new FakeJob(id3, user, "serv3", "started", null,
+				"desc3", "none", null, null, "stat3", false, false, null, null,
+				new AuthorizationStrategy("strat2"), "whee", mth);
+		
+		//check listing via different strats and params works
+		checkListJobs(Arrays.asList(fj1s, fj2s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat1"),
+				Arrays.asList("whee", "fail single"));
+		checkListJobs(Arrays.asList(fj1s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat1"),
+				Arrays.asList("whee"));
+		checkListJobs(Arrays.asList(fj3s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat2"),
+				Arrays.asList("whee"));
+		
+		//fail listing jobs
+		failListJobs(user, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"), Arrays.asList("foo"),
+				new UnimplementedException());
+		js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail multiple", mt);
+		failListJobs(user, null, lenientauth,
+				new AuthorizationStrategy("strat1"),
+				Arrays.asList("fail multiple"),
+				new UJSAuthorizationException("fail mult req"));
 	}
 	
 	private static void failCreateJob(String user, String exp)
@@ -1176,7 +1225,7 @@ public class JobStateTests {
 	}
 
 	private void failListJobs(String user, List<String> services,
-			DefaultUJSAuthorizer auth, AuthorizationStrategy strat,
+			UJSAuthorizer auth, AuthorizationStrategy strat,
 			List<String> params, Exception exp) {
 		try {
 			js.listJobs(user, services, false, false, false, false, auth,
@@ -1197,6 +1246,15 @@ public class JobStateTests {
 				error, shared, new DefaultUJSAuthorizer(),
 				UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM)));
+	}
+	
+	private void checkListJobs(List<FakeJob> expected, String user,
+			List<String> services, boolean running, boolean complete,
+			boolean error, boolean shared, UJSAuthorizer auth,
+			AuthorizationStrategy strat, List<String> params)
+					throws Exception {
+		checkListJobs(expected, js.listJobs(user, services, running, complete,
+				error, shared, auth, strat, params));
 	}
 
 	private void checkListJobs(List<FakeJob> expected, List<Job> result)
