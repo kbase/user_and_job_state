@@ -254,6 +254,15 @@ public class JobStateTests {
 				new AuthorizationStrategy("strat1"), "whee",
 				new HashMap<String, String>());
 		checkJob(lenientauth, fj);
+		failShareJob(user, id, Arrays.asList("bar"),
+				new NoSuchJobException(String.format(
+						"There is no job %s with default authorization " +
+						"owned by user %s", id, user)));
+		failUnshareJob(user, id, Arrays.asList("foo"),
+				new NoSuchJobException(String.format(
+						"There is no job %s with default authorization " +
+						"visible to user %s", id, user)));
+		checkJob(lenientauth, fj, new LinkedList<String>());
 		
 		id = js.createJob(user, lenientauth,
 				new AuthorizationStrategy("strat1"), "fail single", mt);
@@ -531,10 +540,15 @@ public class JobStateTests {
 	}
 	
 	private void checkJob(UJSAuthorizer auth, FakeJob fj) throws Exception {
+		checkJob(auth, fj, null);
+	}
+	
+	private void checkJob(UJSAuthorizer auth, FakeJob fj, List<String> shared)
+			throws Exception {
 		checkJob(js.getJob(fj.user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
 				fj.user, fj.status, fj.service, fj.desc, fj.progtype, fj.prog,
 				fj.maxprog, fj.complete, fj.error, fj.errormsg, fj.results,
-				null, fj.authstrat, fj.authparam, fj.metadata);
+				shared, fj.authstrat, fj.authparam, fj.metadata);
 	}
 	
 	private void checkJob(Job j, String id, String stage, Date estComplete, 
@@ -1133,7 +1147,8 @@ public class JobStateTests {
 				null, null, false, false, null, null, Arrays.asList("foo", "bar", "baz"));
 		
 		failShareJob("foo", jobid, Arrays.asList("bag"), new NoSuchJobException(
-				String.format("There is no job %s owned by user %s", jobid, "foo")));
+				String.format("There is no job %s with default authorization " +
+						"owned by user %s", jobid, "foo")));
 		failShareJob(null, jobid, Arrays.asList("bag"), new IllegalArgumentException(
 				String.format("owner cannot be null or the empty string")));
 		failShareJob("", jobid, Arrays.asList("bag"), new IllegalArgumentException(
@@ -1157,9 +1172,11 @@ public class JobStateTests {
 		
 		String nojob = new ObjectId().toString();
 		failUnshareJob(sh, nojob, Arrays.asList("bag"), new NoSuchJobException(
-				String.format("There is no job %s visible to user %s", nojob, sh)));
+				String.format("There is no job %s with default " +
+						"authorization visible to user %s", nojob, sh)));
 		failUnshareJob("bag", jobid, Arrays.asList("bag"), new NoSuchJobException(
-				String.format("There is no job %s visible to user %s", jobid, "bag")));
+				String.format("There is no job %s with default " +
+						"authorization visible to user %s", jobid, "bag")));
 		failUnshareJob("foo", jobid, Arrays.asList("bag"), new IllegalArgumentException(
 				String.format("User %s may only stop sharing job %s for themselves", "foo", jobid)));
 		failUnshareJob(null, jobid, Arrays.asList("bag"), new IllegalArgumentException(

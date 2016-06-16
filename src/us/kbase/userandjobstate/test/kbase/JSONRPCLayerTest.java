@@ -1046,7 +1046,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		//next line ensures that all job read functions are accessible to client 1
 		checkJob(CLIENT1, jobid, "started", "sh stat", USER1, "sh desc", "none", null, null, null, 0L, 0L, null, null);
 		failShareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
-				"There is no job %s owned by user %s", jobid, USER1));
+				"There is no job %s with default authorization owned by user %s",
+				jobid, USER1));
 		assertThat("shared list ok", CLIENT2.getJobShared(jobid), is(Arrays.asList(USER1)));
 		failGetJobShared(jobid, String.format("User %s may not access the sharing list of job %s", USER1, jobid));
 		assertThat("owner ok", CLIENT1.getJobOwner(jobid), is(USER2));

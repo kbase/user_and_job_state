@@ -182,8 +182,6 @@ public class JobState {
 		return oi;
 	}
 	
-	private final static String QRY_FIND_JOB_BY_OWNER = String.format(
-			"{%s: #, %s: #}", MONGO_ID, USER);
 	private final static String QRY_FIND_JOB_NO_USER = String.format(
 			"{%s: #}", MONGO_ID);
 	
@@ -192,7 +190,6 @@ public class JobState {
 		return getJob(user, jobID, new DefaultUJSAuthorizer());
 	}
 	
-	//TODO NOW test alternate auth
 	public Job getJob(
 			final String user,
 			final String jobID,
@@ -366,9 +363,6 @@ public class JobState {
 		}
 		return jobid;
 	}
-	
-	//TODO NOW note that owner can always write and read job, regardless of auth strategy
-	//TODO NOW better explanation of auth strategy in header
 	
 	public void updateJob(final String user, final String jobID,
 			final String service, final String status, final Integer progress,
@@ -578,7 +572,9 @@ public class JobState {
 		return jobs;
 	}
 	
-	//TODO NOW shareJob, unshareJob, should throw exception or do nothing for non-default auth jobs
+	private final static String QRY_FIND_JOB_BY_OWNER = String.format(
+			"{%s: #, %s: #, %s: \"%s\"}", MONGO_ID, USER, AUTH_STRAT,
+			UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat());
 	
 	//note sharing with an already shared user or sharing with the owner has
 	//no effect
@@ -592,7 +588,6 @@ public class JobState {
 				us.add(u);
 			}
 		}
-		//TODO NOW add default auth to query
 		final WriteResult wr;
 		try {
 			wr = jobjong.update(QRY_FIND_JOB_BY_OWNER, id, owner)
@@ -603,7 +598,8 @@ public class JobState {
 		}
 		if (wr.getN() != 1) {
 			throw new NoSuchJobException(String.format(
-					"There is no job %s owned by user %s", jobID, owner));
+					"There is no job %s with default authorization owned by " +
+					"user %s", jobID, owner));
 		}
 	}
 
@@ -611,7 +607,8 @@ public class JobState {
 			final List<String> users, final String userType) {
 		checkString(user, userType);
 		if (users == null) {
-			throw new IllegalArgumentException("The users list cannot be null");
+			throw new IllegalArgumentException(
+					"The users list cannot be null");
 		}
 		if (users.isEmpty()) {
 			throw new IllegalArgumentException("The users list is empty");
@@ -628,7 +625,8 @@ public class JobState {
 			final List<String> users) throws CommunicationException,
 			NoSuchJobException {
 		final NoSuchJobException e = new NoSuchJobException(String.format(
-				"There is no job %s visible to user %s", jobID, user));
+				"There is no job %s with default authorization visible to " +
+				"user %s", jobID, user));
 		final ObjectId id = checkShareParams(user, jobID, users, "user");
 		final Job j;
 		try {
@@ -636,7 +634,10 @@ public class JobState {
 		} catch (NoSuchJobException nsje) {
 			throw e;
 		}
-		//TODO NOW check default auth here
+		if (!j.getAuthorizationStrategy().equals(
+				UJSAuthorizer.DEFAULT_AUTH_STRAT)) {
+			throw e;
+		}
 		if (j.getUser().equals(user)) {
 			//it's the owner, can do whatever
 		} else if (j.getShared().contains(user)) {
