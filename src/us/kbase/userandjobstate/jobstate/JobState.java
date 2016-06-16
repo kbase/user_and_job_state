@@ -200,8 +200,7 @@ public class JobState {
 		final Job j;
 		try {
 			j =  getJob(oi);
-			auth.authorizeRead(j.getAuthorizationStrategy(), user,
-					j.getAuthorizationParameter(), j);
+			auth.authorizeRead(user, j);
 		} catch (NoSuchJobException | UJSAuthorizationException e) {
 			throw new NoSuchJobException(String.format(
 					"There is no job %s viewable by user %s", jobID, user));

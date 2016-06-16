@@ -245,8 +245,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	
 	//TODO NOW update to 0.2.0
 	//TODO NOW recompile when spec is complete
-	//TODO LATER doc server
-	//TODO ZZLATER basic docs like Shock
+	//TODO ZLATER doc server
+	//TODO ZLATER basic docs like Shock
 	
 	private void fail(final String error) {
 		logErr(error);

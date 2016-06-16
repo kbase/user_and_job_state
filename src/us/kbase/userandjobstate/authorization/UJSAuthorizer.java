@@ -67,44 +67,35 @@ public abstract class UJSAuthorizer {
 			throws UJSAuthorizationException;
 
 	/** Authorize reading a job.
-	 * @param strat the authorization strategy to use.
 	 * @param user the user requesting authorization.
-	 * @param authParam the authorization parameter.
 	 * @param j the job requiring authorization.
 	 * @throws UJSAuthorizationException if authorization is denied.
 	 */
 	public void authorizeRead(
-			final AuthorizationStrategy strat,
 			final String user,
-			final String authParam,
 			final Job j)
 			throws UJSAuthorizationException {
-		checkAuthParam(authParam);
 		checkUser(user);
 		if (j == null) {
 			throw new NullPointerException("job cannot be null");
 		}
-		if (strat.equals(DEFAULT_AUTH_STRAT)) {
+		if (j.getAuthorizationStrategy().equals(DEFAULT_AUTH_STRAT)) {
 			if (!user.equals(j.getUser()) && !j.getShared().contains(user)) {
 				throw new UJSAuthorizationException(String.format(
 						"Job %s is not viewable by user %s", j.getID(), user));
 			}
 		} else {
-			externallyAuthorizeRead(strat, user, authParam, j);
+			externallyAuthorizeRead(user, j);
 		}
 	}
 	
 	/** Authorize reading a job using a non-default authorization source.
-	 * @param strat the authorization strategy to use.
 	 * @param user the user requesting authorization.
-	 * @param authParam the authorization parameter.
 	 * @param j the job requiring authorization.
 	 * @throws UJSAuthorizationException if authorization is denied.
 	 */
 	protected abstract void externallyAuthorizeRead(
-			final AuthorizationStrategy strat,
 			final String user,
-			final String authParam,
 			final Job j)
 			throws UJSAuthorizationException;
 

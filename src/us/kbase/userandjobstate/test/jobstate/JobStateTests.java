@@ -223,10 +223,9 @@ public class JobStateTests {
 			}
 			
 			@Override
-			protected void externallyAuthorizeRead(AuthorizationStrategy strat,
-					String user, String authParam, Job j)
+			protected void externallyAuthorizeRead(String user, Job j)
 					throws UJSAuthorizationException {
-				if ("fail single".equals(authParam)) {
+				if ("fail single".equals(j.getAuthorizationParameter())) {
 					throw new UJSAuthorizationException("fail single req");
 				}
 			}

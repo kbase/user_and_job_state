@@ -25,9 +25,12 @@ import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
+import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
+import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 import us.kbase.userandjobstate.test.UserJobStateTestCommon;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class AuthorizationTest {
 
@@ -81,22 +84,21 @@ public class AuthorizationTest {
 		@Override
 		protected void externallyAuthorizeCreate(AuthorizationStrategy strat,
 				String authParam) throws UJSAuthorizationException {
-			if (strat.getStrat().equals("fail")) {
+			if (strat.getStrat().equals("create fail")) {
 				throw new UJSAuthorizationException("strat fail");
 			}
-			if (authParam.equals("fail")) {
+			if (authParam.equals("create fail")) {
 				throw new UJSAuthorizationException("param fail");
 			}
 		}
 
 		@Override
-		protected void externallyAuthorizeRead(AuthorizationStrategy strat,
-				String user, String authParam, Job j)
+		protected void externallyAuthorizeRead(String user, Job j)
 				throws UJSAuthorizationException {
-			if (strat.getStrat().equals("fail")) {
+			if (j.getAuthorizationStrategy().getStrat().equals("fail")) {
 				throw new UJSAuthorizationException("strat fail");
 			}
-			if (authParam.equals("fail")) {
+			if (j.getAuthorizationParameter().equals("fail")) {
 				throw new UJSAuthorizationException("param fail");
 			}
 		}
@@ -135,9 +137,9 @@ public class AuthorizationTest {
 		//should work:
 		la.authorizeCreate(new AuthorizationStrategy("foo"), "bar");
 		
-		failCreate(la, new AuthorizationStrategy("fail"), "bar",
+		failCreate(la, new AuthorizationStrategy("create fail"), "bar",
 				new UJSAuthorizationException("strat fail"));
-		failCreate(la, new AuthorizationStrategy("whoo"), "fail",
+		failCreate(la, new AuthorizationStrategy("whoo"), "create fail",
 				new UJSAuthorizationException("param fail"));
 	}
 	
@@ -162,62 +164,68 @@ public class AuthorizationTest {
 	public void testSingleRead() throws Exception {
 		String user1 = "foo";
 		String user2 = "bar";
+		WorkspaceUserMetadata wum = new WorkspaceUserMetadata();
 		Job j = js.getJob(user1, js.createJob(user1));
-		
-		AuthorizationStrategy def = new AuthorizationStrategy("DEFAULT");
 		
 		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
 		//should work
-		dua.authorizeRead(def, user1, "foo", j);
+		dua.authorizeRead(user1, j);
 		
-		failSingleRead(def, user2, "foo", j,
-				new UJSAuthorizationException(String.format(
-						"Job %s is not viewable by user %s",
-						j.getID(), user2)));
+		failSingleRead(user2, j, new UJSAuthorizationException(String.format(
+				"Job %s is not viewable by user %s", j.getID(), user2)));
 		
 		js.shareJob(user1, j.getID(), Arrays.asList(user2));
 		j = js.getJob(user1, j.getID());
-		dua.authorizeRead(def, user2, "foo", j);
+		dua.authorizeRead(user2, j);
 		
-		failSingleRead(new AuthorizationStrategy("bar"), "user1", "foo", j,
-				new UnimplementedException());
-		
-		failSingleRead(null, "user1", "foo", j,
-				new NullPointerException());
-		
-		failSingleRead(def, user2, "foo", null,
+		failSingleRead(user2, null,
 				new NullPointerException("job cannot be null"));
 		
-		failSingleRead(def, user2, null, j, new IllegalArgumentException(
-				"authParam cannot be null or empty"));
-		failSingleRead(def, user2, "", j, new IllegalArgumentException(
-				"authParam cannot be null or empty"));
-		
-		failSingleRead(def, null, "boo", j, new IllegalArgumentException(
+		failSingleRead(null, j, new IllegalArgumentException(
 				"user cannot be null or empty"));
-		failSingleRead(def, "", "boo", j, new IllegalArgumentException(
+		failSingleRead("", j, new IllegalArgumentException(
 				"user cannot be null or empty"));
 		
 		LenientAuth la = new LenientAuth();
+		Job j2 = js.getJob(user1, js.createJob(user1, la,
+				new AuthorizationStrategy("foo"), "bar", wum), la);
 		//should work:
-		la.authorizeRead(new AuthorizationStrategy("foo"), user1, "bar", j);
+		la.authorizeRead(user1, j2);
+		failSingleRead(dua, user1, j2, new UnimplementedException());
 		
-		failSingleRead(la, new AuthorizationStrategy("fail"), user1, "bar", j,
-				new UJSAuthorizationException("strat fail"));
-		failSingleRead(la, new AuthorizationStrategy("whoo"), user1, "fail", j,
-				new UJSAuthorizationException("param fail"));
+		final String id = js.createJob(user1, la,
+				new AuthorizationStrategy("fail"), "bar", wum);
+		failGetJob(id, user1, la);
+		
+		final String id2 = js.createJob(user1, la,
+				new AuthorizationStrategy("whoo"), "fail", wum);
+		failGetJob(id2, user1, la);
+	}
+
+	/* the only way to test the single read authorizer is by failing to
+	 * get jobs, since the job constructor is private. Need to think about
+	 * a better way to test this.
+	 */
+	private void failGetJob(String id, String user, UJSAuthorizer auth)
+			throws CommunicationException {
+		try {
+			js.getJob(user, id, auth);
+			fail("got job with bad auth");
+		} catch (NoSuchJobException e) {
+			assertThat("incorrect exception message", e.getLocalizedMessage(),
+					is(String.format("There is no job %s viewable by user %s",
+							id, user)));
+		}
 	}
 	
-	private void failSingleRead(AuthorizationStrategy as, String user,
-			String authParam, Job j, Exception exp) {
-		failSingleRead(new DefaultUJSAuthorizer(), as, user, authParam, j, exp);
+	private void failSingleRead(String user, Job j, Exception exp) {
+		failSingleRead(new DefaultUJSAuthorizer(), user, j, exp);
 	}
 	
-	private void failSingleRead(UJSAuthorizer auth, AuthorizationStrategy as,
-			String user, String authParam, Job j,
+	private void failSingleRead(UJSAuthorizer auth, String user, Job j,
 			Exception exp) {
 		try {
-			auth.authorizeRead(as, user, authParam, j);
+			auth.authorizeRead(user, j);
 			fail("authorized bad read");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);

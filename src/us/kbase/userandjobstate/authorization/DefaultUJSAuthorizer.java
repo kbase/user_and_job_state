@@ -21,11 +21,7 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 	}
 
 	@Override
-	protected void externallyAuthorizeRead(
-			final AuthorizationStrategy strat,
-			final String user,
-			final String authParam,
-			final Job j)
+	protected void externallyAuthorizeRead(final String user, final Job j)
 			throws UJSAuthorizationException {
 		throw new UnimplementedException();
 	}
