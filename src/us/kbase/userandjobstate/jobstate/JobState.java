@@ -525,8 +525,32 @@ public class JobState {
 			final boolean running, final boolean complete, final boolean error,
 			final boolean shared)
 			throws CommunicationException {
+		try {
+			return listJobs(user, services, running, complete, error, shared,
+					new DefaultUJSAuthorizer(),
+					UJSAuthorizer.DEFAULT_AUTH_STRAT,
+					Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM));
+		} catch (UJSAuthorizationException e) {
+			throw new RuntimeException(
+					"Oh my God reality is crumbling around me", e);
+		}
+	}
+	
+	//TODO NOW test alternate auth
+	public List<Job> listJobs(
+			final String user,
+			final List<String> services,
+			final boolean running,
+			final boolean complete,
+			final boolean error,
+			final boolean shared,
+			final UJSAuthorizer auth,
+			final AuthorizationStrategy strat,
+			final List<String> authParams)
+			throws CommunicationException, UJSAuthorizationException {
 		//queued is ignored
 		checkString(user, "user");
+		auth.authorizeRead(strat, user, authParams);
 		String query;
 		if (shared) {
 			query = String.format("{$or: [{%s: '%s'}, {%s: '%s'}]",
@@ -543,6 +567,9 @@ public class JobState {
 		} else {
 			query += String.format(", %s: {$ne: null}", SERVICE);
 		}
+		query += String.format(", %s: '%s', %s: {$in: ['%s']}",
+				AUTH_STRAT, strat.getStrat(),
+				AUTH_PARAM, StringUtils.join(authParams, "', '"));
 		//this seems dumb.
 		if (running && !complete && !error) {
 			query += ", " + COMPLETE + ": false}";

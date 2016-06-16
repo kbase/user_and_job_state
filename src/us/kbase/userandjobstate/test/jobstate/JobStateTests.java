@@ -1036,16 +1036,16 @@ public class JobStateTests {
 	public void listJobs() throws Exception {
 		String lj = "listjobs";
 		List<FakeJob> empty = new ArrayList<FakeJob>();
-		checkListJobs(empty, js.listJobs(lj, Arrays.asList("serv1"), true, true, true, false));
+		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true, false);
 		String jobid = js.createJob(lj);
-		checkListJobs(empty, js.listJobs(lj, Arrays.asList("serv1"), true, true, true, false));
+		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true, false);
 		
 		jobid = js.createAndStartJob(lj, "serv1", "lst", "ldsc", 42, MAX_DATE);
 		FakeJob started = new FakeJob(jobid, lj, "serv1", "started",
 				MAX_DATE,"ldsc", "task", 0, 42, "lst", false, false, null, null);
-		checkListJobs(Arrays.asList(started), js.listJobs(lj, Arrays.asList("serv1"), true, true, true, false));
-		checkListJobs(empty, js.listJobs(lj, Arrays.asList("serv2"), true, true, true, false));
-		checkListJobs(Arrays.asList(started), js.listJobs(lj, Arrays.asList("serv1"), false, false, false, false));
+		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"), true, true, true, false);
+		checkListJobs(empty, lj, Arrays.asList("serv2"), true, true, true, false);
+		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"), false, false, false, false);
 		
 		jobid = js.createAndStartJob(lj, "serv1", "comp-st", "comp-dsc",
 				MAX_DATE);
@@ -1063,57 +1063,142 @@ public class JobStateTests {
 		
 		//all 3
 		List<FakeJob> all = Arrays.asList(started, complete, error);
-		checkListJobs(all, js.listJobs(lj, Arrays.asList("serv1"), true, true, true, false));
-		checkListJobs(all, js.listJobs(lj, Arrays.asList("serv1"), false, false, false, false));
+		checkListJobs(all, lj, Arrays.asList("serv1"), true, true, true, false);
+		checkListJobs(all, lj, Arrays.asList("serv1"), false, false, false, false);
 		
 		//1 of 3
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1"), true, false, false, false));
+				lj, Arrays.asList("serv1"), true, false, false, false);
 		checkListJobs(Arrays.asList(complete),
-				js.listJobs(lj, Arrays.asList("serv1"), false, true, false, false));
+				lj, Arrays.asList("serv1"), false, true, false, false);
 		checkListJobs(Arrays.asList(error),
-				js.listJobs(lj, Arrays.asList("serv1"), false, false, true, false));
+				lj, Arrays.asList("serv1"), false, false, true, false);
 		
 		//2 of 3
 		checkListJobs(Arrays.asList(started, complete),
-				js.listJobs(lj, Arrays.asList("serv1"), true, true, false, false));
+				lj, Arrays.asList("serv1"), true, true, false, false);
 		checkListJobs(Arrays.asList(complete, error),
-				js.listJobs(lj, Arrays.asList("serv1"), false, true, true, false));
+				lj, Arrays.asList("serv1"), false, true, true, false);
 		checkListJobs(Arrays.asList(started, error),
-				js.listJobs(lj, Arrays.asList("serv1"), true, false, true, false));
+				lj, Arrays.asList("serv1"), true, false, true, false);
 		
 		//check on jobs from multiple services
 		jobid = js.createAndStartJob(lj, "serv2", "mst", "mdsc", 42, MAX_DATE);
 		FakeJob multi = new FakeJob(jobid, lj, "serv2", "started",
 				MAX_DATE, "mdsc", "task", 0, 42, "mst", false, false, null, null);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				js.listJobs(lj, new ArrayList<String>(), true, true, true, false));
+				lj, new ArrayList<String>(), true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				js.listJobs(lj, null, true, true, true, false));
+				lj, null, true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				js.listJobs(lj, Arrays.asList("serv1", "serv2"), true, true, true, false));
+				lj, Arrays.asList("serv1", "serv2"), true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete),
-				js.listJobs(lj, Arrays.asList("serv1"), true, true, false, false));
+				lj, Arrays.asList("serv1"), true, true, false, false);
 		checkListJobs(Arrays.asList(multi),
-				js.listJobs(lj, Arrays.asList("serv2"), true, true, true, false));
+				lj, Arrays.asList("serv2"), true, true, true, false);
 		
 		//check on shared jobs
 		jobid = js.createAndStartJob("listJobsShare", "shareserv", "sst", "sdsc", null);
 		FakeJob shared = new FakeJob(jobid, "listJobsShare", "shareserv", "started",
 				null, "sdsc", "none", null, null, "sst", false, false, null, null);
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), true, false, false, true));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
 		js.shareJob("listJobsShare", jobid, Arrays.asList(lj));
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), true, false, false, false));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, false);
 		checkListJobs(Arrays.asList(started, shared),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), true, false, false, true));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
 		js.unshareJob("listJobsShare", jobid, Arrays.asList(lj));
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), true, false, false, true));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
 		
+		// fail on user
+		failListJobs(null, Arrays.asList("serv"), new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		failListJobs("", Arrays.asList("serv"), new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		
+		// fail on service
+		failListJobs(lj, Arrays.asList((String) null),
+				new IllegalArgumentException(
+				"service cannot be null or the empty string"));
+		failListJobs(lj, Arrays.asList(""), new IllegalArgumentException(
+				"service cannot be null or the empty string"));
+		//these shouldn't except
+		js.listJobs(lj, Arrays.asList(LONG101.substring(1)),
+				false, false, false, false);
+		js.listJobs(lj, Arrays.asList(LONG101.substring(1)),
+				false, false, false, false, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM));
+		failListJobs(lj, Arrays.asList(LONG101), new IllegalArgumentException(
+				"service exceeds the maximum length of 100"));
+		
+		// fail on auth 
+		failListJobs(lj, null, null, new AuthorizationStrategy("foo"),
+				Arrays.asList("foo"), new NullPointerException());
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				null, Arrays.asList("foo"), new NullPointerException());
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"), Arrays.asList("foo"),
+				new UnimplementedException());
+		
+		// fail on auth params
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"), null,
+				new IllegalArgumentException(
+						"authParams cannot be null or empty"));
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"), new ArrayList<String>(),
+				new IllegalArgumentException(
+						"authParams cannot be null or empty"));
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"),
+				Arrays.asList((String) null), new IllegalArgumentException(
+						"authParam cannot be null or empty"));
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"),
+				Arrays.asList(""), new IllegalArgumentException(
+						"authParam cannot be null or empty"));
 	}
 	
+	private void failListJobs(String user, List<String> services,
+			Exception exp) {
+		try {
+			js.listJobs(user, services, false, false, false, false);
+			fail("listed jobs w/ bad args");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+		failListJobs(user, services, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM), exp);
+	}
+
+	private void failListJobs(String user, List<String> services,
+			DefaultUJSAuthorizer auth, AuthorizationStrategy strat,
+			List<String> params, Exception exp) {
+		try {
+			js.listJobs(user, services, false, false, false, false, auth,
+					strat, params);
+			fail("listed jobs w/ bad args");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+		
+	}
+
+	private void checkListJobs(List<FakeJob> expected, String user,
+			List<String> services, boolean running, boolean complete,
+			boolean error, boolean shared) throws Exception {
+		checkListJobs(expected, js.listJobs(user, services, running, complete,
+				error, shared));
+		checkListJobs(expected, js.listJobs(user, services, running, complete,
+				error, shared, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM)));
+	}
+
 	private void checkListJobs(List<FakeJob> expected, List<Job> result)
 		throws Exception {
 		HashSet<FakeJob> res = new HashSet<FakeJob>();
