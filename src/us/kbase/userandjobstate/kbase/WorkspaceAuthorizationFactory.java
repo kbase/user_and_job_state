@@ -1,4 +1,4 @@
-package us.kbase.userandjobstate.test.kbase;
+package us.kbase.userandjobstate.kbase;
 
 import java.io.IOException;
 import java.net.URL;
