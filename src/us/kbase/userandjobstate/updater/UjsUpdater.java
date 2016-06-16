@@ -43,9 +43,9 @@ import com.mongodb.WriteResult;
 
 public class UjsUpdater {
 
-	//TODO LATER tests - when this gets a bit more complicated.
-	//TODO LATER modular update mechanism
-	//TODO LATER add a logger instead of prints?
+	//TODO ZZLATER tests - when this gets a bit more complicated.
+	//TODO ZZLATER modular update mechanism
+	//TODO ZZLATER add a logger instead of prints?
 	
 	private static final String UJS = "UserAndJobState";
 	
@@ -155,7 +155,7 @@ public class UjsUpdater {
 		}
 	}
 
-	//TODO LATER generalize these methods with the method in the server class
+	//TODO ZZLATER generalize these methods with the method in the server class
 	private DB getDatabase(Map<String, String> config) {
 		if (!config.containsKey(HOST)) {
 			throw new IllegalStateException(

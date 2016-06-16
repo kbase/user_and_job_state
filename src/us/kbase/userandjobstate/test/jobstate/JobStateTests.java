@@ -26,6 +26,7 @@ import org.junit.Test;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 
+import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
@@ -164,6 +165,41 @@ public class JobStateTests {
 						"a" + jobid.substring(1))));
 		failGetJob("foo", "a" + jobid, new IllegalArgumentException(
 				String.format("Job ID %s is not a legal ID", "a" + jobid)));
+	}
+	
+	@Test
+	public void createJobAuth() throws Exception {
+		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		String user = "foo";
+		
+		failCreateJob(user, null, UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM, mt,
+				new NullPointerException());
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"),
+				UJSAuthorizer.DEFAULT_AUTH_PARAM, mt,
+				new UnimplementedException());
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				null,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM, mt,
+				new NullPointerException());
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				null, mt,
+				new IllegalArgumentException(
+						"authParam cannot be null or empty"));
+		
+		String id = js.createJob(user, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"), "whoo", mt);
+		
+		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
+				null, null, null, null, null, null, null,
+				new AuthorizationStrategy("DEFAULT"), "whoo",
+				new HashMap<String, String>());
+		checkJob(fj);
 	}
 	
 	private static void failCreateJob(String user, String exp)
@@ -463,9 +499,9 @@ public class JobStateTests {
 		if (shared != null) {
 			assertThat("shared list ok", j.getShared(), is(shared));
 		}
-		assertThat("not default auth strat", j.getAuthorizationStrategy(),
+		assertThat("incorrect auth strat", j.getAuthorizationStrategy(),
 				is(strat));
-		assertThat("not default auth param", j.getAuthorizationParameter(),
+		assertThat("incorrect auth param", j.getAuthorizationParameter(),
 				is(authParam));
 		assertThat("incorrect metadata", j.getMetadata(),
 				is(meta));

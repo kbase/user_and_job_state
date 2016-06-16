@@ -510,7 +510,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				js = null;
 				auth = null;
 			} else {
-				//TODO TEST LATER add server startup tests.
+				//TODO ZZLATER TEST add server startup tests.
 				us = getUserState(ujsDB, sm, host);
 				js = getJobState(ujsDB, sm, host);
 				auth = setUpAuthClient(adminUser, adminPwd);

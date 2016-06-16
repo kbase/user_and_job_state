@@ -23,6 +23,7 @@ import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
@@ -74,6 +75,44 @@ public class AuthorizationTest {
 			assertExceptionCorrect(got, new IllegalArgumentException(exp));
 		}
 	}
+	
+	private static class LenientAuth extends UJSAuthorizer {
+
+		@Override
+		protected void externallyAuthorizeCreate(AuthorizationStrategy strat,
+				String authParam) throws UJSAuthorizationException {
+			if (strat.getStrat().equals("fail")) {
+				throw new UJSAuthorizationException("strat fail");
+			}
+			if (authParam.equals("fail")) {
+				throw new UJSAuthorizationException("param fail");
+			}
+		}
+
+		@Override
+		protected void externallyAuthorizeRead(AuthorizationStrategy strat,
+				String user, String authParam, Job j)
+				throws UJSAuthorizationException {
+			if (strat.getStrat().equals("fail")) {
+				throw new UJSAuthorizationException("strat fail");
+			}
+			if (authParam.equals("fail")) {
+				throw new UJSAuthorizationException("param fail");
+			}
+		}
+
+		@Override
+		protected void externallyAuthorizeRead(AuthorizationStrategy strat,
+				String user, List<String> authParams)
+				throws UJSAuthorizationException {
+			if (strat.getStrat().equals("fail")) {
+				throw new UJSAuthorizationException("strat fail");
+			}
+			if (authParams.contains("fail")) {
+				throw new UJSAuthorizationException("param fail");
+			}
+		}
+	}
 
 	@Test
 	public void testCreate() throws Exception {
@@ -91,13 +130,28 @@ public class AuthorizationTest {
 				"authParam cannot be null or empty"));
 		failCreate(def, "", new IllegalArgumentException(
 				"authParam cannot be null or empty"));
+		
+		LenientAuth la = new LenientAuth();
+		//should work:
+		la.authorizeCreate(new AuthorizationStrategy("foo"), "bar");
+		
+		failCreate(la, new AuthorizationStrategy("fail"), "bar",
+				new UJSAuthorizationException("strat fail"));
+		failCreate(la, new AuthorizationStrategy("whoo"), "fail",
+				new UJSAuthorizationException("param fail"));
 	}
 	
 	private void failCreate(AuthorizationStrategy as, String authParam,
 			Exception exp)
 			throws Exception {
+		failCreate(new DefaultUJSAuthorizer(), as, authParam, exp);
+	}
+	
+	private void failCreate(UJSAuthorizer auth, AuthorizationStrategy as,
+			String authParam, Exception exp)
+			throws Exception {
 		try {
-			new DefaultUJSAuthorizer().authorizeCreate(as, authParam);
+			auth.authorizeCreate(as, authParam);
 			fail("incorrectly authorized create");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
@@ -143,12 +197,27 @@ public class AuthorizationTest {
 				"user cannot be null or empty"));
 		failSingleRead(def, "", "boo", j, new IllegalArgumentException(
 				"user cannot be null or empty"));
+		
+		LenientAuth la = new LenientAuth();
+		//should work:
+		la.authorizeRead(new AuthorizationStrategy("foo"), user1, "bar", j);
+		
+		failSingleRead(la, new AuthorizationStrategy("fail"), user1, "bar", j,
+				new UJSAuthorizationException("strat fail"));
+		failSingleRead(la, new AuthorizationStrategy("whoo"), user1, "fail", j,
+				new UJSAuthorizationException("param fail"));
 	}
 	
 	private void failSingleRead(AuthorizationStrategy as, String user,
 			String authParam, Job j, Exception exp) {
+		failSingleRead(new DefaultUJSAuthorizer(), as, user, authParam, j, exp);
+	}
+	
+	private void failSingleRead(UJSAuthorizer auth, AuthorizationStrategy as,
+			String user, String authParam, Job j,
+			Exception exp) {
 		try {
-			new DefaultUJSAuthorizer().authorizeRead(as, user, authParam, j);
+			auth.authorizeRead(as, user, authParam, j);
 			fail("authorized bad read");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
@@ -187,12 +256,31 @@ public class AuthorizationTest {
 		failMultipleRead(def, user1, Arrays.asList(""),
 				new IllegalArgumentException(
 						"authParam cannot be null or empty"));
+		
+		LenientAuth la = new LenientAuth();
+		//should work:
+		la.authorizeRead(new AuthorizationStrategy("foo"), user1,
+				Arrays.asList("bar"));
+		
+		failMultipleRead(la, new AuthorizationStrategy("fail"), user1,
+				Arrays.asList("bar"),
+				new UJSAuthorizationException("strat fail"));
+		failMultipleRead(la, new AuthorizationStrategy("whoo"), user1,
+				Arrays.asList("fail"),
+				new UJSAuthorizationException("param fail"));
 	}
-	
+
 	private void failMultipleRead(AuthorizationStrategy as, String user,
 			List<String> authParams, Exception exp) {
+		failMultipleRead(new DefaultUJSAuthorizer(), as, user, authParams,
+				exp);
+	}
+	
+	private void failMultipleRead(UJSAuthorizer auth, AuthorizationStrategy as,
+			String user, List<String> authParams,
+			Exception exp) {
 		try {
-			new DefaultUJSAuthorizer().authorizeRead(as, user, authParams);
+			auth.authorizeRead(as, user, authParams);
 			fail("authorized bad read");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);

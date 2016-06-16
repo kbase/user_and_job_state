@@ -126,13 +126,12 @@ public class JobState {
 		}
 	}
 	
-	//TODO NOW this needs testing, usermeta & different auth params for default auth strat, and differnt implementations of auth strat
 	public String createJob(
 			final String user,
 			final UJSAuthorizer auth,
 			final AuthorizationStrategy strat,
 			final String authParam,
-			//TODO LATER this class should be renamed
+			//TODO ZZLATER this class should be renamed
 			final WorkspaceUserMetadata meta)
 			throws CommunicationException, UJSAuthorizationException {
 		checkString(user, "user", MAX_LEN_USER);
