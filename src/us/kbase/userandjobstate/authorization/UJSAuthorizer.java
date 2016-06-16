@@ -5,12 +5,24 @@ import java.util.List;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 
+/** An abstract implementation of a UJS authorization strategy. The default
+ * implementation is defined in this class, and the class can be extended
+ * to add new strategies.
+ * @author gaprice@lbl.gov
+ *
+ */
 public abstract class UJSAuthorizer {
 	
+	/** The default authorization strategy ('DEFAULT') for the UJS, which uses
+	 * the ACLs stored in the UJS for authorization.
+	 */
 	public static final AuthorizationStrategy DEFAULT_AUTH_STRAT = 
 			new AuthorizationStrategy("DEFAULT");
 	
-	// unused so really doesn't matter
+	/** The default authorization parameter for the UJS. This is actually
+	 * unused but cannot be null or the empty string and so is defined to be
+	 * 'DEFAULT'.
+	 */
 	public static final String DEFAULT_AUTH_PARAM = "DEFAULT";
 
 	private void checkAuthParam(final String authParam) {
@@ -27,6 +39,11 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
+	/** Authorize creation of a job.
+	 * @param strat the authorization strategy to use.
+	 * @param authParam the authorization parameter.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
 	public void authorizeCreate(
 			final AuthorizationStrategy strat,
 			final String authParam)
@@ -39,11 +56,23 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
+	/** Authorize creation of a job using a non-default authorization source.
+	 * @param strat the authorization strategy to use.
+	 * @param authParam the authorization parameter.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
 	protected abstract void externallyAuthorizeCreate(
 			final AuthorizationStrategy strat,
 			final String authParam)
 			throws UJSAuthorizationException;
 
+	/** Authorize reading a job.
+	 * @param strat the authorization strategy to use.
+	 * @param user the user requesting authorization.
+	 * @param authParam the authorization parameter.
+	 * @param j the job requiring authorization.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
 	public void authorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
@@ -65,6 +94,13 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
+	/** Authorize reading a job using a non-default authorization source.
+	 * @param strat the authorization strategy to use.
+	 * @param user the user requesting authorization.
+	 * @param authParam the authorization parameter.
+	 * @param j the job requiring authorization.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
 	protected abstract void externallyAuthorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
@@ -72,6 +108,13 @@ public abstract class UJSAuthorizer {
 			final Job j)
 			throws UJSAuthorizationException;
 
+	/** Authorize reading a set of jobs associated with one or more
+	 * authorization parameters.
+	 * @param strat the authorization strategy to use.
+	 * @param user the user requesting authorization.
+	 * @param authParams the set of authorization parameters.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
 	public void authorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,
@@ -94,6 +137,13 @@ public abstract class UJSAuthorizer {
 		}
 	}
 	
+	/** Authorize reading a set of jobs associated with one or more
+	 * authorization parameters using a non-default authorization source.
+	 * @param strat the authorization strategy to use.
+	 * @param user the user requesting authorization.
+	 * @param authParams the set of authorization parameters.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
 	protected abstract void externallyAuthorizeRead(
 			final AuthorizationStrategy strat,
 			final String user,

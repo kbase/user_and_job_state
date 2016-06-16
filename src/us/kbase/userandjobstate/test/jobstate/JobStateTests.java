@@ -87,30 +87,30 @@ public class JobStateTests {
 	
 	private static final Date MAX_DATE = new Date(Long.MAX_VALUE);
 	
-	private static String long101;
-	private static String long201;
-	private static String long1001;
-	private static String long100001;
+	private final static String LONG101;
+	private final static String LONG201;
+	private final static String LONG1001;
+	private final static String LONG100001;
 
 	static {
-		long101 = "";
-		long201 = "";
-		long1001 = "";
-		long100001 = "";
+		String l101 = "";
+		String l201 = "";
+		String l1001 = "";
+		String l100001 = "";
 		for (int i = 0; i < 5; i++) {
-			long101 += "aaaaaaaaaabbbbbbbbbb";
+			l101 += "aaaaaaaaaabbbbbbbbbb";
 		}
-		long201 = long101 + long101;
+		l201 = l101 + l101;
 		for (int i = 0; i < 5; i++) {
-			long1001 += long201;
+			l1001 += l201;
 		}
 		for (int i = 0; i < 100; i++) {
-			long100001 += long1001;
+			l100001 += l1001;
 		}
-		long101 += "f";
-		long201 += "f";
-		long1001 += "f";
-		long100001 += "f";
+		LONG101 = l101 + "f";
+		LONG201 = l201 + "f";
+		LONG1001 = l1001 + "f";
+		LONG100001 = l100001 + "f";
 	}
 	
 	@Test
@@ -189,6 +189,12 @@ public class JobStateTests {
 		failCreateJob(user, new DefaultUJSAuthorizer(),
 				UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				null, mt,
+				new IllegalArgumentException(
+						"authParam cannot be null or empty"));
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				"", mt,
 				new IllegalArgumentException(
 						"authParam cannot be null or empty"));
 		
@@ -298,7 +304,7 @@ public class JobStateTests {
 				new IllegalArgumentException("user cannot be null or the empty string"));
 		testStartJobBadArgs("", jobid, "serv2", "started job", "job desc", null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testStartJobBadArgs(long101, jobid, "serv2", "started job", "job desc", null,
+		testStartJobBadArgs(LONG101, jobid, "serv2", "started job", "job desc", null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
 		testStartJobBadArgs("foo",  null, "serv2", "started job", "job desc", null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
@@ -310,11 +316,11 @@ public class JobStateTests {
 				new IllegalArgumentException("service cannot be null or the empty string"));
 		testStartJobBadArgs("foo", jobid, "", "started job", "job desc", null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testStartJobBadArgs("foo", jobid, long101, "started job", "job desc", null,
+		testStartJobBadArgs("foo", jobid, LONG101, "started job", "job desc", null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testStartJobBadArgs("foo", jobid, "serv2", long201, "job desc", null,
+		testStartJobBadArgs("foo", jobid, "serv2", LONG201, "job desc", null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
-		testStartJobBadArgs("foo", jobid, "serv2", "started job", long1001, null,
+		testStartJobBadArgs("foo", jobid, "serv2", "started job", LONG1001, null,
 				new IllegalArgumentException("description exceeds the maximum length of 1000"));
 		testStartJobBadArgs("foo", jobid, "serv2", "started job", "job desc", nearpast,
 				new IllegalArgumentException("The estimated completion date must be in the future"));
@@ -508,6 +514,48 @@ public class JobStateTests {
 	}
 	
 	@Test
+	public void getJob() throws Exception {
+		String user = "foo";
+		String user2 = "foo1";
+		String id = js.createJob(user);
+		//should work
+		js.getJob(user, id);
+		js.getJob(user, id, new DefaultUJSAuthorizer());
+		js.shareJob(user, id, Arrays.asList(LONG101.substring(1)));
+		//should work
+		js.getJob(LONG101.substring(1), id);
+		js.getJob(LONG101.substring(1), id, new DefaultUJSAuthorizer());
+		
+		failGetJob(LONG101, id, new IllegalArgumentException(
+				"user exceeds the maximum length of 100"));
+		
+		failGetJob(null, id, new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		failGetJob("", id, new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+	
+		failGetJob(user, null, new IllegalArgumentException(
+				"id cannot be null or the empty string"));
+		failGetJob(user, "", new IllegalArgumentException(
+				"id cannot be null or the empty string"));
+		
+		failGetJob(user, id.substring(1), new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID",
+						id.substring(1))));
+		failGetJob(user, "g" + id.substring(1), new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID",
+						"g" + id.substring(1))));
+		
+		failGetJob(user2, id, new NoSuchJobException(String.format(
+				"There is no job %s viewable by user %s", id, user2)));
+		
+		js.startJob(user, id, "foo", "stat", "desc", null);
+		js.deleteJob(user, id, "foo");
+		failGetJob(user, id, new NoSuchJobException(String.format(
+				"There is no job %s viewable by user %s", id, user)));
+	}
+	
+	@Test
 	public void updateJob() throws Exception {
 		Date nearfuture = new Date(new Date().getTime() + 10000);
 		Date nearpast = new Date(new Date().getTime() - 10);
@@ -591,7 +639,7 @@ public class JobStateTests {
 				new IllegalArgumentException("user cannot be null or the empty string"));
 		testUpdateJobBadArgs("", jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testUpdateJobBadArgs(long101, jobid, "serv2", "started job", 1, null,
+		testUpdateJobBadArgs(LONG101, jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
 		testUpdateJobBadArgs("foo",  null, "serv2", "started job", 1, null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
@@ -603,9 +651,9 @@ public class JobStateTests {
 				new IllegalArgumentException("service cannot be null or the empty string"));
 		testUpdateJobBadArgs("foo", jobid, "", "started job", 1, null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testUpdateJobBadArgs("foo", jobid, long101, "started job", 1, null,
+		testUpdateJobBadArgs("foo", jobid, LONG101, "started job", 1, null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testUpdateJobBadArgs("foo", jobid, "serv2", long201, 1, null,
+		testUpdateJobBadArgs("foo", jobid, "serv2", LONG201, 1, null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
 		testUpdateJobBadArgs("foo", jobid, "serv2", "started job", -1, null,
 				new IllegalArgumentException("progress cannot be negative"));
@@ -721,7 +769,7 @@ public class JobStateTests {
 				new IllegalArgumentException("user cannot be null or the empty string"));
 		testCompleteJobBadArgs("", jobid, "service2", "started job", null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testCompleteJobBadArgs(long101, jobid, "service2", "started job", null,
+		testCompleteJobBadArgs(LONG101, jobid, "service2", "started job", null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
 		testCompleteJobBadArgs("comp",  null, "service2", "started job", null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
@@ -733,11 +781,11 @@ public class JobStateTests {
 				new IllegalArgumentException("service cannot be null or the empty string"));
 		testCompleteJobBadArgs("comp", jobid, "", "started job", null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testCompleteJobBadArgs("comp", jobid, long101, "started job", null,
+		testCompleteJobBadArgs("comp", jobid, LONG101, "started job", null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testCompleteJobBadArgs("comp", jobid, "service2", long201, null,
+		testCompleteJobBadArgs("comp", jobid, "service2", LONG201, null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
-		testCompleteJobBadArgs("comp", jobid, "service2", "started job", long100001,
+		testCompleteJobBadArgs("comp", jobid, "service2", "started job", LONG100001,
 				new IllegalArgumentException("error exceeds the maximum length of 100000"));
 	}
 	
@@ -829,6 +877,14 @@ public class JobStateTests {
 					is(String.format(
 					"There is no job %s viewable by user %s", jobid, user)));
 		}
+		try {
+			js.getJob(user, jobid, new DefaultUJSAuthorizer());
+			fail("got deleted job");
+		} catch (NoSuchJobException nsje) {
+			assertThat("correct exception msg", nsje.getLocalizedMessage(),
+					is(String.format(
+					"There is no job %s viewable by user %s", jobid, user)));
+		}
 	}
 	
 	private void succeedAtDeletingJob(String user, String jobid)
@@ -836,6 +892,14 @@ public class JobStateTests {
 		js.deleteJob(user, jobid);
 		try {
 			js.getJob(user, jobid);
+			fail("got deleted job");
+		} catch (NoSuchJobException nsje) {
+			assertThat("correct exception msg", nsje.getLocalizedMessage(),
+					is(String.format(
+					"There is no job %s viewable by user %s", jobid, user)));
+		}
+		try {
+			js.getJob(user, jobid, new DefaultUJSAuthorizer());
 			fail("got deleted job");
 		} catch (NoSuchJobException nsje) {
 			assertThat("correct exception msg", nsje.getLocalizedMessage(),
@@ -1066,6 +1130,14 @@ public class JobStateTests {
 	private void failGetJob(String user, String jobid, Exception e) {
 		try {
 			js.getJob(user, jobid);
+			fail("got job sucessfully but expected fail");
+		} catch (Exception exp) {
+			assertThat("correct exception", exp.getLocalizedMessage(),
+					is(e.getLocalizedMessage()));
+			assertThat("correct exception type", exp, is(e.getClass()));
+		}
+		try {
+			js.getJob(user, jobid, new DefaultUJSAuthorizer());
 			fail("got job sucessfully but expected fail");
 		} catch (Exception exp) {
 			assertThat("correct exception", exp.getLocalizedMessage(),

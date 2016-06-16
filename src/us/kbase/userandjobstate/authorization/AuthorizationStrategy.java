@@ -1,9 +1,17 @@
 package us.kbase.userandjobstate.authorization;
 
+/** An authorization strategy to use for the UJS. Can any string that the
+ * UJSAuthorizer understands.
+ * @author gaprice@lbl.gov
+ *
+ */
 public class AuthorizationStrategy {
 
 	private final String strat;
 	
+	/** Create a strategy.
+	 * @param strategy the name of the strategy.
+	 */
 	public AuthorizationStrategy(final String strategy) {
 		if (strategy == null || strategy.isEmpty()) {
 			throw new IllegalArgumentException(
@@ -12,6 +20,9 @@ public class AuthorizationStrategy {
 		strat = strategy;
 	}
 
+	/** Get the strategy name.
+	 * @return the strategy name.
+	 */
 	public String getStrat() {
 		return strat;
 	}

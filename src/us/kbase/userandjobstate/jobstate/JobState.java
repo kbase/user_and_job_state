@@ -192,7 +192,7 @@ public class JobState {
 		return getJob(user, jobID, new DefaultUJSAuthorizer());
 	}
 	
-	//TODO NOW test
+	//TODO NOW test alternate auth
 	public Job getJob(
 			final String user,
 			final String jobID,

@@ -6,6 +6,10 @@ import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 
+/** Throws an exception for anything that isn't the default authorization type.
+ * @author gaprice@lbl.gov
+ *
+ */
 public class DefaultUJSAuthorizer extends UJSAuthorizer {
 
 	@Override
