@@ -20,6 +20,7 @@ import com.mongodb.DBCollection;
 import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
@@ -29,7 +30,6 @@ import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class AuthorizationTest {
@@ -43,8 +43,8 @@ public class AuthorizationTest {
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		final DB db = GetMongoDB.getDB(
@@ -58,7 +58,7 @@ public class AuthorizationTest {
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	

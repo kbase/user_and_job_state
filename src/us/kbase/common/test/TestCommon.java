@@ -1,5 +1,8 @@
 package us.kbase.common.test;
 
+import java.lang.reflect.Field;
+import java.util.Map;
+
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 
@@ -35,6 +38,18 @@ public class TestCommon {
 	
 	public static boolean getDeleteTempFiles() {
 		return !"true".equals(System.getProperty(KEEP_TEMP_DIR));
+	}
+	
+	//http://quirkygba.blogspot.com/2009/11/setting-environment-variables-in-java.html
+	@SuppressWarnings("unchecked")
+	public static Map<String, String> getenv() throws NoSuchFieldException,
+			SecurityException, IllegalArgumentException,
+			IllegalAccessException {
+		Map<String, String> unmodifiable = System.getenv();
+		Class<?> cu = unmodifiable.getClass();
+		Field m = cu.getDeclaredField("m");
+		m.setAccessible(true);
+		return (Map<String, String>) m.get(unmodifiable);
 	}
 	
 	public static void destroyDB(DB db) {

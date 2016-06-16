@@ -22,8 +22,8 @@ import org.junit.Test;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
+import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
 import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
@@ -45,8 +45,8 @@ public class UserStateTests {
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		final DB db = GetMongoDB.getDB(
@@ -59,7 +59,7 @@ public class UserStateTests {
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
@@ -75,7 +75,7 @@ public class UserStateTests {
 	public void clearDB() throws Exception {
 		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
 				DB_NAME);
-		UserJobStateTestCommon.destroyDB(db);
+		TestCommon.destroyDB(db);
 	}
 	
 	@Test

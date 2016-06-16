@@ -31,6 +31,7 @@ import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
+import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.Result;
@@ -39,7 +40,6 @@ import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.test.FakeJob;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 
 /*
  * These tests are specifically for testing the JSON-RPC communications between
@@ -73,8 +73,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String p2 = System.getProperty("test.pwd2");
 
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		//write the server config file:
@@ -92,7 +92,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		ini.store(iniFile);
 		
 		//set up env
-		Map<String, String> env = getenv();
+		Map<String, String> env = TestCommon.getenv();
 		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
 		env.put("KB_SERVICE_NAME", "UserAndJobState");
 
@@ -121,7 +121,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			System.out.println("Done");
 		}
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
@@ -129,7 +129,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	public void clearDB() throws Exception {
 		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
 				DB_NAME);
-		UserJobStateTestCommon.destroyDB(db);
+		TestCommon.destroyDB(db);
 	}
 	
 	@Test
