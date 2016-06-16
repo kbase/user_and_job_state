@@ -1,10 +1,17 @@
 package us.kbase.userandjobstate.test.kbase;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
+
+import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Map;
 
 import org.ini4j.Ini;
@@ -28,9 +35,11 @@ import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
+import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
 import us.kbase.workspace.CreateWorkspaceParams;
+import us.kbase.workspace.SetPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceServer;
 import us.kbase.workspace.test.WorkspaceTestCommon;
@@ -187,6 +196,35 @@ public class WorkspaceAuthTest {
 	}
 	
 	@Test
+	public void testFactoryInit() throws Exception {
+		try {
+			new WorkspaceAuthorizationFactory(null);
+			fail("created factory w/ bad args");
+		} catch (NullPointerException e) {
+			assertExceptionCorrect(e, new NullPointerException(
+					"workspaceURL"));
+		}
+		try {
+			new WorkspaceAuthorizationFactory(
+					new URL("http://localhost:" + (WS.getServerPort() + 1)));
+			fail("created factory w/ bad args");
+		} catch (IOException e) {
+			assertExceptionCorrect(e, new IOException("Connection refused"));
+		}
+	}
+	
+	@Test
+	public void testBuild() throws Exception {
+		try {
+			new WorkspaceAuthorizationFactory(new URL("http://localhost:" +
+					WS.getServerPort())).buildAuthorizer(null);
+			fail("ran bad build");
+		} catch (Exception e) {
+			assertExceptionCorrect(e, new NullPointerException("token"));
+		}
+	}
+	
+	@Test
 	public void testAuthorizeCreate() throws Exception {
 		WorkspaceAuthorizationFactory wafac =
 				new WorkspaceAuthorizationFactory(
@@ -195,6 +233,54 @@ public class WorkspaceAuthTest {
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
 		wa.authorizeCreate(strat, "1");
+		
+		failCreate(wa, new AuthorizationStrategy("foo"), "foo",
+				new UJSAuthorizationException(
+						"Invalid authorization strategy: foo"));
+		failCreate(wa, strat, "foo",
+				new UJSAuthorizationException(
+						"The string foo is not a valid integer workspace ID"));
+
+		failCreate(wa, strat, "2",
+				new UJSAuthorizationException(
+						"Error contacting the workspace service to get " +
+						"permissions: No workspace with id 2 exists"));
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo1"));
+		wa.authorizeCreate(strat, "2");
+		
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
+		failCreate(wa2, strat, "1", new UJSAuthorizationException(
+				String.format("User %s cannot write to workspace 1",
+						U2.getUserId())));
+		
+		setPermissions(WSC1, 1, "r", U2.getUserId());
+		failCreate(wa2, strat, "1", new UJSAuthorizationException(
+				String.format("User %s cannot write to workspace 1",
+						U2.getUserId())));
+		
+		setPermissions(WSC1, 1, "w", U2.getUserId());
+		wa2.authorizeCreate(strat, "1");
+		setPermissions(WSC1, 1, "a", U2.getUserId());
+		wa2.authorizeCreate(strat, "1");
+	}
+
+	private void setPermissions(WorkspaceClient wsc, long id, String perm,
+			String user) throws Exception {
+		wsc.setPermissions(new SetPermissionsParams().withId(id)
+				.withNewPermission(perm)
+				.withUsers(Arrays.asList(user)));
+	}
+	
+	private void failCreate(UJSAuthorizer auth, AuthorizationStrategy strat,
+			String param, Exception exp) throws Exception {
+		try {
+			auth.authorizeCreate(strat, param);
+			fail("authorized create with bad auth");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+		
 	}
 
 }

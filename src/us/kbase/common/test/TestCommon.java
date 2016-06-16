@@ -1,7 +1,12 @@
 package us.kbase.common.test;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+
 import java.lang.reflect.Field;
 import java.util.Map;
+
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
@@ -59,5 +64,14 @@ public class TestCommon {
 				db.getCollection(name).remove(new BasicDBObject());
 			}
 		}
+	}
+	
+	public static void assertExceptionCorrect(
+			Exception got, Exception expected) {
+		assertThat("incorrect exception. trace:\n" +
+				ExceptionUtils.getStackTrace(got),
+				got.getLocalizedMessage(),
+				is(expected.getLocalizedMessage()));
+		assertThat("incorrect exception type", got, is(expected.getClass()));
 	}
 }

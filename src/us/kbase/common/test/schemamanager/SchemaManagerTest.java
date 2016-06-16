@@ -4,9 +4,10 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
+
 import java.nio.file.Paths;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -189,13 +190,5 @@ public class SchemaManagerTest {
 		} catch (Exception e) {
 			assertExceptionCorrect(e, exp);
 		}
-	}
-	
-	private void assertExceptionCorrect(Exception got, Exception expected) {
-		assertThat("incorrect exception. trace:\n" +
-				ExceptionUtils.getStackTrace(got),
-				got.getLocalizedMessage(),
-				is(expected.getLocalizedMessage()));
-		assertThat("incorrect exception type", got, is(expected.getClass()));
 	}
 }
