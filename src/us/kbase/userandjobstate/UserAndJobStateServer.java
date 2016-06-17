@@ -28,6 +28,7 @@ import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_ID;
 import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_URL;
 
 import java.io.IOException;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,12 +56,20 @@ import us.kbase.auth.TokenFormatException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.mongo.exceptions.MongoAuthException;
+import us.kbase.common.service.JsonClientException;
+import us.kbase.common.service.UnauthorizedException;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
+import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
+import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.jobstate.JobState;
+import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 //END_HEADER
 
 /**
@@ -121,7 +130,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private static final String GIT =
 			"https://github.com/kbase/user_and_job_state";
 	
-	private static final String VER = "0.1.2";
+	private static final String VER = "0.2.0-dev";
 
 	//required deploy parameters:
 	public static final String HOST = "mongodb-host";
@@ -134,6 +143,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	//credentials to use for user queries
 	private static final String KBASE_ADMIN_USER = "kbase-admin-user";
 	private static final String KBASE_ADMIN_PWD = "kbase-admin-pwd";
+	
+	private static final String WORKSPACE_URL = "workspace-url";
 			
 	private static Map<String, String> ujConfig = null;
 	
@@ -151,6 +162,46 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private final UserState us;
 	private final JobState js;
 	private final ConfigurableAuthService auth;
+	private final WorkspaceAuthorizationFactory authfac;
+	
+	//TODO NOW test
+	private final UJSAuthorizer nows = new UJSAuthorizer() {
+		
+		@Override
+		protected void externallyAuthorizeRead(
+				final AuthorizationStrategy strat,
+				final String user,
+				final List<String> authParams)
+				throws UJSAuthorizationException {
+			checkStrat(strat);
+		}
+
+		private void checkStrat(final AuthorizationStrategy strat)
+				throws UJSAuthorizationException {
+			if (strat.equals(WorkspaceAuthorizationFactory.WS_AUTH)) {
+				throw new UJSAuthorizationException(
+						"The UJS is not configured to delegate " +
+						"authorization to the workspace service");
+			} else {
+				throw new UJSAuthorizationException(
+						"Invalid authorization strategy: " + strat.getStrat());
+			}
+		}
+		
+		@Override
+		protected void externallyAuthorizeRead(final String user, final Job j)
+				throws UJSAuthorizationException {
+			checkStrat(j.getAuthorizationStrategy());
+		}
+		
+		@Override
+		protected void externallyAuthorizeCreate(
+				final AuthorizationStrategy strat,
+				final String authParam)
+				throws UJSAuthorizationException {
+			checkStrat(strat);
+		}
+	};
 	
 	private final static DateTimeFormatter DATE_PARSER =
 			new DateTimeFormatterBuilder()
@@ -242,8 +293,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		return null;
 	}
-	
-	//TODO NOW update to 0.2.0
+	//TODO NOW test all the various getJob methods with 1) no ws 2) w/ ws 3) w/ job created w/ ws but now w/o ws
+	//TODO NOW test create2 and list2 with with 1) no ws 2) w/ ws 3) w/ job created w/ ws but now w/o ws
+	//TODO NOW update release notes
 	//TODO NOW recompile when spec is complete
 	//TODO ZLATER doc server
 	//TODO ZLATER basic docs like Shock
@@ -273,22 +325,57 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return new Tuple14<String, String, String, String, String, String,
 				Long, Long, String, String, Long, Long, String,
 				Results>()
-				.withE1(j.getID())
-				.withE2(j.getService())
-				.withE3(j.getStage())
-				.withE4(formatDate(j.getStarted()))
-				.withE5(j.getStatus())
-				.withE6(formatDate(j.getLastUpdated()))
-				.withE7(j.getProgress() == null ? null :
-					new Long(j.getProgress()))
-				.withE8(j.getMaxProgress() == null ? null :
-					new Long(j.getMaxProgress()))
-				.withE9(j.getProgType())
-				.withE10(formatDate(j.getEstimatedCompletion()))
-				.withE11(boolToLong(j.isComplete()))
-				.withE12(boolToLong(j.hasError()))
-				.withE13(j.getDescription())
-				.withE14(makeResults(j.getResults()));
+			.withE1(j.getID())
+			.withE2(j.getService())
+			.withE3(j.getStage())
+			.withE4(formatDate(j.getStarted()))
+			.withE5(j.getStatus())
+			.withE6(formatDate(j.getLastUpdated()))
+			.withE7(j.getProgress() == null ? null :
+				new Long(j.getProgress()))
+			.withE8(j.getMaxProgress() == null ? null :
+				new Long(j.getMaxProgress()))
+			.withE9(j.getProgType())
+			.withE10(formatDate(j.getEstimatedCompletion()))
+			.withE11(boolToLong(j.isComplete()))
+			.withE12(boolToLong(j.hasError()))
+			.withE13(j.getDescription())
+			.withE14(makeResults(j.getResults()));
+	}
+
+	private Tuple12<String, String, String, String,
+			Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long,
+			Long, Tuple2<String, String>, Map<String, String>, String, Results>
+			jobToJobInfo2(final Job j) {
+		return new Tuple12<String, String, String, String,
+				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
+				Long, Long, Tuple2<String, String>, Map<String, String>,
+				String, Results>()
+			.withE1(j.getID())
+			.withE2(j.getService())
+			.withE3(j.getStage())
+			.withE4(j.getStatus())
+			.withE5(new Tuple3<String, String, String>()
+					.withE1(formatDate(j.getStarted()))
+					.withE2(formatDate(j.getLastUpdated()))
+					.withE3(formatDate(j.getEstimatedCompletion()))
+			)
+			.withE6(new Tuple3<Long, Long, String>()
+					.withE1(j.getProgress() == null ? null :
+						new Long(j.getProgress()))
+					.withE2(j.getMaxProgress() == null ? null :
+						new Long(j.getMaxProgress()))
+					.withE3(j.getProgType())
+			)
+			.withE7(boolToLong(j.isComplete()))
+			.withE8(boolToLong(j.hasError()))
+			.withE9(new Tuple2<String, String>()
+					.withE1(j.getAuthorizationStrategy().getStrat())
+					.withE2(j.getAuthorizationParameter())
+			)
+			.withE10(j.getMetadata())
+			.withE11(j.getDescription())
+			.withE12(makeResults(j.getResults()));
 	}
 	
 	private static Long boolToLong(final Boolean b) {
@@ -360,6 +447,25 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			throw new IllegalArgumentException("Unparseable date: " +
 					iae.getMessage());
 		}
+	}
+	
+	private boolean[] parseFilter(final String filter) {
+		final boolean[] ret = new boolean[4];
+		if (filter != null) {
+			if (filter.indexOf("R") > -1) {
+				ret[0] = true;
+			}
+			if (filter.indexOf("C") > -1) {
+				ret[1] = true;
+			}
+			if (filter.indexOf("E") > -1) {
+				ret[2] = true;
+			}
+			if (filter.indexOf("S") > -1) {
+				ret[3] = true;
+			}
+		}
+		return ret;
 	}
 	
 	private String formatDate(final Date date) {
@@ -438,6 +544,38 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return null;
 	}
 	
+
+	//TODO NOW test manually
+	//TODO NOW test https vs http in logging
+	private WorkspaceAuthorizationFactory setUpWorkspaceAuth() {
+		WorkspaceAuthorizationFactory authfac;
+		final String wsStr = ujConfig.get(WORKSPACE_URL);
+		if (wsStr != null) {
+			final URL wsURL;
+			try {
+				wsURL = new URL(wsStr);
+				authfac = new WorkspaceAuthorizationFactory(wsURL);
+			} catch (JsonClientException | IOException e) {
+				authfac = null;
+				fail("Error attempting to set up Workspace service " +
+					"based authorization. Any calls requiring such " +
+					"will fail: " + e.getLocalizedMessage());
+			} 
+		} else {
+			authfac = null;
+		}
+		return authfac;
+	}
+	
+	private UJSAuthorizer getAuthorizer(final AuthToken token)
+			throws UnauthorizedException, IOException {
+		if (authfac == null) {
+			return nows;
+		} else {
+			return authfac.buildAuthorizer(token);
+		}
+	}
+	
 	public static void clearConfigForTests() {
 		ujConfig = null;
 	}
@@ -488,6 +626,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			us = null;
 			js = null;
 			auth = null;
+			authfac = null;
 		} else {
 			final String user = ujConfig.get(USER);
 			final String pwd = ujConfig.get(PWD);
@@ -510,10 +649,12 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				us = null;
 				js = null;
 				auth = null;
+				authfac = null;
 			} else {
 				//TODO ZZLATER TEST add server startup tests.
 				us = getUserState(ujsDB, sm, host);
 				js = getJobState(ujsDB, sm, host);
+				authfac = setUpWorkspaceAuth();
 				auth = setUpAuthClient(adminUser, adminPwd);
 			}
 		}
@@ -718,6 +859,19 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public String createJob2(CreateJobParams params, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN create_job2
+		//TODO NOW test
+		final WorkspaceUserMetadata meta =
+				new WorkspaceUserMetadata(params.getMeta());
+		final String user = authPart.getUserName();
+		if (params.getAuthstrat() == null || params.getAuthstrat().isEmpty()) {
+			js.createJob(user, new DefaultUJSAuthorizer(),
+					UJSAuthorizer.DEFAULT_AUTH_STRAT,
+					UJSAuthorizer.DEFAULT_AUTH_PARAM, meta);
+		} else {
+			js.createJob(user, getAuthorizer(authPart),
+					new AuthorizationStrategy(params.getAuthstrat()),
+					params.getAuthparam(), meta);
+		}
         //END create_job2
         return returnVal;
     }
@@ -906,8 +1060,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
         String return4 = null;
         String return5 = null;
         //BEGIN get_job_description
-		final Job j = js.getJob(
-				authPart.getUserName(), job);
+		final Job j = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart));
 		return1 = j.getService();
 		return2 = j.getProgType();
 		return3 = j.getMaxProgress() == null ? null :
@@ -942,8 +1096,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
         Long return6 = null;
         Long return7 = null;
         //BEGIN get_job_status
-		final Job j = js.getJob(
-				authPart.getUserName(), job);
+		final Job j = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart));
 		return1 = formatDate(j.getLastUpdated());
 		return2 = j.getStage();
 		return3 = j.getStatus();
@@ -996,8 +1150,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public Results getResults(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Results returnVal = null;
         //BEGIN get_results
-		returnVal = makeResults(js.getJob(
-				authPart.getUserName(), job).getResults());
+		returnVal = makeResults(js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)).getResults());
         //END get_results
         return returnVal;
     }
@@ -1014,8 +1168,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public String getDetailedError(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN get_detailed_error
-		returnVal =  js.getJob(
-				authPart.getUserName(), job).getErrorMsg();
+		returnVal =  js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)).getErrorMsg();
         //END get_detailed_error
         return returnVal;
     }
@@ -1032,11 +1186,14 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results> getJobInfo2(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results> returnVal = null;
         //BEGIN get_job_info2
+		returnVal = jobToJobInfo2(js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)));
+		//TODO NOW test
         //END get_job_info2
         return returnVal;
     }
 
-    /**
+	/**
      * <p>Original spec-file function name: get_job_info</p>
      * <pre>
      * Get information about a job.
@@ -1049,8 +1206,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> getJobInfo(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> returnVal = null;
         //BEGIN get_job_info
-		returnVal = jobToJobInfo(js.getJob(
-				authPart.getUserName(), job));
+		returnVal = jobToJobInfo(js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)));
         //END get_job_info
         return returnVal;
     }
@@ -1067,6 +1224,27 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> listJobs2(ListJobsParams params, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> returnVal = null;
         //BEGIN list_jobs2
+		//TODO NOW test
+		final boolean[] rces = parseFilter(params.getFilter());
+		final List<String> services = params.getServices();
+		final List<Job> jobs;
+		if (params.getAuthstrat() == null || params.getAuthstrat().isEmpty()) {
+			jobs = js.listJobs(authPart.getUserName(), services,
+				rces[0], rces[1], rces[2], rces[3]);
+		} else {
+			jobs = js.listJobs(authPart.getUserName(), services,
+					rces[0], rces[1], rces[2], rces[3],
+					getAuthorizer(authPart),
+					new AuthorizationStrategy(params.getAuthstrat()),
+					params.getAuthparams());
+		}
+		returnVal = new LinkedList<Tuple12<String, String, String, String,
+				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
+				Long, Long, Tuple2<String, String>, Map<String, String>,
+				String, Results>>();
+		for (final Job j: jobs) {
+			returnVal.add(jobToJobInfo2(j));
+		}
         //END list_jobs2
         return returnVal;
     }
@@ -1086,29 +1264,12 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> listJobs(List<String> services, String filter, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> returnVal = null;
         //BEGIN list_jobs
-		boolean running = false;
-		boolean complete = false;
-		boolean error = false;
-		boolean shared = false;
-		if (filter != null) {
-			if (filter.indexOf("R") > -1) {
-				running = true;
-			}
-			if (filter.indexOf("C") > -1) {
-				complete = true;
-			}
-			if (filter.indexOf("E") > -1) {
-				error = true;
-			}
-			if (filter.indexOf("S") > -1) {
-				shared = true;
-			}
-		}
+		final boolean[] rces = parseFilter(filter);
 		returnVal = new LinkedList<Tuple14<String, String, String, String,
 				String, String, Long, Long, String, String, Long,
 				Long, String, Results>>();
 		for (final Job j: js.listJobs(authPart.getUserName(), services,
-				running, complete, error, shared)) {
+				rces[0], rces[1], rces[2], rces[3])) {
 			returnVal.add(jobToJobInfo(j));
 		}
         //END list_jobs
@@ -1181,8 +1342,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public String getJobOwner(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN get_job_owner
-		returnVal = js.getJob(
-				authPart.getUserName(), job).getUser();
+		returnVal = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)).getUser();
         //END get_job_owner
         return returnVal;
     }
@@ -1200,8 +1361,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<String> getJobShared(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<String> returnVal = null;
         //BEGIN get_job_shared
-		final Job j = js.getJob(
-				authPart.getUserName(), job);
+		final Job j = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart));
 		if (!j.getUser().equals(authPart.getUserName())) {
 			throw new IllegalArgumentException(String.format(
 					"User %s may not access the sharing list of job %s",
@@ -1222,8 +1383,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.delete_job", async=true)
     public void deleteJob(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN delete_job
-		js.deleteJob(
-				authPart.getUserName(), job);
+		js.deleteJob(authPart.getUserName(), job);
         //END delete_job
     }
 
@@ -1240,8 +1400,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.force_delete_job", async=true)
     public void forceDeleteJob(String token, String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN force_delete_job
-		js.deleteJob(authPart.getUserName(), job,
-				getServiceUserName(token));
+		js.deleteJob(authPart.getUserName(), job, getServiceUserName(token));
         //END force_delete_job
     }
     @JsonServerMethod(rpc = "UserAndJobState.status")

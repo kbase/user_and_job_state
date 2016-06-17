@@ -29,12 +29,10 @@ import us.kbase.workspace.WorkspaceIdentity;
  */
 public class WorkspaceAuthorizationFactory {
 	
-	//TODO NOW testing
-	
 	//TODO ZLATER add static cache
 	//TODO ZZLATER should add retries to the auth client
 
-	private static final AuthorizationStrategy WS_AUTH =
+	public static final AuthorizationStrategy WS_AUTH =
 			new AuthorizationStrategy("kbaseworkspace");
 	
 	private final URL wsURL;
