@@ -550,7 +550,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private WorkspaceAuthorizationFactory setUpWorkspaceAuth() {
 		WorkspaceAuthorizationFactory authfac;
 		final String wsStr = ujConfig.get(WORKSPACE_URL);
-		if (wsStr != null) {
+		if (wsStr != null && !wsStr.isEmpty()) {
 			final URL wsURL;
 			try {
 				wsURL = new URL(wsStr);
@@ -558,10 +558,12 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			} catch (JsonClientException | IOException e) {
 				authfac = null;
 				fail("Error attempting to set up Workspace service " +
-					"based authorization. Any calls requiring such " +
-					"will fail: " + e.getLocalizedMessage());
+					"based authorization: " + e.getLocalizedMessage());
 			} 
 		} else {
+			LoggerFactory.getLogger(getClass()).info(
+					"No workspace url detected in the configuration. " +
+					"Any calls requiring workspace authorization will fail.");
 			authfac = null;
 		}
 		return authfac;
@@ -863,12 +865,14 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		final WorkspaceUserMetadata meta =
 				new WorkspaceUserMetadata(params.getMeta());
 		final String user = authPart.getUserName();
-		if (params.getAuthstrat() == null || params.getAuthstrat().isEmpty()) {
-			js.createJob(user, new DefaultUJSAuthorizer(),
+		final String as = params.getAuthstrat();
+		if (as == null || as.isEmpty() ||
+				as.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat())) {
+			returnVal = js.createJob(user, new DefaultUJSAuthorizer(),
 					UJSAuthorizer.DEFAULT_AUTH_STRAT,
 					UJSAuthorizer.DEFAULT_AUTH_PARAM, meta);
 		} else {
-			js.createJob(user, getAuthorizer(authPart),
+			returnVal = js.createJob(user, getAuthorizer(authPart),
 					new AuthorizationStrategy(params.getAuthstrat()),
 					params.getAuthparam(), meta);
 		}

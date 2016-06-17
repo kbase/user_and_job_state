@@ -10,6 +10,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
@@ -61,6 +62,26 @@ public class FakeJob {
 		authstrat = j.getAuthorizationStrategy();
 		authparam = j.getAuthorizationParameter();
 		metadata = j.getMetadata(); 
+	}
+	
+	public Long getProgL() {
+		return (long) prog;
+	}
+	
+	public Long getMaxprogL() {
+		return (long) maxprog;
+	}
+	
+	public String getEstCompS() {
+		return DATE_FORMATTER.print(new DateTime(estcompl));
+	}
+	
+	public Long getCompL() {
+		return complete ? 1L : 0L;
+	}
+	
+	public Long getErrL() {
+		return error ? 1L : 0L;
 	}
 
 	public FakeJob(final String id, final String user, final String service,
@@ -119,6 +140,9 @@ public class FakeJob {
 				.appendOptional(DateTimeFormat.forPattern(".SSS").getParser())
 				.append(DateTimeFormat.forPattern("Z"))
 				.toFormatter();
+	
+	private final static DateTimeFormatter DATE_FORMATTER =
+			DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ssZ").withZoneUTC();
 
 	public FakeJob(Tuple14<String, String, String, String, String, String,
 			Long, Long, String, String, Long, Long, String,
