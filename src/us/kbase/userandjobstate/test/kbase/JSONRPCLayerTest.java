@@ -4,7 +4,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-import java.io.File;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
@@ -19,8 +18,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 
-import org.ini4j.Ini;
-import org.ini4j.Profile.Section;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -82,31 +79,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		//write the server config file:
-		File iniFile = File.createTempFile("test", ".cfg", new File("./"));
-		iniFile.deleteOnExit();
-		System.out.println("Created temporary config file: " + iniFile.getAbsolutePath());
-		Ini ini = new Ini();
-		Section ws = ini.add("UserAndJobState");
-		ws.add("mongodb-host", "localhost:" + mongo.getServerPort());
-		ws.add("mongodb-database", DB_NAME);
-		ws.add("mongodb-user", "foo");
-		ws.add("mongodb-pwd", "foo");
-		ws.add("kbase-admin-user", USER1);
-		ws.add("kbase-admin-pwd", p1);
-		ini.store(iniFile);
-		
-		//set up env
-		Map<String, String> env = TestCommon.getenv();
-		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
-		env.put("KB_SERVICE_NAME", "UserAndJobState");
-
-		SERVER = new UserAndJobStateServer();
-		new ServerThread(SERVER).start();
-		System.out.println("Main thread waiting for server to start up");
-		while(SERVER.getServerPort() == null) {
-			Thread.sleep(1000);
-		}
+		SERVER = startUpUJSServer("localhost:" + mongo.getServerPort(),
+				null, DB_NAME, USER1, p1);
 		int port = SERVER.getServerPort();
 		System.out.println("Started test server on port " + port);
 		System.out.println("Starting tests");
@@ -117,7 +91,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		TOKEN1 = CLIENT1.getToken().toString();
 		TOKEN2 = CLIENT2.getToken().toString();
 	}
-	
+
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (SERVER != null) {

@@ -4,7 +4,10 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.UnknownHostException;
+import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -13,8 +16,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.ini4j.Ini;
+import org.ini4j.Profile.Section;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.DB;
+
+import us.kbase.common.mongo.GetMongoDB;
+import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.service.JsonClientException;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple12;
@@ -23,12 +32,15 @@ import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.Tuple3;
 import us.kbase.common.service.Tuple5;
 import us.kbase.common.service.Tuple7;
+import us.kbase.common.test.TestCommon;
 import us.kbase.userandjobstate.ListJobsParams;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
 import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.test.FakeJob;
+import us.kbase.workspace.WorkspaceServer;
+import us.kbase.workspace.test.WorkspaceTestCommon;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -56,11 +68,112 @@ public class JSONRPCLayerTestUtils {
 				.setLevel(Level.OFF);
 	}
 	
-	protected static class ServerThread extends Thread {
+	public static UserAndJobStateServer startUpUJSServer(String mongohost,
+			String wsurl, String dbname, String user, String pwd)
+			throws Exception {
+		//write the server config file:
+		File iniFile = File.createTempFile("test", ".cfg",
+				new File(TestCommon.getTempDir()));
+		iniFile.deleteOnExit();
+		System.out.println("Created temporary config file: " +
+				iniFile.getAbsolutePath());
+		Ini ini = new Ini();
+		Section ws = ini.add("UserAndJobState");
+		ws.add("mongodb-host", mongohost);
+		ws.add("mongodb-database", dbname);
+		ws.add("mongodb-user", "foo");
+		ws.add("mongodb-pwd", "foo");
+		ws.add("kbase-admin-user", user);
+		ws.add("kbase-admin-pwd", pwd);
+		if (wsurl != null) {
+			ws.add("workspace-url", wsurl);
+		}
+		ini.store(iniFile);
+		
+		//set up env
+		Map<String, String> env = TestCommon.getenv();
+		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
+		env.put("KB_SERVICE_NAME", "UserAndJobState");
+
+		UserAndJobStateServer serv = new UserAndJobStateServer();
+		new UJSServerThread(serv).start();
+		System.out.println("Main thread waiting for UJS server to start up");
+		while(serv.getServerPort() == null) {
+			Thread.sleep(1000);
+		}
+		return serv;
+	}
+	
+	protected static class UJSServerThread extends Thread {
 
 		private final UserAndJobStateServer server;
 		
-		public ServerThread(UserAndJobStateServer server) {
+		public UJSServerThread(UserAndJobStateServer server) {
+			this.server = server;
+		}
+		
+		public void run() {
+			try {
+				server.startupServer();
+			} catch (Exception e) {
+				System.err.println("Can't start server:");
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	//TODO ZZLATER make the JSONRPCLayerTester method public & use
+	public static WorkspaceServer startupWorkspaceServer(String mongohost,
+			String dbname, String typedb, String user1, String user2,
+			String user1Password)
+			throws InvalidHostException, UnknownHostException, IOException,
+			NoSuchFieldException, IllegalAccessException, Exception,
+			InterruptedException {
+		DB db = GetMongoDB.getDB(mongohost, dbname);
+		WorkspaceTestCommon.initializeGridFSWorkspaceDB(db, typedb);
+		
+		//write the server config file:
+		File iniFile = File.createTempFile("test", ".cfg",
+				new File(TestCommon.getTempDir()));
+		if (iniFile.exists()) {
+			iniFile.delete();
+		}
+		System.out.println("Created temporary config file: " +
+		iniFile.getAbsolutePath());
+		Ini ini = new Ini();
+		Section ws = ini.add("Workspace");
+		ws.add("mongodb-host", mongohost);
+		ws.add("mongodb-database", db.getName());
+		ws.add("backend-secret", "foo");
+		ws.add("ws-admin", user2);
+		ws.add("kbase-admin-user", user1);
+		ws.add("kbase-admin-pwd", user1Password);
+		ws.add("temp-dir", Paths.get(TestCommon.getTempDir())
+				.resolve("tempForWorkspaceForUJSAuthTest"));
+		ws.add("ignore-handle-service", "true");
+		ini.store(iniFile);
+		iniFile.deleteOnExit();
+		
+		//set up env
+		Map<String, String> env = TestCommon.getenv();
+		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
+		env.put("KB_SERVICE_NAME", "Workspace");
+
+		WorkspaceServer.clearConfigForTests();
+		WorkspaceServer server = new WorkspaceServer();
+		new WSServerThread(server).start();
+		System.out.println(
+				"Main thread waiting for Workspace server to start up");
+		while (server.getServerPort() == null) {
+			Thread.sleep(1000);
+		}
+		return server;
+	}
+	
+	protected static class WSServerThread extends Thread {
+		private WorkspaceServer server;
+		
+		protected WSServerThread(WorkspaceServer server) {
 			this.server = server;
 		}
 		

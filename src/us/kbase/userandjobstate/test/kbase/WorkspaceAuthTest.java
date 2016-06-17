@@ -4,17 +4,12 @@ import static org.junit.Assert.fail;
 
 import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
-import org.ini4j.Ini;
-import org.ini4j.Profile.Section;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -27,7 +22,6 @@ import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthUser;
 import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
-import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.service.UnauthorizedException;
 import us.kbase.common.test.TestCommon;
@@ -45,7 +39,6 @@ import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
 import us.kbase.workspace.WorkspaceServer;
 import us.kbase.workspace.database.WorkspaceUserMetadata;
-import us.kbase.workspace.test.WorkspaceTestCommon;
 
 public class WorkspaceAuthTest {
 	
@@ -91,7 +84,8 @@ public class WorkspaceAuthTest {
 		String mongohost = "localhost:" + MONGO.getServerPort();
 		System.out.println("mongo on " + mongohost);
 		
-		WS = startupWorkspaceServer(mongohost, WS_DB_NAME, "ws_types", p1);
+		WS = JSONRPCLayerTestUtils.startupWorkspaceServer(
+				mongohost, WS_DB_NAME, "ws_types", user1, user2, p1);
 		final int port = WS.getServerPort();
 		try {
 			WSC1 = new WorkspaceClient(new URL("http://localhost:" + port),
@@ -133,69 +127,6 @@ public class WorkspaceAuthTest {
 		db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
 				JOB_DB_NAME);
 		TestCommon.destroyDB(db);
-	}
-	
-	//TODO ZZLATER make the JSONRPCLayerTester method public & use
-	private static WorkspaceServer startupWorkspaceServer(String mongohost,
-			String dbname, String typedb, String user1Password)
-			throws InvalidHostException, UnknownHostException, IOException,
-			NoSuchFieldException, IllegalAccessException, Exception,
-			InterruptedException {
-		DB db = GetMongoDB.getDB(mongohost, dbname);
-		WorkspaceTestCommon.initializeGridFSWorkspaceDB(db, typedb);
-		
-		//write the server config file:
-		File iniFile = File.createTempFile("test", ".cfg",
-				new File(TestCommon.getTempDir()));
-		if (iniFile.exists()) {
-			iniFile.delete();
-		}
-		System.out.println("Created temporary config file: " +
-		iniFile.getAbsolutePath());
-		Ini ini = new Ini();
-		Section ws = ini.add("Workspace");
-		ws.add("mongodb-host", mongohost);
-		ws.add("mongodb-database", db.getName());
-		ws.add("backend-secret", "foo");
-		ws.add("ws-admin", U2.getUserId());
-		ws.add("kbase-admin-user", U1.getUserId());
-		ws.add("kbase-admin-pwd", user1Password);
-		ws.add("temp-dir", Paths.get(TestCommon.getTempDir())
-				.resolve("tempForWorkspaceForUJSAuthTest"));
-		ws.add("ignore-handle-service", "true");
-		ini.store(iniFile);
-		iniFile.deleteOnExit();
-		
-		//set up env
-		Map<String, String> env = TestCommon.getenv();
-		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
-		env.put("KB_SERVICE_NAME", "Workspace");
-
-		WorkspaceServer.clearConfigForTests();
-		WorkspaceServer server = new WorkspaceServer();
-		new ServerThread(server).start();
-		System.out.println("Main thread waiting for server to start up");
-		while (server.getServerPort() == null) {
-			Thread.sleep(1000);
-		}
-		return server;
-	}
-	
-	protected static class ServerThread extends Thread {
-		private WorkspaceServer server;
-		
-		protected ServerThread(WorkspaceServer server) {
-			this.server = server;
-		}
-		
-		public void run() {
-			try {
-				server.startupServer();
-			} catch (Exception e) {
-				System.err.println("Can't start server:");
-				e.printStackTrace();
-			}
-		}
 	}
 	
 	private static UJSAuthorizer LENIENT = new UJSAuthorizer() {
