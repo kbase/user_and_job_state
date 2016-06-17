@@ -10,12 +10,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 
+import us.kbase.common.service.Tuple12;
 import us.kbase.common.service.Tuple14;
+import us.kbase.common.service.Tuple2;
+import us.kbase.common.service.Tuple3;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
@@ -64,26 +66,12 @@ public class FakeJob {
 		metadata = j.getMetadata(); 
 	}
 	
-	public Long getProgL() {
-		return (long) prog;
+	public FakeJob asV1DB() {
+		return new FakeJob(id, user, service, stage, estcompl, desc, progtype,
+				prog, maxprog, status, complete, error, errormsg, results);
+				
 	}
 	
-	public Long getMaxprogL() {
-		return (long) maxprog;
-	}
-	
-	public String getEstCompS() {
-		return DATE_FORMATTER.print(new DateTime(estcompl));
-	}
-	
-	public Long getCompL() {
-		return complete ? 1L : 0L;
-	}
-	
-	public Long getErrL() {
-		return error ? 1L : 0L;
-	}
-
 	public FakeJob(final String id, final String user, final String service,
 			final String stage, final Date estComplete, final String desc,
 			final String progtype, final Integer prog, final Integer maxprog,
@@ -141,9 +129,6 @@ public class FakeJob {
 				.append(DateTimeFormat.forPattern("Z"))
 				.toFormatter();
 	
-	private final static DateTimeFormatter DATE_FORMATTER =
-			DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ssZ").withZoneUTC();
-
 	public FakeJob(Tuple14<String, String, String, String, String, String,
 			Long, Long, String, String, Long, Long, String,
 			Results> ji)
@@ -162,29 +147,56 @@ public class FakeJob {
 		this.error = ji.getE12() != 0;
 		this.desc = ji.getE13();
 		this.errormsg = null;
-		if (ji.getE14() == null) {
-			this.results = null;
-		} else {
-			Results r = ji.getE14();
-			List<JobResult> jrs = null;
-			if (r.getResults() != null) {
-				jrs = new LinkedList<JobResult>();
-				for (Result res: r.getResults()) {
-					jrs.add(new JobResult(res.getServerType(), res.getUrl(),
-							res.getId(), res.getDescription()));
-				}
-			}
-			this.results = new JobResults(jrs, 
-					r.getWorkspaceurl(),
-					r.getWorkspaceids(),
-					r.getShockurl(),
-					r.getShocknodes());
-		}
+		this.results = makeResults(ji.getE14());
 		authstrat = new AuthorizationStrategy("DEFAULT");
 		authparam = "DEFAULT";
 		metadata = new HashMap<String, String>();
 	}
+
+	private JobResults makeResults(Results results) {
+		if (results == null) {
+			return null;
+		} else {
+			List<JobResult> jrs = null;
+			if (results.getResults() != null) {
+				jrs = new LinkedList<JobResult>();
+				for (Result res: results.getResults()) {
+					jrs.add(new JobResult(res.getServerType(), res.getUrl(),
+							res.getId(), res.getDescription()));
+				}
+			}
+			return new JobResults(jrs, 
+					results.getWorkspaceurl(),
+					results.getWorkspaceids(),
+					results.getShockurl(),
+					results.getShocknodes());
+		}
+	}
 	
+	public FakeJob(Tuple12<String, String, String, String,
+				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
+				Long, Long, Tuple2<String, String>, Map<String, String>,
+				String, Results> j) {
+		this.user = null;
+		this.id = j.getE1();
+		this.service = j.getE2();
+		this.stage = j.getE3();
+		this.status = j.getE4();
+		this.estcompl = j.getE5().getE3() == null ? null :
+			DATE_PARSER.parseDateTime(j.getE5().getE3()).toDate();
+		this.prog = longToInt(j.getE6().getE1());
+		this.maxprog = longToInt(j.getE6().getE2());
+		this.progtype = j.getE6().getE3();
+		this.complete = j.getE7() != 0;
+		this.error = j.getE8() != 0;
+		authstrat = new AuthorizationStrategy(j.getE9().getE1());
+		authparam = j.getE9().getE2();
+		metadata = j.getE10();
+		this.desc = j.getE11();
+		this.errormsg = null;
+		this.results = makeResults(j.getE12());
+	}
+
 	//no checking, assumes the cast is ok
 	private Integer longToInt(Long l) {
 		if (l == null) {

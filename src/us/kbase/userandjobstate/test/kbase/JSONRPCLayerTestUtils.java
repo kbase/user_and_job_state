@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -14,6 +15,7 @@ import java.util.Set;
 
 import org.slf4j.LoggerFactory;
 
+import us.kbase.common.service.JsonClientException;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple12;
 import us.kbase.common.service.Tuple14;
@@ -21,6 +23,7 @@ import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.Tuple3;
 import us.kbase.common.service.Tuple5;
 import us.kbase.common.service.Tuple7;
+import us.kbase.userandjobstate.ListJobsParams;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
 import us.kbase.userandjobstate.UserAndJobStateClient;
@@ -290,25 +293,68 @@ public class JSONRPCLayerTestUtils {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	protected void checkListJobs(UserAndJobStateClient cli, String service, String filter,
 			Set<FakeJob> expected) throws Exception {
-				Set<FakeJob> got = new HashSet<FakeJob>();
-				for (Tuple14<String, String, String, String, String, String, Long,
-						Long, String, String, Long, Long, String, Results> ji: 
-							cli.listJobs(Arrays.asList(service), filter)) {
-					got.add(new FakeJob(ji));
-				}
-				assertThat("got the correct jobs", got, is(expected));
-			}
+		for (String authStrat: Arrays.asList(null, "", "DEFAULT")) {
+			checkListJobs2(cli, service, filter, expected, authStrat);
+		}
+		
+		Set<FakeJob> got = new HashSet<FakeJob>();
+		for (Tuple14<String, String, String, String, String, String, Long,
+				Long, String, String, Long, Long, String, Results> ji: 
+					cli.listJobs(Arrays.asList(service), filter)) {
+			got.add(new FakeJob(ji));
+		}
+		Set<FakeJob> v1 = new HashSet<FakeJob>();
+		for (FakeJob fj: expected) {
+			v1.add(fj.asV1DB());
+		}
+		assertThat("got the correct jobs", got, is(v1));
+	}
 
-	protected void testListJobsWithBadArgs(UserAndJobStateClient cli, String service,
+	private void checkListJobs2(UserAndJobStateClient cli, String service,
+			String filter, Set<FakeJob> expected, String authStrat)
+			throws IOException, JsonClientException {
+		Set<FakeJob> got = new HashSet<FakeJob>();
+		//ew.
+		for (Tuple12<String, String, String, String,
+				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
+				Long, Long, Tuple2<String, String>, Map<String, String>,
+				String, Results> j: cli.listJobs2(new ListJobsParams()
+					.withAuthstrat(authStrat)
+					.withServices(Arrays.asList(service))
+					.withFilter(filter))) {
+			got.add(new FakeJob(j));
+		}
+		assertThat("got the correct jobs", got, is(expected));
+	}
+
+	@SuppressWarnings("deprecation")
+	protected void failListJobs(UserAndJobStateClient cli, String service,
 			String exception) throws Exception {
-				try {
-					cli.listJobs(Arrays.asList(service), "RCE");
-					fail("list jobs worked w/ bad service");
-				} catch (ServerException se) {
-					assertThat("correct exception", se.getLocalizedMessage(),
-							is(exception));
-				}
-			}
+		try {
+			cli.listJobs(Arrays.asList(service), "RCE");
+			fail("list jobs worked w/ bad service");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getLocalizedMessage(),
+					is(exception));
+		}
+		failListJobs2(cli, service, "DEFAULT", exception);
+	}
+
+	protected void failListJobs2(UserAndJobStateClient cli,
+			String service, String authstrat, String exception) throws IOException,
+			JsonClientException {
+		try {
+			cli.listJobs2(new ListJobsParams()
+					.withServices(Arrays.asList(service)).withFilter("RCE")
+					.withAuthstrat(authstrat)
+					.withAuthparams(Arrays.asList("1")));
+			fail("list jobs worked w/ bad service");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getLocalizedMessage(),
+					is(exception));
+		}
+	}
 }

@@ -1232,7 +1232,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		final boolean[] rces = parseFilter(params.getFilter());
 		final List<String> services = params.getServices();
 		final List<Job> jobs;
-		if (params.getAuthstrat() == null || params.getAuthstrat().isEmpty()) {
+		final String as = params.getAuthstrat();
+		if (as == null || as.isEmpty() ||
+				as.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat())) {
 			jobs = js.listJobs(authPart.getUserName(), services,
 				rces[0], rces[1], rces[2], rces[3]);
 		} else {

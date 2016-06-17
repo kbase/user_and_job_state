@@ -872,7 +872,6 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@Test
 	public void listJobs() throws Exception {
-		//NOTE: all jobs must be deleted from CLIENT2 or other tests may fail
 		InitProgress noprog = new InitProgress().withPtype("none");
 		Set<FakeJob> empty = new HashSet<FakeJob>();
 		
@@ -1096,14 +1095,20 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RE", empty);
 		checkListJobs(CLIENT2, USER1, "RCE", empty);
 		
-		testListJobsWithBadArgs(CLIENT2, null,
+		failListJobs(CLIENT2, null,
 				"service cannot be null or the empty string");
-		testListJobsWithBadArgs(CLIENT2, "",
+		failListJobs(CLIENT2, "",
 				"service cannot be null or the empty string");
-		testListJobsWithBadArgs(CLIENT2, "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst"
+		failListJobs(CLIENT2, "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst"
 				+ "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst" +
 				"abcdefghijklmnopqrst" + "a",
 				"service exceeds the maximum length of 100");
+		failListJobs2(CLIENT2, USER1, "kbaseworkspace",
+				"The UJS is not configured to delegate authorization to the " +
+				"workspace service");
+		
+		failListJobs2(CLIENT2, USER1, "foo",
+				"Invalid authorization strategy: foo");
 	}
 	
 	@Test
