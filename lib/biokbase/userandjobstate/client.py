@@ -179,8 +179,8 @@ class UserAndJobState(object):
            supplied, in most cases an authparam must be supplied as well.
            auth_param - a parameter for the authorization strategy. usermeta
            meta - metadata for the job.) -> structure: parameter "authstrat"
-           of type "auth_strategy" (An authoriziation strategy to use for
-           jobs. Other than the default strategy (ACLs local to the UJS and
+           of type "auth_strategy" (An authorization strategy to use for
+           jobs. Other than the DEFAULT strategy (ACLs local to the UJS and
            managed by the UJS sharing functions), currently the only other
            strategy is the 'kbaseworkspace' strategy, which consults the
            workspace service for authorization information.), parameter
@@ -479,8 +479,8 @@ class UserAndJobState(object):
            "error" of type "boolean" (A boolean. 0 = false, other = true.),
            parameter "auth" of type "auth_info" (Job authorization strategy
            information.) -> tuple of size 2: parameter "strat" of type
-           "auth_strategy" (An authoriziation strategy to use for jobs. Other
-           than the default strategy (ACLs local to the UJS and managed by
+           "auth_strategy" (An authorization strategy to use for jobs. Other
+           than the DEFAULT strategy (ACLs local to the UJS and managed by
            the UJS sharing functions), currently the only other strategy is
            the 'kbaseworkspace' strategy, which consults the workspace
            service for authorization information.), parameter "param" of type
@@ -615,8 +615,8 @@ class UserAndJobState(object):
            jobs are returned. If only the S filter is present, all jobs are
            returned. The S filter is ignored for jobs not using the default
            authorization strategy.), parameter "authstrat" of type
-           "auth_strategy" (An authoriziation strategy to use for jobs. Other
-           than the default strategy (ACLs local to the UJS and managed by
+           "auth_strategy" (An authorization strategy to use for jobs. Other
+           than the DEFAULT strategy (ACLs local to the UJS and managed by
            the UJS sharing functions), currently the only other strategy is
            the 'kbaseworkspace' strategy, which consults the workspace
            service for authorization information.), parameter "authparams" of
@@ -656,8 +656,8 @@ class UserAndJobState(object):
            "error" of type "boolean" (A boolean. 0 = false, other = true.),
            parameter "auth" of type "auth_info" (Job authorization strategy
            information.) -> tuple of size 2: parameter "strat" of type
-           "auth_strategy" (An authoriziation strategy to use for jobs. Other
-           than the default strategy (ACLs local to the UJS and managed by
+           "auth_strategy" (An authorization strategy to use for jobs. Other
+           than the DEFAULT strategy (ACLs local to the UJS and managed by
            the UJS sharing functions), currently the only other strategy is
            the 'kbaseworkspace' strategy, which consults the workspace
            service for authorization information.), parameter "param" of type
@@ -789,7 +789,8 @@ class UserAndJobState(object):
     def share_job(self, job, users, context=None):
         """
         Share a job. Sharing a job to the same user twice or with the job owner
-        has no effect. Only valid for the default auth strategy.
+        has no effect. Attempting to share a job not using the default auth
+        strategy will fail.
         :param job: instance of type "job_id" (A job id.)
         :param users: instance of list of type "username" (Login name of a
            KBase user account.)
@@ -801,8 +802,8 @@ class UserAndJobState(object):
     def unshare_job(self, job, users, context=None):
         """
         Stop sharing a job. Removing sharing from a user that the job is not
-        shared with or the job owner has no effect. Only valid for the default
-        auth strategy.
+        shared with or the job owner has no effect. Attemping to unshare a job
+        not using the default auth strategy will fail.
         :param job: instance of type "job_id" (A job id.)
         :param users: instance of list of type "username" (Login name of a
            KBase user account.)
@@ -813,7 +814,7 @@ class UserAndJobState(object):
 
     def get_job_owner(self, job, context=None):
         """
-        Get the owner of a job. Only valid for the default auth strategy.
+        Get the owner of a job.
         :param job: instance of type "job_id" (A job id.)
         :returns: instance of type "username" (Login name of a KBase user
            account.)
@@ -825,7 +826,8 @@ class UserAndJobState(object):
     def get_job_shared(self, job, context=None):
         """
         Get the list of users with which a job is shared. Only the job owner
-        may access this method. Only valid for the default auth strategy.
+        may access this method. Returns an empty list for jobs not using the
+        default auth strategy.
         :param job: instance of type "job_id" (A job id.)
         :returns: instance of list of type "username" (Login name of a KBase
            user account.)

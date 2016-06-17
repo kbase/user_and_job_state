@@ -26,6 +26,8 @@ Bio::KBase::userandjobstate::Client
 =head1 DESCRIPTION
 
 
+User and Job State service (UJS)
+
 Service for storing arbitrary key/object pairs on a per user per service basis
 and storing job status so that a) long JSON RPC calls can report status and
 UI elements can receive updates, and b) there's a centralized location for 
@@ -54,8 +56,6 @@ pairs or jobs, require service authentication.
 The service assumes other services are capable of simple math and does not
 throw errors if a progress bar overflows.
 
-Where string limits are noted, these apply only to *incoming* strings.
-
 Potential job process flows:
 
 Asysnc:
@@ -76,6 +76,27 @@ meanwhile, the UI periodically polls the job status server to get progress
         updates
 service call finishes, completes job, returns results
 UI thread joins
+
+Authorization:
+Currently two modes of authorization are supported:
+
+DEFAULT:
+DEFAULT authorization uses the UJS access control lists (ACLs) stored in the
+UJS database. All methods work normally for this authorization strategy. To
+use the default authorization strategy, simply do not specify an authorization
+strategy when creating a job.
+
+kbaseworkspace:
+kbaseworkspace authorization (kbwsa) associates each job with an integer
+Workspace Service (WSS) workspace ID (the authorization parameter). In order to
+create a job with kbwsa, a user must have write access to the workspace in
+question. That user can then read and update (but not necessarily list) the job
+for the remainder of the job lifetime, regardless of the workspace permission.
+
+Other users must have read permissions to the workspace in order to view the
+job.
+
+Share and unshare commands do not work with kbwsa.
 
 
 =cut
@@ -2919,7 +2940,8 @@ username is a string
 =item Description
 
 Share a job. Sharing a job to the same user twice or with the job owner
-has no effect. Only valid for the default auth strategy.
+has no effect. Attempting to share a job not using the default auth
+strategy will fail.
 
 =back
 
@@ -3006,8 +3028,8 @@ username is a string
 =item Description
 
 Stop sharing a job. Removing sharing from a user that the job is not
-shared with or the job owner has no effect. Only valid for the default
-auth strategy.
+shared with or the job owner has no effect. Attemping to unshare a job
+not using the default auth strategy will fail.
 
 =back
 
@@ -3093,7 +3115,7 @@ username is a string
 
 =item Description
 
-Get the owner of a job. Only valid for the default auth strategy.
+Get the owner of a job.
 
 =back
 
@@ -3179,7 +3201,8 @@ username is a string
 =item Description
 
 Get the list of users with which a job is shared. Only the job owner
-may access this method. Only valid for the default auth strategy.
+may access this method. Returns an empty list for jobs not using the
+default auth strategy.
 
 =back
 
@@ -4090,8 +4113,8 @@ results has a value which is a reference to a list where each element is an User
 
 =item Description
 
-An authoriziation strategy to use for jobs. Other than the
-default strategy (ACLs local to the UJS and managed by the UJS
+An authorization strategy to use for jobs. Other than the
+DEFAULT strategy (ACLs local to the UJS and managed by the UJS
 sharing functions), currently the only other strategy is the
 'kbaseworkspace' strategy, which consults the workspace service for
 authorization information.
