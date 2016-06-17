@@ -164,7 +164,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private final ConfigurableAuthService auth;
 	private final WorkspaceAuthorizationFactory authfac;
 	
-	//TODO NOW test
 	private final UJSAuthorizer nows = new UJSAuthorizer() {
 		
 		@Override
@@ -293,8 +292,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		return null;
 	}
-	//TODO NOW test all the various getJob methods with 1) no ws 2) w/ ws 3) w/ job created w/ ws but now w/o ws
-	//TODO NOW test create2 and list2 with with 1) no ws 2) w/ ws 3) w/ job created w/ ws but now w/o ws
+	//TODO NOW test all the list2 and the various getJob methods with job created w/ ws but now w/o ws
 	//TODO NOW update release notes
 	//TODO NOW recompile when spec is complete
 	//TODO ZLATER doc server
@@ -860,7 +858,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public String createJob2(CreateJobParams params, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN create_job2
-		//TODO NOW test
 		final WorkspaceUserMetadata meta =
 				new WorkspaceUserMetadata(params.getMeta());
 		final String user = authPart.getUserName();
@@ -1191,7 +1188,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
         //BEGIN get_job_info2
 		returnVal = jobToJobInfo2(js.getJob(authPart.getUserName(), job,
 				getAuthorizer(authPart)));
-		//TODO NOW test
         //END get_job_info2
         return returnVal;
     }
@@ -1227,7 +1223,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> listJobs2(ListJobsParams params, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> returnVal = null;
         //BEGIN list_jobs2
-		//TODO NOW test
 		final boolean[] rces = parseFilter(params.getFilter());
 		final List<String> services = params.getServices();
 		final List<Job> jobs;

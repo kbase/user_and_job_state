@@ -63,8 +63,8 @@ kbaseworkspace:
 kbaseworkspace authorization (kbwsa) associates each job with an integer
 Workspace Service (WSS) workspace ID (the authorization parameter). In order to
 create a job with kbwsa, a user must have write access to the workspace in
-question. That user can then read and update the job for the rest of the job
-lifetime, regardless of the workspace permission.
+question. That user can then read and update (but not necessarily list) the job
+for the remainder of the job lifetime, regardless of the workspace permission.
 
 Other users must have read permissions to the workspace in order to view the
 job.

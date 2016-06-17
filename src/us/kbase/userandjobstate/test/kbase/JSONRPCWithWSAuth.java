@@ -5,10 +5,13 @@ import static org.junit.Assert.assertThat;
 
 import java.net.URL;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -26,6 +29,8 @@ import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
+import us.kbase.userandjobstate.test.FakeJob;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
@@ -240,4 +245,91 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		
 	}
 
+	@Test
+	public void testListJobs() throws Exception {
+		InitProgress noprog = new InitProgress().withPtype("none");
+		String user2 = U2.getUserId();
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo"));
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo1"));
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo2"));
+		setPermissions(WSC1, 1, "r", user2);
+		setPermissions(WSC1, 3, "r", user2);
+		
+		String id1 =  UJSC1.createJob2(new CreateJobParams()
+			.withAuthstrat(KBWS).withAuthparam("1"));
+		UJSC1.startJob(id1, TOKEN2, "stat1", "desc1", noprog, null);
+		String id2 =  UJSC1.createJob2(new CreateJobParams()
+			.withAuthstrat(KBWS).withAuthparam("2"));
+		UJSC1.startJob(id2, TOKEN2, "stat2", "desc2", noprog, null);
+		String id3 =  UJSC1.createJob2(new CreateJobParams()
+			.withAuthstrat(KBWS).withAuthparam("3"));
+		UJSC1.startJob(id3, TOKEN2, "stat3", "desc3", noprog, null);
+		// check that this doesn't show up in ws lists
+		UJSC1.createAndStartJob(TOKEN2, "defstat", "defdesc", noprog, null);
+		
+		FakeJob fj1 = new FakeJob(id1, null, user2, "started", null, "desc1",
+				"none", null, null, "stat1", false, false, null, null,
+				new AuthorizationStrategy(KBWS), "1", MTMAP);
+		FakeJob fj2 = new FakeJob(id2, null, user2, "started", null, "desc2",
+				"none", null, null, "stat2", false, false, null, null,
+				new AuthorizationStrategy(KBWS), "2", MTMAP);
+		FakeJob fj3 = new FakeJob(id3, null, user2, "started", null, "desc3",
+				"none", null, null, "stat3", false, false, null, null,
+				new AuthorizationStrategy(KBWS), "3", MTMAP);
+		Set<FakeJob> fjs123 = new HashSet<FakeJob>(
+				Arrays.asList(fj1, fj2, fj3));
+		Set<FakeJob> fjs13 = new HashSet<FakeJob>(Arrays.asList(fj1, fj3));
+		Set<FakeJob> fjs3 = new HashSet<FakeJob>(Arrays.asList(fj3));
+		
+		
+		checkListJobs2(UJSC1, user2, "", fjs123, KBWS,
+				Arrays.asList("1", "2", "3"));
+		checkListJobs2(UJSC2, user2, "", fjs13, KBWS,
+				Arrays.asList("1", "3"));
+		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "2", "3"),
+				String.format("User %s cannot read workspace 2", user2));
+		
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "3"),
+				"Error contacting the workspace service to get permissions: " +
+				"Workspace 1 is deleted");
+		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("3", "4"),
+				"Error contacting the workspace service to get permissions: " +
+				"No workspace with id 4 exists");
+		checkListJobs2(UJSC1, user2, "", fjs3, KBWS, Arrays.asList("3"));
+		
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		checkListJobs2(UJSC2, user2, "", fjs13, KBWS,
+				Arrays.asList("1", "3"));
+		
+		setPermissions(WSC1, 3, "n", user2);
+
+		//check fencepost error
+		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "3"),
+				String.format("User %s cannot read workspace 3", user2));
+		
+		setPermissions(WSC1, 3, "w", user2);
+		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		
+		setPermissions(WSC1, 3, "a", user2);
+		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		
+		failListJobs2(UJSC1, "foo", KBWS, new LinkedList<String>(),
+				"authParams cannot be null or empty");
+		failListJobs2(UJSC1, "foo", KBWS, Arrays.asList("1", "2", "3", "4",
+				"5", "6", "7", "8", "9", "10", "11"),
+				"No more than 10 workspace IDs may be specified");
+		failListJobs2(UJSC1, "foo", KBWS, Arrays.asList("1", "2", "3", "4",
+				"5", "6", "7", "8", "9", "foo"),
+				"The string foo is not a valid integer workspace ID");
+		failListJobs2(UJSC1, "foo", "foo", Arrays.asList("1", "2", "3", "4",
+				"5", "6", "7", "8", "9", "10"),
+				"Invalid authorization strategy: foo");
+		
+	}
+	
 }

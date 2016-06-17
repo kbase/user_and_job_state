@@ -1063,11 +1063,10 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				+ "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst" +
 				"abcdefghijklmnopqrst" + "a",
 				"service exceeds the maximum length of 100");
-		failListJobs2(CLIENT2, USER1, "kbaseworkspace",
+		failListJobs2(CLIENT2, USER1, "kbaseworkspace", Arrays.asList("1"),
 				"The UJS is not configured to delegate authorization to the " +
 				"workspace service");
-		
-		failListJobs2(CLIENT2, USER1, "foo",
+		failListJobs2(CLIENT2, USER1, "foo", Arrays.asList("1"),
 				"Invalid authorization strategy: foo");
 	}
 	

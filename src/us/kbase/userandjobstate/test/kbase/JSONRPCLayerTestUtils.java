@@ -413,7 +413,8 @@ public class JSONRPCLayerTestUtils {
 	protected void checkListJobs(UserAndJobStateClient cli, String service, String filter,
 			Set<FakeJob> expected) throws Exception {
 		for (String authStrat: Arrays.asList(null, "", "DEFAULT")) {
-			checkListJobs2(cli, service, filter, expected, authStrat);
+			checkListJobs2(cli, service, filter, expected, authStrat,
+					Arrays.asList("1"));
 		}
 		
 		Set<FakeJob> got = new HashSet<FakeJob>();
@@ -429,8 +430,9 @@ public class JSONRPCLayerTestUtils {
 		assertThat("got the correct jobs", got, is(v1));
 	}
 
-	private void checkListJobs2(UserAndJobStateClient cli, String service,
-			String filter, Set<FakeJob> expected, String authStrat)
+	protected void checkListJobs2(UserAndJobStateClient cli, String service,
+			String filter, Set<FakeJob> expected, String authStrat,
+			List<String> authparams)
 			throws IOException, JsonClientException {
 		Set<FakeJob> got = new HashSet<FakeJob>();
 		//ew.
@@ -439,6 +441,7 @@ public class JSONRPCLayerTestUtils {
 				Long, Long, Tuple2<String, String>, Map<String, String>,
 				String, Results> j: cli.listJobs2(new ListJobsParams()
 					.withAuthstrat(authStrat)
+					.withAuthparams(authparams)
 					.withServices(Arrays.asList(service))
 					.withFilter(filter))) {
 			got.add(new FakeJob(j));
@@ -456,17 +459,17 @@ public class JSONRPCLayerTestUtils {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
 		}
-		failListJobs2(cli, service, "DEFAULT", exception);
+		failListJobs2(cli, service, "DEFAULT", Arrays.asList("1"), exception);
 	}
 
 	protected void failListJobs2(UserAndJobStateClient cli,
-			String service, String authstrat, String exception) throws IOException,
+			String service, String authstrat, List<String> authparams,
+			String exception) throws IOException,
 			JsonClientException {
 		try {
 			cli.listJobs2(new ListJobsParams()
 					.withServices(Arrays.asList(service)).withFilter("RCE")
-					.withAuthstrat(authstrat)
-					.withAuthparams(Arrays.asList("1")));
+					.withAuthstrat(authstrat).withAuthparams(authparams));
 			fail("list jobs worked w/ bad service");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),

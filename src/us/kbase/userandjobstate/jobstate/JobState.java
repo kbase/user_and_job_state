@@ -549,11 +549,17 @@ public class JobState {
 		checkString(user, "user");
 		auth.authorizeRead(strat, user, authParams);
 		String query;
-		if (shared) {
-			query = String.format("{$or: [{%s: '%s'}, {%s: '%s'}]",
-					USER, user, SHARED, user);
+		if (strat.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT)) {
+			if (shared) {
+				query = String.format("{$or: [{%s: '%s'}, {%s: '%s'}]",
+						USER, user, SHARED, user);
+			} else {
+				query = String.format("{%s: '%s'", USER, user);
+			}
 		} else {
-			query = String.format("{%s: '%s'", USER, user);
+			query = String.format("{%s: '%s', %s: {$in: ['%s']}",
+					AUTH_STRAT, strat.getStrat(),
+					AUTH_PARAM, StringUtils.join(authParams, "', '"));
 		}
 		if (services != null && !services.isEmpty()) {
 			for (final String s: services) {
@@ -564,9 +570,6 @@ public class JobState {
 		} else {
 			query += String.format(", %s: {$ne: null}", SERVICE);
 		}
-		query += String.format(", %s: '%s', %s: {$in: ['%s']}",
-				AUTH_STRAT, strat.getStrat(),
-				AUTH_PARAM, StringUtils.join(authParams, "', '"));
 		//this seems dumb.
 		if (running && !complete && !error) {
 			query += ", " + COMPLETE + ": false}";
