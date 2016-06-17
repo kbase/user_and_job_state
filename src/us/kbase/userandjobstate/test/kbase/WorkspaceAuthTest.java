@@ -12,6 +12,7 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import org.ini4j.Ini;
@@ -26,6 +27,7 @@ import com.mongodb.DBCollection;
 
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthUser;
+import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.schemamanager.SchemaManager;
@@ -36,12 +38,15 @@ import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
+import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.SetPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
+import us.kbase.workspace.WorkspaceIdentity;
 import us.kbase.workspace.WorkspaceServer;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 import us.kbase.workspace.test.WorkspaceTestCommon;
 
 public class WorkspaceAuthTest {
@@ -195,6 +200,28 @@ public class WorkspaceAuthTest {
 		}
 	}
 	
+	private static UJSAuthorizer LENIENT = new UJSAuthorizer() {
+		
+		@Override
+		protected void externallyAuthorizeRead(AuthorizationStrategy strat,
+				String user, List<String> authParams)
+				throws UJSAuthorizationException {
+			throw new UnimplementedException();
+		}
+		
+		@Override
+		protected void externallyAuthorizeRead(String user, Job j)
+				throws UJSAuthorizationException {
+			// go ahead
+		}
+		
+		@Override
+		protected void externallyAuthorizeCreate(AuthorizationStrategy strat,
+				String authParam) throws UJSAuthorizationException {
+			//I'll allow it
+		}
+	};
+	
 	@Test
 	public void testFactoryInit() throws Exception {
 		try {
@@ -263,6 +290,66 @@ public class WorkspaceAuthTest {
 		wa2.authorizeCreate(strat, "1");
 		setPermissions(WSC1, 1, "a", U2.getUserId());
 		wa2.authorizeCreate(strat, "1");
+	}
+	
+	@Test
+	public void testAuthorizeSingleRead() throws Exception {
+		WorkspaceAuthorizationFactory wafac =
+				new WorkspaceAuthorizationFactory(
+						new URL("http://localhost:" + WS.getServerPort()));
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo"));
+		String user1 = U1.getUserId();
+		String user2 = U2.getUserId();
+		setPermissions(WSC1, 1, "w", user2);
+		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		
+		//test that deleting a workspace keeps the job visible to the owner
+		String id = JS.createJob(user1, wa1, strat, "1", mt);
+		Job j = JS.getJob(user1, id, wa1);
+		wa2.authorizeRead(user2, j);
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
+				"Error contacting the workspace service to get permissions: " +
+				"Workspace 1 is deleted"));
+		JS.startJob(user1, id, "foo", "stat1", "desc1", null);
+		JS.updateJob(user1, id, "foo", "stat1", null, null);
+		JS.completeJob(user1, id, "foo", "stat2", null, null);
+		wa1.authorizeRead(user1, j);
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		wa2.authorizeRead(user2, j);
+		setPermissions(WSC1, 1, "n", user2);
+		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
+				String.format("User %s cannot read workspace 1", user2)));
+		setPermissions(WSC1, 1, "w", user2);
+		wa2.authorizeRead(user2, j);
+		setPermissions(WSC1, 1, "a", user2);
+		wa2.authorizeRead(user2, j);
+		
+		failSingleRead(wa2, user1, j, new IllegalStateException(
+				"A programming error occured: the token username and the " +
+				"supplied username do not match"));
+		
+		// test bad auth strat
+		String id2 = JS.createJob(user1, LENIENT,
+				new AuthorizationStrategy("foo"), "foo", mt);
+		Job j2 = JS.getJob(user1, id2, LENIENT);
+		failSingleRead(wa1, user1, j2, new UJSAuthorizationException(
+				"Invalid authorization strategy: foo"));
+		
+	}
+	
+	private void failSingleRead(UJSAuthorizer auth, String user, Job j,
+			Exception exp) {
+		try {
+			auth.authorizeRead(user, j);
+			fail("authorized bad read");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
 	}
 
 	private void setPermissions(WorkspaceClient wsc, long id, String perm,

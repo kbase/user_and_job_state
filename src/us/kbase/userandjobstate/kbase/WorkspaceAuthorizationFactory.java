@@ -176,6 +176,9 @@ public class WorkspaceAuthorizationFactory {
 				throws UJSAuthorizationException {
 			checkWSUser(user);
 			checkStrat(j.getAuthorizationStrategy());
+			if (user.equals(j.getUser())) {
+				return; // owner can always read job
+			}
 			final String p = getPerms(j.getAuthorizationParameter())
 					.get(0).get(username);
 			if (!CAN_READ.contains(p)) {
