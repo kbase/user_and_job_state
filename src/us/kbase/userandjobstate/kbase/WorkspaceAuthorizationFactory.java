@@ -9,6 +9,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import us.kbase.auth.AuthToken;
@@ -48,15 +49,19 @@ public class WorkspaceAuthorizationFactory {
 		if (workspaceURL == null) {
 			throw new NullPointerException("workspaceURL");
 		}
+		final Logger l = LoggerFactory.getLogger(getClass());
+		
 		wsURL = workspaceURL;
 		if (!wsURL.getProtocol().equals("https")) {
 			insecure = true;
-			LoggerFactory.getLogger(getClass()).warn("The url " + wsURL +
-					" is not secure. Use an https:// url if possible.");
+			LoggerFactory.getLogger(getClass()).warn("The workspace url " +
+				wsURL + " is not secure. Use an https:// url if possible.");
 		} else {
 			insecure = false;
 		}
-		new WorkspaceClient(wsURL).ver();
+		 //test the url is ok and log
+		l.info("Connected to Workspace Service v" +
+				new WorkspaceClient(wsURL).ver() + " at " + wsURL);
 	}
 	
 	/** Get an authorizer using the given token.

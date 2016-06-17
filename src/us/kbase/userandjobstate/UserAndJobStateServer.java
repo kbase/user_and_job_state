@@ -545,8 +545,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 
-	//TODO NOW test manually
-	//TODO NOW test https vs http in logging
 	private WorkspaceAuthorizationFactory setUpWorkspaceAuth() {
 		WorkspaceAuthorizationFactory authfac;
 		final String wsStr = ujConfig.get(WORKSPACE_URL);
@@ -558,7 +556,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			} catch (JsonClientException | IOException e) {
 				authfac = null;
 				fail("Error attempting to set up Workspace service " +
-					"based authorization: " + e.getLocalizedMessage());
+						"based authorization with URL " + wsStr + ": " +
+						e.getLocalizedMessage());
 			} 
 		} else {
 			LoggerFactory.getLogger(getClass()).info(
