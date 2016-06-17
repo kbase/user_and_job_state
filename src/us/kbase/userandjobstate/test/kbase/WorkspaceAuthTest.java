@@ -34,7 +34,6 @@ import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
 import us.kbase.workspace.CreateWorkspaceParams;
-import us.kbase.workspace.SetPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
 import us.kbase.workspace.WorkspaceServer;
@@ -210,14 +209,14 @@ public class WorkspaceAuthTest {
 				String.format("User %s cannot write to workspace 1",
 						U2.getUserId())));
 		
-		setPermissions(WSC1, 1, "r", U2.getUserId());
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", U2.getUserId());
 		failCreate(wa2, strat, "1", new UJSAuthorizationException(
 				String.format("User %s cannot write to workspace 1",
 						U2.getUserId())));
 		
-		setPermissions(WSC1, 1, "w", U2.getUserId());
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", U2.getUserId());
 		wa2.authorizeCreate(strat, "1");
-		setPermissions(WSC1, 1, "a", U2.getUserId());
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", U2.getUserId());
 		wa2.authorizeCreate(strat, "1");
 	}
 	
@@ -233,7 +232,7 @@ public class WorkspaceAuthTest {
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
-		setPermissions(WSC1, 1, "w", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		
 		//test that deleting a workspace keeps the job visible to the owner
@@ -250,12 +249,12 @@ public class WorkspaceAuthTest {
 		wa1.authorizeRead(user1, j);
 		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
 		wa2.authorizeRead(user2, j);
-		setPermissions(WSC1, 1, "n", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
 		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
 				String.format("User %s cannot read workspace 1", user2)));
-		setPermissions(WSC1, 1, "w", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
 		wa2.authorizeRead(user2, j);
-		setPermissions(WSC1, 1, "a", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
 		wa2.authorizeRead(user2, j);
 		
 		failSingleRead(wa2, user1, j, new IllegalStateException(
@@ -297,8 +296,8 @@ public class WorkspaceAuthTest {
 			.withWorkspace("foo1"));
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo2"));
-		setPermissions(WSC1, 1, "r", user2);
-		setPermissions(WSC1, 3, "r", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "r", user2);
 		
 		wa1.authorizeRead(strat, user1, Arrays.asList("1", "2", "3"));
 		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
@@ -318,14 +317,14 @@ public class WorkspaceAuthTest {
 		wa2.authorizeRead(strat, user2, Arrays.asList("3"));
 		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
 		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
-		setPermissions(WSC1, 3, "n", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", user2);
 		//check fencepost error
 		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
 				new UJSAuthorizationException(String.format(
 				"User %s cannot read workspace 3", user2)));
-		setPermissions(WSC1, 3, "w", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "w", user2);
 		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
-		setPermissions(WSC1, 3, "a", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "a", user2);
 		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
 		
 		
@@ -360,13 +359,6 @@ public class WorkspaceAuthTest {
 		}
 	}
 
-	private void setPermissions(WorkspaceClient wsc, long id, String perm,
-			String user) throws Exception {
-		wsc.setPermissions(new SetPermissionsParams().withId(id)
-				.withNewPermission(perm)
-				.withUsers(Arrays.asList(user)));
-	}
-	
 	private void failCreate(UJSAuthorizer auth, AuthorizationStrategy strat,
 			String param, Exception exp) throws Exception {
 		try {

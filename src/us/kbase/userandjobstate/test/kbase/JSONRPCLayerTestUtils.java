@@ -33,12 +33,15 @@ import us.kbase.common.service.Tuple3;
 import us.kbase.common.service.Tuple5;
 import us.kbase.common.service.Tuple7;
 import us.kbase.common.test.TestCommon;
+import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.ListJobsParams;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
 import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.test.FakeJob;
+import us.kbase.workspace.SetPermissionsParams;
+import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceServer;
 import us.kbase.workspace.test.WorkspaceTestCommon;
 
@@ -468,6 +471,48 @@ public class JSONRPCLayerTestUtils {
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
+		}
+	}
+
+	protected static void failGetJobShared(UserAndJobStateClient cli, String id,
+			String exception) throws Exception {
+		try {
+			cli.getJobShared(id);
+			fail("got job shared list w/ bad args");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getLocalizedMessage(),
+					is(exception));
+		}
+	}
+
+	protected static void failGetJobOwner(UserAndJobStateClient cli, String id,
+			String exception) throws Exception {
+		try {
+			cli.getJobOwner(id);
+			fail("got job owner w/ bad args");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getLocalizedMessage(),
+					is(exception));
+		}
+	}
+
+	public static void setPermissions(WorkspaceClient wsc, long id, String perm,
+			String user) throws Exception {
+		wsc.setPermissions(new SetPermissionsParams().withId(id)
+				.withNewPermission(perm)
+				.withUsers(Arrays.asList(user)));
+	}
+
+	protected static void failCreateJob(UserAndJobStateClient cli,
+			String authstrat, String param, String exp)
+			throws Exception {
+		try {
+			cli.createJob2(new CreateJobParams().withAuthstrat(authstrat)
+					.withAuthparam(param));
+			fail("created job with bad authstrat");
+		} catch (ServerException e) {
+			assertThat("incorrect exception message. Server trace: " +
+					e.getData(), e.getLocalizedMessage(), is(exp));
 		}
 	}
 }

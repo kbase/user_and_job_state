@@ -50,8 +50,6 @@ import us.kbase.userandjobstate.test.FakeJob;
  */
 public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
-	//TODO NOW implement and test 3 new methods
-	
 	private static UserAndJobStateServer SERVER = null;
 	private static UserAndJobStateClient CLIENT1 = null;
 	private static String USER1 = null;
@@ -372,9 +370,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkJob(CLIENT1, jobid, "started", "cs stat3", USER2, "cs desc3",
 				"task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
 		
-		failCreateJob("kbaseworkspace", "1", "The UJS is not configured to " +
+		failCreateJob(CLIENT1, "kbaseworkspace", "1", "The UJS is not configured to " +
 				"delegate authorization to the workspace service");
-		failCreateJob("foo", "1", "Invalid authorization strategy: foo");
+		failCreateJob(CLIENT1, "foo", "1", "Invalid authorization strategy: foo");
 	}
 	
 	@Test
@@ -415,18 +413,6 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				null, null, null, 1L, 0L, null, null, DEF, DEF, MTMAP);
 		checkJob(CLIENT1, id3, "complete", "stat3-3", USER2, "desc2", "none",
 				null, null, null, 1L, 0L, null, null, DEF, DEF, m);
-	}
-	
-	private void failCreateJob(String authstrat, String param, String exp)
-			throws Exception {
-		try {
-			CLIENT1.createJob2(new CreateJobParams().withAuthstrat(authstrat)
-					.withAuthparam(param));
-			fail("created job with bad authstrat");
-		} catch (ServerException e) {
-			assertThat("incorrect exception message. Server trace: " +
-					e.getData(), e.getLocalizedMessage(), is(exp));
-		}
 	}
 	
 	private void startJobBadArgs(String jobid, String token, String stat, String desc,
@@ -1097,13 +1083,16 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				"There is no job %s with default authorization owned by user %s",
 				jobid, USER1));
 		assertThat("shared list ok", CLIENT2.getJobShared(jobid), is(Arrays.asList(USER1)));
-		failGetJobShared(jobid, String.format("User %s may not access the sharing list of job %s", USER1, jobid));
+		failGetJobShared(CLIENT1, jobid, String.format(
+				"User %s may not access the sharing list of job %s", USER1, jobid));
 		assertThat("owner ok", CLIENT1.getJobOwner(jobid), is(USER2));
 		assertThat("owner ok", CLIENT2.getJobOwner(jobid), is(USER2));
 		CLIENT2.unshareJob(jobid, Arrays.asList(USER1));
 		failGetJob(CLIENT1, jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
-		failGetJobOwner(jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
-		failGetJobShared(jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
+		failGetJobOwner(CLIENT1, jobid, String.format(
+				"There is no job %s viewable by user %s", jobid, USER1));
+		failGetJobShared(CLIENT1, jobid, String.format(
+				"There is no job %s viewable by user %s", jobid, USER1));
 		
 		CLIENT2.shareJob(jobid, Arrays.asList(USER1));
 		failUnshareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
@@ -1120,25 +1109,5 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				"A user name cannot be null or the empty string");
 		failShareUnshareJob(CLIENT1, jobid2, Arrays.asList(USER2, ""),
 				"A user name cannot be null or the empty string");
-	}
-	
-	private void failGetJobOwner(String id, String exception) throws Exception {
-		try {
-			CLIENT1.getJobOwner(id);
-			fail("got job owner w/ bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
-	}
-	
-	private void failGetJobShared(String id, String exception) throws Exception {
-		try {
-			CLIENT1.getJobShared(id);
-			fail("got job shared list w/ bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
 	}
 }

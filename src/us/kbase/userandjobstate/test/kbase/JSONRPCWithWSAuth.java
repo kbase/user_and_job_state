@@ -1,7 +1,14 @@
 package us.kbase.userandjobstate.test.kbase;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+
 import java.net.URL;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -16,15 +23,20 @@ import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.CreateJobParams;
+import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.WorkspaceClient;
+import us.kbase.workspace.WorkspaceIdentity;
 import us.kbase.workspace.WorkspaceServer;
 
 import com.mongodb.DB;
 
 public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
+	
+	public static final Map<String, String> MTMAP =
+			new HashMap<String, String>();
 	
 	public static final String KBWS = "kbaseworkspace";
 	
@@ -133,7 +145,99 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		WSC1.createWorkspace(new CreateWorkspaceParams().withWorkspace("foo"));
 		String id = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
-				
+		checkJob(UJSC1, id, "created", null, null, null, null, null, null,
+				null, null, null, null, null, KBWS, "1", MTMAP);
+		
+		failCreateJob(UJSC1, "foo", "1",
+				"Invalid authorization strategy: foo");
+		failCreateJob(UJSC1, KBWS, "foo",
+				"The string foo is not a valid integer workspace ID");
+		failCreateJob(UJSC1, KBWS, "2",
+				"Error contacting the workspace service to get " +
+				"permissions: No workspace with id 2 exists");
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo1"));
+		String id2 = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
+				.withAuthparam("2"));
+		checkJob(UJSC1, id2, "created", null, null, null, null, null, null,
+				null, null, null, null, null, KBWS, "2", MTMAP);
+		
+		failCreateJob(UJSC2, KBWS, "1", String.format(
+				"User %s cannot write to workspace 1", U2.getUserId()));
+		
+		setPermissions(WSC1, 1, "r", U2.getUserId());
+		failCreateJob(UJSC2, KBWS, "1", String.format(
+				"User %s cannot write to workspace 1", U2.getUserId()));
+		
+		setPermissions(WSC1, 1, "w", U2.getUserId());
+		String id3 = UJSC2.createJob2(new CreateJobParams().withAuthstrat(KBWS)
+				.withAuthparam("1"));
+		checkJob(UJSC1, id3, "created", null, null, null, null, null, null,
+				null, null, null, null, null, KBWS, "1", MTMAP);
+		setPermissions(WSC1, 1, "a", U2.getUserId());
+		String id4 = UJSC2.createJob2(new CreateJobParams().withAuthstrat(KBWS)
+				.withAuthparam("1"));
+		checkJob(UJSC1, id4, "created", null, null, null, null, null, null,
+				null, null, null, null, null, KBWS, "1", MTMAP);
+	}
+	
+	@Test
+	public void testGetJob() throws Exception {
+		String user1 = U1.getUserId();
+		String user2 = U2.getUserId();
+		InitProgress noprog = new InitProgress().withPtype("none");
+		List<String> mtl = new LinkedList<String>();
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams().withWorkspace("foo"));
+		setPermissions(WSC1, 1, "w", user2);
+		
+		//test that deleting a workspace keeps the job visible to the owner
+		String id =  UJSC1.createJob2(new CreateJobParams()
+			.withAuthstrat(KBWS).withAuthparam("1"));
+		checkJob(UJSC1, id, "created", null, null, null, null, null, null,
+				null, null, null, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC1.getJobOwner(id), is(user1));
+		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
+		checkJob(UJSC2, id, "created", null, null, null, null, null, null,
+				null, null, null, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		final String err = String.format(
+				"There is no job %s viewable by user %s", id, user2);
+		failGetJob(UJSC2, id, err);
+		failGetJobOwner(UJSC2, id, err);
+		failGetJobShared(UJSC2, id, err);
+		
+		UJSC1.startJob(id, TOKEN2, "stat1", "desc1", noprog, null);
+		UJSC1.updateJob(id, TOKEN2, "up stat2", null);
+		UJSC1.completeJob(id, TOKEN2, "c stat2", null, null);
+		checkJob(UJSC1, id, "complete", "c stat2", user2, "desc1",
+				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC1.getJobOwner(id), is(user1));
+		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
+		
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		checkJob(UJSC2, id, "complete", "c stat2", user2, "desc1",
+				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		
+		setPermissions(WSC1, 1, "n", user2);
+		failGetJob(UJSC2, id, err);
+		failGetJobOwner(UJSC2, id, err);
+		failGetJobShared(UJSC2, id, err);
+		
+		setPermissions(WSC1, 1, "w", user2);
+		checkJob(UJSC2, id, "complete", "c stat2", user2, "desc1",
+				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		
+		setPermissions(WSC1, 1, "a", user2);
+		checkJob(UJSC2, id, "complete", "c stat2", user2, "desc1",
+				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		
 	}
 
 }
