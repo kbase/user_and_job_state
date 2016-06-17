@@ -20,7 +20,7 @@
   <property name="war.dir" value="war"/>
 
   <fileset dir="${jardir}" id="sourceslib">
-    <include name="kbase/common/kbase-common-0.0.15.jar"/>
+    <include name="kbase/common/kbase-common-0.0.16.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="serverlib">
@@ -38,7 +38,7 @@
     <include name="jackson/jackson-annotations-2.2.3.jar"/>
     <include name="jackson/jackson-core-2.2.3.jar"/>
     <include name="jackson/jackson-databind-2.2.3.jar"/>
-    <include name="kbase/common/kbase-common-0.0.15.jar"/>
+    <include name="kbase/common/kbase-common-0.0.16.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="applicationlib">
@@ -50,6 +50,8 @@
     <include name="logback/logback-classic-1.1.2.jar"/>
     <include name="logback/logback-core-1.1.2.jar"/>
     <include name="apache_commons/commons-logging-1.1.1.jar"/>
+    <include name="jcommander/jcommander-1.48.jar"/>
+    <include name="kbase/workspace/WorkspaceService-0.4.1.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="testlib">
@@ -57,12 +59,19 @@
     <include name="apache_commons/commons-collections-3.2.1.jar"/>
     <include name="apache_commons/commons-lang-2.4.jar"/>
   </fileset>
+
+  <fileset dir="${jardir}" id="workspacelib">
+    <include name="easystream/easystream-1.2.13.jar"/>
+    <include name="google/guava-14.0.1.jar"/>
+    <include name="kbase/kidl/kbase-kidl-parser-1409261812-7863aef.jar"/>
+  </fileset>
 	
   <union id="serverside">
     <fileset refid="serverlib"/>
     <fileset refid="clientserverlib"/>
     <fileset refid="applicationlib"/>
     <fileset refid="testlib"/>
+    <fileset refid="workspacelib"/>
   </union>
 
   <fileset id="client-jdoc-files" dir="${src}/us/kbase" defaultexcludes="yes">
@@ -189,6 +198,10 @@
       <test name="us.kbase.userandjobstate.test.jobstate.JobResultsTest"/>
       <test name="us.kbase.userandjobstate.test.userstate.UserStateTests"/>
       <test name="us.kbase.userandjobstate.test.kbase.JSONRPCLayerTest"/>
+      <test name="us.kbase.userandjobstate.test.kbase.JSONRPCWithWSAuth"/>
+      <test name="us.kbase.userandjobstate.test.kbase.WorkspaceAuthTest"/>
+      <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
+      <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
     </junit>
     <fail message="Test failure detected, check test results." if="test.failed" />
   </target>
@@ -204,6 +217,14 @@
     <fail message="Test failure detected, check test results." if="test.failed" />
   </target>
 
+  <target name="updatescript" depends="compile" description="create script to run DB updater">
+    <pathconvert targetos="unix" property="lib.classpath" refid="compile.classpath"/>
+    <echo file="./db_update">#!/bin/sh
+java -cp ${dist}/${jar.file}:${lib.classpath} us.kbase.userandjobstate.updater.UjsUpdater $@
+    </echo>
+    <chmod file="./db_update" perm="a+x"/>
+  </target>
+	
   <target name="clean" description="clean up" >
     <!-- Clean up internal temporary files and folders-->
     <delete dir="${classes}"/>

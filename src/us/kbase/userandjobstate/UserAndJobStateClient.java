@@ -7,12 +7,15 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import us.kbase.auth.AuthToken;
 import us.kbase.common.service.JsonClientCaller;
 import us.kbase.common.service.JsonClientException;
 import us.kbase.common.service.RpcContext;
+import us.kbase.common.service.Tuple12;
 import us.kbase.common.service.Tuple14;
 import us.kbase.common.service.Tuple2;
+import us.kbase.common.service.Tuple3;
 import us.kbase.common.service.Tuple5;
 import us.kbase.common.service.Tuple7;
 import us.kbase.common.service.UObject;
@@ -21,6 +24,7 @@ import us.kbase.common.service.UnauthorizedException;
 /**
  * <p>Original spec-file module name: UserAndJobState</p>
  * <pre>
+ * User and Job State service (UJS)
  * Service for storing arbitrary key/object pairs on a per user per service basis
  * and storing job status so that a) long JSON RPC calls can report status and
  * UI elements can receive updates, and b) there's a centralized location for 
@@ -44,7 +48,6 @@ import us.kbase.common.service.UnauthorizedException;
  * pairs or jobs, require service authentication.
  * The service assumes other services are capable of simple math and does not
  * throw errors if a progress bar overflows.
- * Where string limits are noted, these apply only to *incoming* strings.
  * Potential job process flows:
  * Asysnc:
  * UI calls service function which returns with job id
@@ -63,6 +66,22 @@ import us.kbase.common.service.UnauthorizedException;
  *         updates
  * service call finishes, completes job, returns results
  * UI thread joins
+ * Authorization:
+ * Currently two modes of authorization are supported:
+ * DEFAULT:
+ * DEFAULT authorization uses the UJS access control lists (ACLs) stored in the
+ * UJS database. All methods work normally for this authorization strategy. To
+ * use the default authorization strategy, simply do not specify an authorization
+ * strategy when creating a job.
+ * kbaseworkspace:
+ * kbaseworkspace authorization (kbwsa) associates each job with an integer
+ * Workspace Service (WSS) workspace ID (the authorization parameter). In order to
+ * create a job with kbwsa, a user must have write access to the workspace in
+ * question. That user can then read and update (but not necessarily list) the job
+ * for the remainder of the job lifetime, regardless of the workspace permission.
+ * Other users must have read permissions to the workspace in order to view the
+ * job.
+ * Share and unshare commands do not work with kbwsa.
  * </pre>
  */
 public class UserAndJobStateClient {
@@ -418,9 +437,28 @@ public class UserAndJobStateClient {
     }
 
     /**
+     * <p>Original spec-file function name: create_job2</p>
+     * <pre>
+     * Create a new job status report.
+     * </pre>
+     * @param   params   instance of type {@link us.kbase.userandjobstate.CreateJobParams CreateJobParams}
+     * @return   parameter "job" of original type "job_id" (A job id.)
+     * @throws IOException if an IO exception occurs
+     * @throws JsonClientException if a JSON RPC exception occurs
+     */
+    public String createJob2(CreateJobParams params, RpcContext... jsonRpcContext) throws IOException, JsonClientException {
+        List<Object> args = new ArrayList<Object>();
+        args.add(params);
+        TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
+        List<String> res = caller.jsonrpcCall("UserAndJobState.create_job2", args, retType, true, true, jsonRpcContext);
+        return res.get(0);
+    }
+
+    /**
      * <p>Original spec-file function name: create_job</p>
      * <pre>
      * Create a new job status report.
+     * @deprecated create_job2
      * </pre>
      * @return   parameter "job" of original type "job_id" (A job id.)
      * @throws IOException if an IO exception occurs
@@ -630,12 +668,31 @@ public class UserAndJobStateClient {
     }
 
     /**
-     * <p>Original spec-file function name: get_job_info</p>
+     * <p>Original spec-file function name: get_job_info2</p>
      * <pre>
      * Get information about a job.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
-     * @return   parameter "info" of original type "job_info" (Information about a job.) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     * @return   parameter "info" of original type "job_info2" (Information about a job.) &rarr; tuple of size 12: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "times" of original type "time_info" (Job timing information.) &rarr; tuple of size 3: parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "progress" of original type "progress_info" (Job progress information.) &rarr; tuple of size 3: parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "auth" of original type "auth_info" (Job authorization strategy information.) &rarr; tuple of size 2: parameter "strat" of original type "auth_strategy" (An authorization strategy to use for jobs. Other than the DEFAULT strategy (ACLs local to the UJS and managed by the UJS sharing functions), currently the only other strategy is the 'kbaseworkspace' strategy, which consults the workspace service for authorization information.), parameter "param" of original type "auth_param" (An authorization parameter. The contents of this parameter differ by auth_strategy, but for the workspace strategy it is the workspace id (an integer) as a string.), parameter "meta" of original type "usermeta" (User provided metadata about a job. Arbitrary key-value pairs provided by the user.) &rarr; mapping from String to String, parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     * @throws IOException if an IO exception occurs
+     * @throws JsonClientException if a JSON RPC exception occurs
+     */
+    public Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results> getJobInfo2(String job, RpcContext... jsonRpcContext) throws IOException, JsonClientException {
+        List<Object> args = new ArrayList<Object>();
+        args.add(job);
+        TypeReference<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>> retType = new TypeReference<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>>() {};
+        List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> res = caller.jsonrpcCall("UserAndJobState.get_job_info2", args, retType, true, true, jsonRpcContext);
+        return res.get(0);
+    }
+
+    /**
+     * <p>Original spec-file function name: get_job_info</p>
+     * <pre>
+     * Get information about a job.
+     * @deprecated get_job_info2
+     * </pre>
+     * @param   job   instance of original type "job_id" (A job id.)
+     * @return   parameter "info" of original type "job_info" (Information about a job. @deprecated job_info2) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
      * @throws IOException if an IO exception occurs
      * @throws JsonClientException if a JSON RPC exception occurs
      */
@@ -648,14 +705,33 @@ public class UserAndJobStateClient {
     }
 
     /**
+     * <p>Original spec-file function name: list_jobs2</p>
+     * <pre>
+     * List jobs.
+     * </pre>
+     * @param   params   instance of type {@link us.kbase.userandjobstate.ListJobsParams ListJobsParams}
+     * @return   parameter "jobs" of list of original type "job_info2" (Information about a job.) &rarr; tuple of size 12: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "times" of original type "time_info" (Job timing information.) &rarr; tuple of size 3: parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "progress" of original type "progress_info" (Job progress information.) &rarr; tuple of size 3: parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "auth" of original type "auth_info" (Job authorization strategy information.) &rarr; tuple of size 2: parameter "strat" of original type "auth_strategy" (An authorization strategy to use for jobs. Other than the DEFAULT strategy (ACLs local to the UJS and managed by the UJS sharing functions), currently the only other strategy is the 'kbaseworkspace' strategy, which consults the workspace service for authorization information.), parameter "param" of original type "auth_param" (An authorization parameter. The contents of this parameter differ by auth_strategy, but for the workspace strategy it is the workspace id (an integer) as a string.), parameter "meta" of original type "usermeta" (User provided metadata about a job. Arbitrary key-value pairs provided by the user.) &rarr; mapping from String to String, parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     * @throws IOException if an IO exception occurs
+     * @throws JsonClientException if a JSON RPC exception occurs
+     */
+    public List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> listJobs2(ListJobsParams params, RpcContext... jsonRpcContext) throws IOException, JsonClientException {
+        List<Object> args = new ArrayList<Object>();
+        args.add(params);
+        TypeReference<List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>>> retType = new TypeReference<List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>>>() {};
+        List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>> res = caller.jsonrpcCall("UserAndJobState.list_jobs2", args, retType, true, true, jsonRpcContext);
+        return res.get(0);
+    }
+
+    /**
      * <p>Original spec-file function name: list_jobs</p>
      * <pre>
      * List jobs. Leave 'services' empty or null to list jobs from all
      * services.
+     * @deprecated list_jobs2
      * </pre>
      * @param   services   instance of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
-     * @param   filter   instance of original type "job_filter" (A string-based filter for listing jobs. If the string contains: 'R' - running jobs are returned. 'C' - completed jobs are returned. 'E' - jobs that errored out are returned. 'S' - shared jobs are returned. The string can contain any combination of these codes in any order. If the string contains none of the codes or is null, all self-owned jobs are returned. If only the S filter is present, all jobs are returned.)
-     * @return   parameter "jobs" of list of original type "job_info" (Information about a job.) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     * @param   filter   instance of original type "job_filter" (A string-based filter for listing jobs. If the string contains: 'R' - running jobs are returned. 'C' - completed jobs are returned. 'E' - jobs that errored out are returned. 'S' - shared jobs are returned. The string can contain any combination of these codes in any order. If the string contains none of the codes or is null, all self-owned jobs are returned. If only the S filter is present, all jobs are returned. The S filter is ignored for jobs not using the default authorization strategy.)
+     * @return   parameter "jobs" of list of original type "job_info" (Information about a job. @deprecated job_info2) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
      * @throws IOException if an IO exception occurs
      * @throws JsonClientException if a JSON RPC exception occurs
      */
@@ -688,7 +764,8 @@ public class UserAndJobStateClient {
      * <p>Original spec-file function name: share_job</p>
      * <pre>
      * Share a job. Sharing a job to the same user twice or with the job owner
-     * has no effect.
+     * has no effect. Attempting to share a job not using the default auth
+     * strategy will fail.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @param   users   instance of list of original type "username" (Login name of a KBase user account.)
@@ -707,7 +784,8 @@ public class UserAndJobStateClient {
      * <p>Original spec-file function name: unshare_job</p>
      * <pre>
      * Stop sharing a job. Removing sharing from a user that the job is not
-     * shared with or the job owner has no effect.
+     * shared with or the job owner has no effect. Attemping to unshare a job
+     * not using the default auth strategy will fail.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @param   users   instance of list of original type "username" (Login name of a KBase user account.)
@@ -744,7 +822,8 @@ public class UserAndJobStateClient {
      * <p>Original spec-file function name: get_job_shared</p>
      * <pre>
      * Get the list of users with which a job is shared. Only the job owner
-     * may access this method.
+     * may access this method. Returns an empty list for jobs not using the
+     * default auth strategy.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @return   parameter "users" of list of original type "username" (Login name of a KBase user account.)

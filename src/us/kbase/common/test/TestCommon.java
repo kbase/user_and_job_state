@@ -1,12 +1,19 @@
-package us.kbase.userandjobstate.test;
+package us.kbase.common.test;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+
+import java.lang.reflect.Field;
+import java.util.Map;
+
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 
 import us.kbase.common.test.TestException;
 
-public class UserJobStateTestCommon {
+public class TestCommon {
 	
 	public static final String MONGOEXE = "test.mongo.exe";
 	
@@ -38,6 +45,18 @@ public class UserJobStateTestCommon {
 		return !"true".equals(System.getProperty(KEEP_TEMP_DIR));
 	}
 	
+	//http://quirkygba.blogspot.com/2009/11/setting-environment-variables-in-java.html
+	@SuppressWarnings("unchecked")
+	public static Map<String, String> getenv() throws NoSuchFieldException,
+			SecurityException, IllegalArgumentException,
+			IllegalAccessException {
+		Map<String, String> unmodifiable = System.getenv();
+		Class<?> cu = unmodifiable.getClass();
+		Field m = cu.getDeclaredField("m");
+		m.setAccessible(true);
+		return (Map<String, String>) m.get(unmodifiable);
+	}
+	
 	public static void destroyDB(DB db) {
 		for (String name: db.getCollectionNames()) {
 			if (!name.startsWith("system.")) {
@@ -45,5 +64,14 @@ public class UserJobStateTestCommon {
 				db.getCollection(name).remove(new BasicDBObject());
 			}
 		}
+	}
+	
+	public static void assertExceptionCorrect(
+			Exception got, Exception expected) {
+		assertThat("incorrect exception. trace:\n" +
+				ExceptionUtils.getStackTrace(got),
+				got.getLocalizedMessage(),
+				is(expected.getLocalizedMessage()));
+		assertThat("incorrect exception type", got, is(expected.getClass()));
 	}
 }

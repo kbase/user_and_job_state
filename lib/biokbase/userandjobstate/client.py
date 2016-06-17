@@ -169,9 +169,37 @@ class UserAndJobState(object):
             'UserAndJobState.list_state_services',
             [auth], self._service_ver, context)
 
+    def create_job2(self, params, context=None):
+        """
+        Create a new job status report.
+        :param params: instance of type "CreateJobParams" (Parameters for the
+           create_job2 method. Optional parameters: auth_strategy authstrat -
+           the authorization strategy to use for the job. Omit to use the
+           standard UJS authorization. If an authorization strategy is
+           supplied, in most cases an authparam must be supplied as well.
+           auth_param - a parameter for the authorization strategy. usermeta
+           meta - metadata for the job.) -> structure: parameter "authstrat"
+           of type "auth_strategy" (An authorization strategy to use for
+           jobs. Other than the DEFAULT strategy (ACLs local to the UJS and
+           managed by the UJS sharing functions), currently the only other
+           strategy is the 'kbaseworkspace' strategy, which consults the
+           workspace service for authorization information.), parameter
+           "authparam" of type "auth_param" (An authorization parameter. The
+           contents of this parameter differ by auth_strategy, but for the
+           workspace strategy it is the workspace id (an integer) as a
+           string.), parameter "meta" of type "usermeta" (User provided
+           metadata about a job. Arbitrary key-value pairs provided by the
+           user.) -> mapping from String to String
+        :returns: instance of type "job_id" (A job id.)
+        """
+        return self._client.call_method(
+            'UserAndJobState.create_job2',
+            [params], self._service_ver, context)
+
     def create_job(self, context=None):
         """
         Create a new job status report.
+        @deprecated create_job2
         :returns: instance of type "job_id" (A job id.)
         """
         return self._client.call_method(
@@ -415,21 +443,102 @@ class UserAndJobState(object):
             'UserAndJobState.get_detailed_error',
             [job], self._service_ver, context)
 
-    def get_job_info(self, job, context=None):
+    def get_job_info2(self, job, context=None):
         """
         Get information about a job.
         :param job: instance of type "job_id" (A job id.)
-        :returns: instance of type "job_info" (Information about a job.) ->
-           tuple of size 14: parameter "job" of type "job_id" (A job id.),
+        :returns: instance of type "job_info2" (Information about a job.) ->
+           tuple of size 12: parameter "job" of type "job_id" (A job id.),
            parameter "service" of type "service_name" (A service name.
            Alphanumerics and the underscore are allowed.), parameter "stage"
            of type "job_stage" (A string that describes the stage of
            processing of the job. One of 'created', 'started', 'completed',
-           or 'error'.), parameter "started" of type "timestamp" (A time in
-           the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time
-           to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST
-           time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of
-           type "job_status" (A job status string supplied by the reporting
+           or 'error'.), parameter "status" of type "job_status" (A job
+           status string supplied by the reporting service. No more than 200
+           characters.), parameter "times" of type "time_info" (Job timing
+           information.) -> tuple of size 3: parameter "started" of type
+           "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is
+           the difference in time to UTC in the format +/-HHMM, eg:
+           2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC
+           time)), parameter "last_update" of type "timestamp" (A time in the
+           format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to
+           UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time)
+           2013-04-03T08:56:32+0000 (UTC time)), parameter "est_complete" of
+           type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where
+           Z is the difference in time to UTC in the format +/-HHMM, eg:
+           2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC
+           time)), parameter "progress" of type "progress_info" (Job progress
+           information.) -> tuple of size 3: parameter "prog" of type
+           "total_progress" (The total progress of a job.), parameter "max"
+           of type "max_progress" (The maximum possible progress of a job.),
+           parameter "ptype" of type "progress_type" (The type of progress
+           that is being tracked. One of: 'none' - no numerical progress
+           tracking 'task' - Task based tracking, e.g. 3/24 'percent' -
+           percentage based tracking, e.g. 5/100%), parameter "complete" of
+           type "boolean" (A boolean. 0 = false, other = true.), parameter
+           "error" of type "boolean" (A boolean. 0 = false, other = true.),
+           parameter "auth" of type "auth_info" (Job authorization strategy
+           information.) -> tuple of size 2: parameter "strat" of type
+           "auth_strategy" (An authorization strategy to use for jobs. Other
+           than the DEFAULT strategy (ACLs local to the UJS and managed by
+           the UJS sharing functions), currently the only other strategy is
+           the 'kbaseworkspace' strategy, which consults the workspace
+           service for authorization information.), parameter "param" of type
+           "auth_param" (An authorization parameter. The contents of this
+           parameter differ by auth_strategy, but for the workspace strategy
+           it is the workspace id (an integer) as a string.), parameter
+           "meta" of type "usermeta" (User provided metadata about a job.
+           Arbitrary key-value pairs provided by the user.) -> mapping from
+           String to String, parameter "desc" of type "job_description" (A
+           job description string supplied by the reporting service. No more
+           than 1000 characters.), parameter "res" of type "Results" (A
+           pointer to job results. All arguments are optional. Applications
+           should use the default shock and workspace urls if omitted.
+           list<string> shocknodes - the shocknode(s) where the results can
+           be found. No more than 1000 characters. string shockurl - the url
+           of the shock service where the data was saved.  No more than 1000
+           characters. list<string> workspaceids - the workspace ids where
+           the results can be found. No more than 1000 characters. string
+           workspaceurl - the url of the workspace service where the data was
+           saved.  No more than 1000 characters. list<Result> - a set of job
+           results. This format allows for specifying results at multiple
+           server locations and providing a free text description of the
+           result.) -> structure: parameter "shocknodes" of list of String,
+           parameter "shockurl" of String, parameter "workspaceids" of list
+           of String, parameter "workspaceurl" of String, parameter "results"
+           of list of type "Result" (A place where the results of a job may
+           be found. All fields except description are required. string
+           server_type - the type of server storing the results. Typically
+           either "Shock" or "Workspace". No more than 100 characters. string
+           url - the url of the server. No more than 1000 characters. string
+           id - the id of the result in the server. Typically either a
+           workspace id or a shock node. No more than 1000 characters. string
+           description - a free text description of the result. No more than
+           1000 characters.) -> structure: parameter "server_type" of String,
+           parameter "url" of String, parameter "id" of String, parameter
+           "description" of String
+        """
+        return self._client.call_method(
+            'UserAndJobState.get_job_info2',
+            [job], self._service_ver, context)
+
+    def get_job_info(self, job, context=None):
+        """
+        Get information about a job.
+        @deprecated get_job_info2
+        :param job: instance of type "job_id" (A job id.)
+        :returns: instance of type "job_info" (Information about a job.
+           @deprecated job_info2) -> tuple of size 14: parameter "job" of
+           type "job_id" (A job id.), parameter "service" of type
+           "service_name" (A service name. Alphanumerics and the underscore
+           are allowed.), parameter "stage" of type "job_stage" (A string
+           that describes the stage of processing of the job. One of
+           'created', 'started', 'completed', or 'error'.), parameter
+           "started" of type "timestamp" (A time in the format
+           YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in
+           the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time)
+           2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of type
+           "job_status" (A job status string supplied by the reporting
            service. No more than 200 characters.), parameter "last_update" of
            type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where
            Z is the difference in time to UTC in the format +/-HHMM, eg:
@@ -479,10 +588,122 @@ class UserAndJobState(object):
             'UserAndJobState.get_job_info',
             [job], self._service_ver, context)
 
+    def list_jobs2(self, params, context=None):
+        """
+        List jobs.
+        :param params: instance of type "ListJobsParams" (Input parameters
+           for the list_jobs2 method. Optional parameters: list<service_name>
+           services - the services from which to list jobs. Omit to list jobs
+           from all services. job_filter filter - the filter to apply to the
+           set of jobs. auth_strategy authstrat - return jobs with the
+           specified authorization strategy. If this parameter is omitted,
+           jobs with the default strategy will be returned. list<auth_params>
+           authparams - only return jobs with one of the specified
+           authorization parameters. An authorization strategy must be
+           provided if authparams is specified. In most cases, at least one
+           authorization parameter must be supplied and there is an upper
+           limit to the number of paramters allowed. In the case of the
+           kbaseworkspace strategy, these limits are 1 and 10, respectively.)
+           -> structure: parameter "services" of list of type "service_name"
+           (A service name. Alphanumerics and the underscore are allowed.),
+           parameter "filter" of type "job_filter" (A string-based filter for
+           listing jobs. If the string contains: 'R' - running jobs are
+           returned. 'C' - completed jobs are returned. 'E' - jobs that
+           errored out are returned. 'S' - shared jobs are returned. The
+           string can contain any combination of these codes in any order. If
+           the string contains none of the codes or is null, all self-owned
+           jobs are returned. If only the S filter is present, all jobs are
+           returned. The S filter is ignored for jobs not using the default
+           authorization strategy.), parameter "authstrat" of type
+           "auth_strategy" (An authorization strategy to use for jobs. Other
+           than the DEFAULT strategy (ACLs local to the UJS and managed by
+           the UJS sharing functions), currently the only other strategy is
+           the 'kbaseworkspace' strategy, which consults the workspace
+           service for authorization information.), parameter "authparams" of
+           list of type "auth_param" (An authorization parameter. The
+           contents of this parameter differ by auth_strategy, but for the
+           workspace strategy it is the workspace id (an integer) as a
+           string.)
+        :returns: instance of list of type "job_info2" (Information about a
+           job.) -> tuple of size 12: parameter "job" of type "job_id" (A job
+           id.), parameter "service" of type "service_name" (A service name.
+           Alphanumerics and the underscore are allowed.), parameter "stage"
+           of type "job_stage" (A string that describes the stage of
+           processing of the job. One of 'created', 'started', 'completed',
+           or 'error'.), parameter "status" of type "job_status" (A job
+           status string supplied by the reporting service. No more than 200
+           characters.), parameter "times" of type "time_info" (Job timing
+           information.) -> tuple of size 3: parameter "started" of type
+           "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is
+           the difference in time to UTC in the format +/-HHMM, eg:
+           2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC
+           time)), parameter "last_update" of type "timestamp" (A time in the
+           format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to
+           UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time)
+           2013-04-03T08:56:32+0000 (UTC time)), parameter "est_complete" of
+           type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where
+           Z is the difference in time to UTC in the format +/-HHMM, eg:
+           2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC
+           time)), parameter "progress" of type "progress_info" (Job progress
+           information.) -> tuple of size 3: parameter "prog" of type
+           "total_progress" (The total progress of a job.), parameter "max"
+           of type "max_progress" (The maximum possible progress of a job.),
+           parameter "ptype" of type "progress_type" (The type of progress
+           that is being tracked. One of: 'none' - no numerical progress
+           tracking 'task' - Task based tracking, e.g. 3/24 'percent' -
+           percentage based tracking, e.g. 5/100%), parameter "complete" of
+           type "boolean" (A boolean. 0 = false, other = true.), parameter
+           "error" of type "boolean" (A boolean. 0 = false, other = true.),
+           parameter "auth" of type "auth_info" (Job authorization strategy
+           information.) -> tuple of size 2: parameter "strat" of type
+           "auth_strategy" (An authorization strategy to use for jobs. Other
+           than the DEFAULT strategy (ACLs local to the UJS and managed by
+           the UJS sharing functions), currently the only other strategy is
+           the 'kbaseworkspace' strategy, which consults the workspace
+           service for authorization information.), parameter "param" of type
+           "auth_param" (An authorization parameter. The contents of this
+           parameter differ by auth_strategy, but for the workspace strategy
+           it is the workspace id (an integer) as a string.), parameter
+           "meta" of type "usermeta" (User provided metadata about a job.
+           Arbitrary key-value pairs provided by the user.) -> mapping from
+           String to String, parameter "desc" of type "job_description" (A
+           job description string supplied by the reporting service. No more
+           than 1000 characters.), parameter "res" of type "Results" (A
+           pointer to job results. All arguments are optional. Applications
+           should use the default shock and workspace urls if omitted.
+           list<string> shocknodes - the shocknode(s) where the results can
+           be found. No more than 1000 characters. string shockurl - the url
+           of the shock service where the data was saved.  No more than 1000
+           characters. list<string> workspaceids - the workspace ids where
+           the results can be found. No more than 1000 characters. string
+           workspaceurl - the url of the workspace service where the data was
+           saved.  No more than 1000 characters. list<Result> - a set of job
+           results. This format allows for specifying results at multiple
+           server locations and providing a free text description of the
+           result.) -> structure: parameter "shocknodes" of list of String,
+           parameter "shockurl" of String, parameter "workspaceids" of list
+           of String, parameter "workspaceurl" of String, parameter "results"
+           of list of type "Result" (A place where the results of a job may
+           be found. All fields except description are required. string
+           server_type - the type of server storing the results. Typically
+           either "Shock" or "Workspace". No more than 100 characters. string
+           url - the url of the server. No more than 1000 characters. string
+           id - the id of the result in the server. Typically either a
+           workspace id or a shock node. No more than 1000 characters. string
+           description - a free text description of the result. No more than
+           1000 characters.) -> structure: parameter "server_type" of String,
+           parameter "url" of String, parameter "id" of String, parameter
+           "description" of String
+        """
+        return self._client.call_method(
+            'UserAndJobState.list_jobs2',
+            [params], self._service_ver, context)
+
     def list_jobs(self, services, filter, context=None):
         """
         List jobs. Leave 'services' empty or null to list jobs from all
         services.
+        @deprecated list_jobs2
         :param services: instance of list of type "service_name" (A service
            name. Alphanumerics and the underscore are allowed.)
         :param filter: instance of type "job_filter" (A string-based filter
@@ -492,18 +713,20 @@ class UserAndJobState(object):
            string can contain any combination of these codes in any order. If
            the string contains none of the codes or is null, all self-owned
            jobs are returned. If only the S filter is present, all jobs are
-           returned.)
+           returned. The S filter is ignored for jobs not using the default
+           authorization strategy.)
         :returns: instance of list of type "job_info" (Information about a
-           job.) -> tuple of size 14: parameter "job" of type "job_id" (A job
-           id.), parameter "service" of type "service_name" (A service name.
-           Alphanumerics and the underscore are allowed.), parameter "stage"
-           of type "job_stage" (A string that describes the stage of
-           processing of the job. One of 'created', 'started', 'completed',
-           or 'error'.), parameter "started" of type "timestamp" (A time in
-           the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time
-           to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST
-           time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of
-           type "job_status" (A job status string supplied by the reporting
+           job. @deprecated job_info2) -> tuple of size 14: parameter "job"
+           of type "job_id" (A job id.), parameter "service" of type
+           "service_name" (A service name. Alphanumerics and the underscore
+           are allowed.), parameter "stage" of type "job_stage" (A string
+           that describes the stage of processing of the job. One of
+           'created', 'started', 'completed', or 'error'.), parameter
+           "started" of type "timestamp" (A time in the format
+           YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in
+           the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time)
+           2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of type
+           "job_status" (A job status string supplied by the reporting
            service. No more than 200 characters.), parameter "last_update" of
            type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where
            Z is the difference in time to UTC in the format +/-HHMM, eg:
@@ -566,7 +789,8 @@ class UserAndJobState(object):
     def share_job(self, job, users, context=None):
         """
         Share a job. Sharing a job to the same user twice or with the job owner
-        has no effect.
+        has no effect. Attempting to share a job not using the default auth
+        strategy will fail.
         :param job: instance of type "job_id" (A job id.)
         :param users: instance of list of type "username" (Login name of a
            KBase user account.)
@@ -578,7 +802,8 @@ class UserAndJobState(object):
     def unshare_job(self, job, users, context=None):
         """
         Stop sharing a job. Removing sharing from a user that the job is not
-        shared with or the job owner has no effect.
+        shared with or the job owner has no effect. Attemping to unshare a job
+        not using the default auth strategy will fail.
         :param job: instance of type "job_id" (A job id.)
         :param users: instance of list of type "username" (Login name of a
            KBase user account.)
@@ -601,7 +826,8 @@ class UserAndJobState(object):
     def get_job_shared(self, job, context=None):
         """
         Get the list of users with which a job is shared. Only the job owner
-        may access this method.
+        may access this method. Returns an empty list for jobs not using the
+        default auth strategy.
         :param job: instance of type "job_id" (A job id.)
         :returns: instance of list of type "username" (Login name of a KBase
            user account.)

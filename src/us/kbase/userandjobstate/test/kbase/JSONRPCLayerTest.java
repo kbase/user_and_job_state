@@ -4,13 +4,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-import java.io.File;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,8 +18,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 
-import org.ini4j.Ini;
-import org.ini4j.Profile.Section;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -31,7 +29,9 @@ import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
+import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
@@ -39,7 +39,6 @@ import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.test.FakeJob;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 
 /*
  * These tests are specifically for testing the JSON-RPC communications between
@@ -59,6 +58,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	private static String TOKEN1;
 	private static String TOKEN2;
 	
+	private static String DEF = "DEFAULT";
+	private static Map<String, String> MTMAP = new HashMap<String, String>();
+	
 	private final static String DB_NAME = "JSONRPCLayerTest_DB";
 	
 	private static MongoController mongo;
@@ -71,35 +73,12 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String p2 = System.getProperty("test.pwd2");
 
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		//write the server config file:
-		File iniFile = File.createTempFile("test", ".cfg", new File("./"));
-		iniFile.deleteOnExit();
-		System.out.println("Created temporary config file: " + iniFile.getAbsolutePath());
-		Ini ini = new Ini();
-		Section ws = ini.add("UserAndJobState");
-		ws.add("mongodb-host", "localhost:" + mongo.getServerPort());
-		ws.add("mongodb-database", DB_NAME);
-		ws.add("mongodb-user", "foo");
-		ws.add("mongodb-pwd", "foo");
-		ws.add("kbase-admin-user", USER1);
-		ws.add("kbase-admin-pwd", p1);
-		ini.store(iniFile);
-		
-		//set up env
-		Map<String, String> env = getenv();
-		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
-		env.put("KB_SERVICE_NAME", "UserAndJobState");
-
-		SERVER = new UserAndJobStateServer();
-		new ServerThread(SERVER).start();
-		System.out.println("Main thread waiting for server to start up");
-		while(SERVER.getServerPort() == null) {
-			Thread.sleep(1000);
-		}
+		SERVER = startUpUJSServer("localhost:" + mongo.getServerPort(),
+				null, DB_NAME, USER1, p1);
 		int port = SERVER.getServerPort();
 		System.out.println("Started test server on port " + port);
 		System.out.println("Starting tests");
@@ -110,7 +89,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		TOKEN1 = CLIENT1.getToken().toString();
 		TOKEN2 = CLIENT2.getToken().toString();
 	}
-	
+
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (SERVER != null) {
@@ -119,7 +98,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			System.out.println("Done");
 		}
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
@@ -127,12 +106,12 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	public void clearDB() throws Exception {
 		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
 				DB_NAME);
-		UserJobStateTestCommon.destroyDB(db);
+		TestCommon.destroyDB(db);
 	}
 	
 	@Test
 	public void ver() throws Exception {
-		assertThat("got correct version", CLIENT1.ver(), is("0.1.2"));
+		assertThat("got correct version", CLIENT1.ver(), is("0.2.0-dev"));
 	}
 	
 	
@@ -302,26 +281,27 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	public void createAndStartJob() throws Exception {
 		String[] nearfuture = getNearbyTimes();
 		
+		@SuppressWarnings("deprecation")
 		String jobid = CLIENT1.createJob();
 		checkJob(CLIENT1, jobid, "created",null, null, null, null,
-				null, null, null, null, null, null, null);
+				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
 		CLIENT1.startJob(jobid, TOKEN2, "new stat", "ne desc",
 				new InitProgress().withPtype("none"), null);
-		checkJob(CLIENT1, jobid, "started", "new stat", USER2,
-				"ne desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "new stat", USER2, "ne desc",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams().withAuthstrat(null));
 		CLIENT1.startJob(jobid, TOKEN2, "new stat2", "ne desc2",
 				new InitProgress().withPtype("percent"), nearfuture[0]);
 		checkJob(CLIENT1, jobid, "started", "new stat2", USER2,
 				"ne desc2", "percent", 0L, 100L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams().withAuthstrat(""));
 		CLIENT1.startJob(jobid, TOKEN2, "new stat3", "ne desc3",
 				new InitProgress().withPtype("task").withMax(5L), null);
-		checkJob(CLIENT1, jobid, "started", "new stat3", USER2,
-				"ne desc3", "task", 0L, 5L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "new stat3", USER2, "ne desc3",
+				"task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
 		
 		startJobBadArgs(null, TOKEN2, "s", "d", new InitProgress().withPtype("none"),
 				null, "id cannot be null or the empty string", true);
@@ -331,7 +311,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				new InitProgress().withPtype("none"),
 				null, "Job ID aaaaaaaaaaaaaaaaaaaa is not a legal ID", true);
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams()
+				.withAuthstrat("DEFAULT"));
 		startJobBadArgs(jobid, null, "s", "d", new InitProgress().withPtype("none"),
 				null, "Service token cannot be null or the empty string");
 		startJobBadArgs(jobid, "foo", "s", "d", new InitProgress().withPtype("none"),
@@ -376,17 +357,62 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				new InitProgress().withPtype("none"), nearfuture[0]);
 		checkJob(CLIENT1, jobid, "started", "cs stat", USER2,
 				"cs desc", "none", null, null, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat2", "cs desc2",
 				new InitProgress().withPtype("percent"), null);
-		checkJob(CLIENT1, jobid, "started", "cs stat2", USER2,
-				"cs desc2", "percent", 0L, 100L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "cs stat2", USER2, "cs desc2",
+				"percent", 0L, 100L, null, 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat3", "cs desc3",
 				new InitProgress().withPtype("task").withMax(5L), null);
-		checkJob(CLIENT1, jobid, "started", "cs stat3", USER2,
-				"cs desc3", "task", 0L, 5L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "cs stat3", USER2, "cs desc3",
+				"task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		
+		failCreateJob(CLIENT1, "kbaseworkspace", "1", "The UJS is not configured to " +
+				"delegate authorization to the workspace service");
+		failCreateJob(CLIENT1, "foo", "1", "Invalid authorization strategy: foo");
+	}
+	
+	@Test
+	public void metadata() throws Exception {
+		Map<String, String> m = new HashMap<String, String>();
+		InitProgress noprog = new InitProgress().withPtype("none");
+		m.put("bar", "baz");
+		m.put("whoo", "wee");
+		String id1 = CLIENT1.createJob2(new CreateJobParams().withMeta(null));
+		String id2 = CLIENT1.createJob2(new CreateJobParams().withMeta(
+				new HashMap<String, String>()));
+		String id3 = CLIENT1.createJob2(new CreateJobParams().withMeta(m));
+		
+		checkJob(CLIENT1, id1, "created", null, null, null, null, null, null,
+				null, null, null, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id2, "created", null, null, null, null, null, null,
+				null, null, null, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, "created", null, null, null, null, null, null,
+				null, null, null, null, null, DEF, DEF, m);
+		
+		CLIENT1.startJob(id1, TOKEN2, "stat1", "desc1", noprog, null);
+		CLIENT1.startJob(id3, TOKEN2, "stat3", "desc2", noprog, null);
+		checkJob(CLIENT1, id1, "started", "stat1", USER2, "desc1", "none",
+				null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, "started", "stat3", USER2, "desc2", "none",
+				null, null, null, 0L, 0L, null, null, DEF, DEF, m);
+		
+		CLIENT1.updateJob(id1, TOKEN2, "stat1-2", null);
+		CLIENT1.updateJob(id3, TOKEN2, "stat3-2", null);
+		checkJob(CLIENT1, id1, "started", "stat1-2", USER2, "desc1", "none",
+				null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, "started", "stat3-2", USER2, "desc2", "none",
+				null, null, null, 0L, 0L, null, null, DEF, DEF, m);
+
+		CLIENT1.completeJob(id1, TOKEN2, "stat1-3", null, null);
+		CLIENT1.completeJob(id3, TOKEN2, "stat3-3", null, null);
+		checkJob(CLIENT1, id1, "complete", "stat1-3", USER2, "desc1", "none",
+				null, null, null, 1L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, "complete", "stat3-3", USER2, "desc2", "none",
+				null, null, null, 1L, 0L, null, null, DEF, DEF, m);
 	}
 	
 	private void startJobBadArgs(String jobid, String token, String stat, String desc,
@@ -422,7 +448,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failGetJob(CLIENT1, "", "id cannot be null or the empty string");
 		failGetJob(CLIENT1, "foo", "Job ID foo is not a legal ID");
 		
-		String jobid = CLIENT1.createJob();
+		String jobid = CLIENT1.createJob2(new CreateJobParams());
 		if (jobid.charAt(0) == 'a') {
 			jobid = "b" + jobid.substring(1);
 		} else {
@@ -438,43 +464,45 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "up stat", "up desc",
 				new InitProgress().withPtype("none"), null);
 		CLIENT1.updateJob(jobid, TOKEN2, "up stat2", null);
-		checkJob(CLIENT1, jobid, "started", "up stat2", USER2,
-				"up desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "up stat2", USER2, "up desc",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up stat3", 40L, null);
-		checkJob(CLIENT1, jobid, "started", "up stat3", USER2,
-				"up desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "up stat3", USER2, "up desc",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up stat3", null, nearfuture[0]);
 		checkJob(CLIENT1, jobid, "started", "up stat3", USER2,
 				"up desc", "none", null, null, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up2 stat", "up2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up2 stat2", 40L, null);
-		checkJob(CLIENT1, jobid, "started", "up2 stat2", USER2,
-				"up2 desc", "percent", 40L, 100L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "up2 stat2", USER2, "up2 desc",
+				"percent", 40L, 100L, null, 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
 		CLIENT1.updateJob(jobid, TOKEN2, "up2 stat3", nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up2 stat3", USER2,
-				"up2 desc", "percent", 40L, 100L, nearfuture[1], 0L, 0L, null,
-				null);
+		checkJob(CLIENT1, jobid, "started", "up2 stat3", USER2, "up2 desc",
+				"percent", 40L, 100L, nearfuture[1], 0L, 0L, null,
+				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up2 stat4", 70L, null);
 		checkJob(CLIENT1, jobid, "started", "up2 stat4", USER2,
 				"up2 desc", "percent", 100L, 100L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up3 stat", "up3 desc",
 				new InitProgress().withPtype("task").withMax(42L), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up3 stat2", 30L, nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up3 stat2", USER2,
-				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "up3 stat2", USER2, "up3 desc",
+				"task", 30L, 42L, nearfuture[1], 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
 		CLIENT1.updateJob(jobid, TOKEN2, "up3 stat3", null);
 		checkJob(CLIENT1, jobid, "started", "up3 stat3", USER2,
 				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up3 stat4", 15L, null);
 		checkJob(CLIENT1, jobid, "started", "up3 stat4", USER2,
 				"up3 desc", "task", 42L, 42L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up4 stat", "up4 desc",
 				new InitProgress().withPtype("none"), null);
@@ -555,16 +583,17 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "c stat", "c desc",
 				new InitProgress().withPtype("none"), null);
 		CLIENT1.completeJob(jobid, TOKEN2, "c stat2", null, null);
-		checkJob(CLIENT1, jobid, "complete", "c stat2", USER2, "c desc", "none", null,
-				null, null, 1L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "complete", "c stat2", USER2, "c desc",
+				"none", null, null, null, 1L, 0L, null, null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "c2 stat", "c2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "c2 stat2", 40L, null);
 		CLIENT1.completeJob(jobid, TOKEN2, "c2 stat3", "omg err",
 				new Results());
-		checkJob(CLIENT1, jobid, "error", "c2 stat3", USER2, "c2 desc", "percent",
-				100L, 100L, null, 1L, 1L, "omg err", new Results());
+		checkJob(CLIENT1, jobid, "error", "c2 stat3", USER2, "c2 desc",
+				"percent", 100L, 100L, null, 1L, 1L, "omg err", new Results(),
+				DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "c3 stat", "c3 desc",
 				new InitProgress().withPtype("task").withMax(37L), null);
@@ -579,8 +608,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 						.withWorkspaceurl("wurl")
 						.withResults(r);
 		CLIENT1.completeJob(jobid, TOKEN2, "c3 stat3", null, res);
-		checkJob(CLIENT1, jobid, "complete", "c3 stat3", USER2, "c3 desc", "task",
-				37L, 37L, nearfuture[1], 1L, 0L, null, res);
+		checkJob(CLIENT1, jobid, "complete", "c3 stat3", USER2, "c3 desc",
+				"task", 37L, 37L, nearfuture[1], 1L, 0L, null, res, DEF, DEF,
+				MTMAP);
 		
 		failCompleteJob(null, TOKEN2, "s", null, null,
 				"id cannot be null or the empty string");
@@ -710,7 +740,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		CLIENT1.forceDeleteJob(TOKEN2, jobid);
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams());
 		failToDeleteJob(jobid, String.format(
 				"There is no completed job %s for user %s", jobid, USER1));
 		failToDeleteJob(jobid, TOKEN2, String.format(
@@ -802,7 +832,6 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@Test
 	public void listJobs() throws Exception {
-		//NOTE: all jobs must be deleted from CLIENT2 or other tests may fail
 		InitProgress noprog = new InitProgress().withPtype("none");
 		Set<FakeJob> empty = new HashSet<FakeJob>();
 		
@@ -852,7 +881,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RCEX", empty);
 		checkListJobs(CLIENT2, USER1, "RCEXS", setsharedonly);
 		
-		jobid = CLIENT2.createJob();
+		jobid = CLIENT2.createJob2(new CreateJobParams());
 		checkListJobs(CLIENT2, USER1, null, empty);
 		checkListJobs(CLIENT2, USER1, "", empty);
 		checkListJobs(CLIENT2, USER1, "R", empty);
@@ -1026,14 +1055,19 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RE", empty);
 		checkListJobs(CLIENT2, USER1, "RCE", empty);
 		
-		testListJobsWithBadArgs(CLIENT2, null,
+		failListJobs(CLIENT2, null,
 				"service cannot be null or the empty string");
-		testListJobsWithBadArgs(CLIENT2, "",
+		failListJobs(CLIENT2, "",
 				"service cannot be null or the empty string");
-		testListJobsWithBadArgs(CLIENT2, "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst"
+		failListJobs(CLIENT2, "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst"
 				+ "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst" +
 				"abcdefghijklmnopqrst" + "a",
 				"service exceeds the maximum length of 100");
+		failListJobs2(CLIENT2, USER1, "kbaseworkspace", Arrays.asList("1"),
+				"The UJS is not configured to delegate authorization to the " +
+				"workspace service");
+		failListJobs2(CLIENT2, USER1, "foo", Arrays.asList("1"),
+				"Invalid authorization strategy: foo");
 	}
 	
 	@Test
@@ -1042,17 +1076,22 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT2.createAndStartJob(TOKEN1, "sh stat", "sh desc", noprog, null);
 		CLIENT2.shareJob(jobid, Arrays.asList(USER1));
 		//next line ensures that all job read functions are accessible to client 1
-		checkJob(CLIENT1, jobid, "started", "sh stat", USER1, "sh desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, "started", "sh stat", USER1, "sh desc",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
 		failShareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
-				"There is no job %s owned by user %s", jobid, USER1));
+				"There is no job %s with default authorization owned by user %s",
+				jobid, USER1));
 		assertThat("shared list ok", CLIENT2.getJobShared(jobid), is(Arrays.asList(USER1)));
-		failGetJobShared(jobid, String.format("User %s may not access the sharing list of job %s", USER1, jobid));
+		failGetJobShared(CLIENT1, jobid, String.format(
+				"User %s may not access the sharing list of job %s", USER1, jobid));
 		assertThat("owner ok", CLIENT1.getJobOwner(jobid), is(USER2));
 		assertThat("owner ok", CLIENT2.getJobOwner(jobid), is(USER2));
 		CLIENT2.unshareJob(jobid, Arrays.asList(USER1));
 		failGetJob(CLIENT1, jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
-		failGetJobOwner(jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
-		failGetJobShared(jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
+		failGetJobOwner(CLIENT1, jobid, String.format(
+				"There is no job %s viewable by user %s", jobid, USER1));
+		failGetJobShared(CLIENT1, jobid, String.format(
+				"There is no job %s viewable by user %s", jobid, USER1));
 		
 		CLIENT2.shareJob(jobid, Arrays.asList(USER1));
 		failUnshareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
@@ -1065,25 +1104,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				"User thishadbetterbeafakeuserorthistestwillfail is not a valid user");
 		failShareUnshareJob(CLIENT1, jobid2, null, "The user list may not be null or empty");
 		failShareUnshareJob(CLIENT1, jobid2, new ArrayList<String>(), "The user list may not be null or empty");
-	}
-	
-	private void failGetJobOwner(String id, String exception) throws Exception {
-		try {
-			CLIENT1.getJobOwner(id);
-			fail("got job owner w/ bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
-	}
-	
-	private void failGetJobShared(String id, String exception) throws Exception {
-		try {
-			CLIENT1.getJobShared(id);
-			fail("got job shared list w/ bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
+		failShareUnshareJob(CLIENT1, jobid2, Arrays.asList(USER2, null),
+				"A user name cannot be null or the empty string");
+		failShareUnshareJob(CLIENT1, jobid2, Arrays.asList(USER2, ""),
+				"A user name cannot be null or the empty string");
 	}
 }

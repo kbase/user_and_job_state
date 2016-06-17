@@ -20,14 +20,17 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import us.kbase.common.mongo.GetMongoDB;
+import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
+import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
 import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
+import com.mongodb.DBCollection;
 
 public class UserStateTests {
 	
@@ -35,23 +38,28 @@ public class UserStateTests {
 
 	private static MongoController mongo;
 	
+	private static DBCollection usercol;
+	private static DBCollection schemacol;
 	private static UserState us;
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		us = new UserState("localhost:" + mongo.getServerPort(),
-				DB_NAME, "userstate", 0);
+		final DB db = GetMongoDB.getDB(
+				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		usercol = db.getCollection("userstate");
+		schemacol = db.getCollection("schema");
+		us = new UserState(usercol, new SchemaManager(schemacol));
 	}
 	
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
@@ -67,7 +75,23 @@ public class UserStateTests {
 	public void clearDB() throws Exception {
 		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
 				DB_NAME);
-		UserJobStateTestCommon.destroyDB(db);
+		TestCommon.destroyDB(db);
+	}
+	
+	@Test
+	public void checkSchema() throws Exception {
+		/* this just tests that the schema manager is doing something.
+		 * The schema manager tests should handle everything else.
+		 */
+		new SchemaManager(schemacol).setRecord("userstate", 2, false);
+		try {
+			new UserState(usercol, new SchemaManager(schemacol));
+			fail("created userstate with bad schema");
+		} catch (IncompatibleSchemaException e) {
+			assertThat("incorrect exception message", e.getLocalizedMessage(),
+					is("Incompatible database schema for schema type " +
+							"userstate. DB is v2, codebase is v1"));
+		}
 	}
 	
 	@Test

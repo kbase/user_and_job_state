@@ -9,11 +9,14 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -21,18 +24,26 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.mongodb.DB;
+import com.mongodb.DBCollection;
 
+import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
+import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.RegexMatcher;
+import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
+import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
+import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
-import us.kbase.userandjobstate.jobstate.UJSJobState;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
 import us.kbase.userandjobstate.test.FakeJob;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class JobStateTests {
 	
@@ -40,23 +51,29 @@ public class JobStateTests {
 
 	private static MongoController mongo;
 	
+	private static DBCollection jobcol;
+	private static DBCollection schemacol;
 	private static JobState js;
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		js = new UJSJobState("localhost:" + mongo.getServerPort(),
-				DB_NAME, "jobstate", 0);
+		final DB db = GetMongoDB.getDB(
+				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		jobcol = db.getCollection("jobstate");
+		schemacol = db.getCollection("schema");
+		js = new JobState(jobcol, new SchemaManager(schemacol));
+				
 	}
 	
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
@@ -64,83 +81,319 @@ public class JobStateTests {
 	public void clearDB() throws Exception {
 		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
 				DB_NAME);
-		UserJobStateTestCommon.destroyDB(db);
+		TestCommon.destroyDB(db);
 	}
 	
 	private static final RegexMatcher OBJ_ID_MATCH = new RegexMatcher("[\\da-f]{24}");
 	
 	private static final Date MAX_DATE = new Date(Long.MAX_VALUE);
 	
-	private static String long101;
-	private static String long201;
-	private static String long1001;
-	private static String long100001;
+	private final static String LONG101;
+	private final static String LONG201;
+	private final static String LONG1001;
+	private final static String LONG100001;
 
 	static {
-		long101 = "";
-		long201 = "";
-		long1001 = "";
-		long100001 = "";
+		String l101 = "";
+		String l201 = "";
+		String l1001 = "";
+		String l100001 = "";
 		for (int i = 0; i < 5; i++) {
-			long101 += "aaaaaaaaaabbbbbbbbbb";
+			l101 += "aaaaaaaaaabbbbbbbbbb";
 		}
-		long201 = long101 + long101;
+		l201 = l101 + l101;
 		for (int i = 0; i < 5; i++) {
-			long1001 += long201;
+			l1001 += l201;
 		}
 		for (int i = 0; i < 100; i++) {
-			long100001 += long1001;
+			l100001 += l1001;
 		}
-		long101 += "f";
-		long201 += "f";
-		long1001 += "f";
-		long100001 += "f";
+		LONG101 = l101 + "f";
+		LONG201 = l201 + "f";
+		LONG1001 = l1001 + "f";
+		LONG100001 = l100001 + "f";
+	}
+	
+	@Test
+	public void checkSchema() throws Exception {
+		/* this just tests that the schema manager is doing something.
+		 * The schema manager tests should handle everything else.
+		 */
+		new SchemaManager(schemacol).setRecord("jobstate", 1, false);
+		try {
+			new JobState(jobcol, new SchemaManager(schemacol));
+			fail("created job state with bad schema");
+		} catch (IncompatibleSchemaException e) {
+			assertThat("incorrect exception message", e.getLocalizedMessage(),
+					is("Incompatible database schema for schema type " +
+							"jobstate. DB is v1, codebase is v2"));
+		}
 	}
 	
 	@Test
 	public void createJob() throws Exception {
-		try {
-			js.createJob(null);
-			fail("created job with invalid user");
-		} catch (IllegalArgumentException iae) {
-			assertThat("correct exception", iae.getLocalizedMessage(), 
-					is("user cannot be null or the empty string"));
-		}
-		try {
-			js.createJob("");
-			fail("created job with invalid user");
-		} catch (IllegalArgumentException iae) {
-			assertThat("correct exception", iae.getLocalizedMessage(), 
-					is("user cannot be null or the empty string"));
-		}
+		failCreateJob(null, "user cannot be null or the empty string");
+		failCreateJob("", "user cannot be null or the empty string");
 		String jobid = js.createJob("foo");
 		assertThat("get job id", jobid, OBJ_ID_MATCH);
 		Job j = js.getJob("foo", jobid);
 		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
 				null, null, null, null, null, null);
+		
+		failGetJob("foo1", jobid, new NoSuchJobException(String.format(
+							"There is no job %s viewable by user foo1",
+							jobid)));
+		failGetJob("foo", "a" + jobid.substring(1), new NoSuchJobException(
+				String.format("There is no job %s viewable by user foo",
+						"a" + jobid.substring(1))));
+		failGetJob("foo", "a" + jobid, new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID", "a" + jobid)));
+		
+		jobid = js.createJob("foo", new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new WorkspaceUserMetadata());
+		assertThat("get job id", jobid, OBJ_ID_MATCH);
+		j = js.getJob("foo", jobid);
+		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
+				null, null, null, null, null, null);
+		
+		failGetJob("foo1", jobid, new NoSuchJobException(String.format(
+							"There is no job %s viewable by user foo1",
+							jobid)));
+		failGetJob("foo", "a" + jobid.substring(1), new NoSuchJobException(
+				String.format("There is no job %s viewable by user foo",
+						"a" + jobid.substring(1))));
+		failGetJob("foo", "a" + jobid, new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID", "a" + jobid)));
+	}
+	
+	@Test
+	public void createJobAuth() throws Exception {
+		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		String user = "foo";
+		
+		failCreateJob(user, null, UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM, mt,
+				new NullPointerException());
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"),
+				UJSAuthorizer.DEFAULT_AUTH_PARAM, mt,
+				new UnimplementedException());
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				null,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM, mt,
+				new NullPointerException());
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				null, mt,
+				new IllegalArgumentException(
+						"authParam cannot be null or empty"));
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				"", mt,
+				new IllegalArgumentException(
+						"authParam cannot be null or empty"));
+		
+		String id = js.createJob(user, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"), "whoo", mt);
+		
+		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
+				null, null, null, null, null, null, null,
+				new AuthorizationStrategy("DEFAULT"), "whoo",
+				new HashMap<String, String>());
+		checkJob(fj);
+	}
+	
+	@Test
+	public void alternateAuth() throws Exception {
+		UJSAuthorizer lenientauth = new UJSAuthorizer() {
+			
+			@Override
+			protected void externallyAuthorizeRead(AuthorizationStrategy strat,
+					String user, List<String> authParams)
+					throws UJSAuthorizationException {
+				if (authParams.contains("fail multiple")) {
+					throw new UJSAuthorizationException("fail mult req");
+				}
+			}
+			
+			@Override
+			protected void externallyAuthorizeRead(String user, Job j)
+					throws UJSAuthorizationException {
+				if ("fail single".equals(j.getAuthorizationParameter())) {
+					throw new UJSAuthorizationException("fail single req");
+				}
+			}
+			
+			@Override
+			protected void externallyAuthorizeCreate(
+					AuthorizationStrategy strat, String authParam)
+					throws UJSAuthorizationException {
+				if ("fail create".equals(authParam)) {
+					throw new UJSAuthorizationException("fail create req");
+				}
+			}
+		};
+		String user = "foo";
+		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		Map<String, String> mth = new HashMap<String, String>();
+		// test creating job with alternate auth
+		failCreateJob(user, lenientauth, new AuthorizationStrategy("foo"),
+				"fail create", mt,
+				new UJSAuthorizationException("fail create req"));
+		failCreateJob(user, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"),
+				"fail create", mt, new UnimplementedException());
+		
+		String id1 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "whee", mt);
+		FakeJob fj1c = new FakeJob(id1, user, null, "created", null, null, null,
+				null, null, null, null, null, null, null,
+				new AuthorizationStrategy("strat1"), "whee",
+				new HashMap<String, String>());
+		
+		//test getting and sharing jobs with alternate auth
+		checkJob(lenientauth, fj1c);
+		failShareJob(user, id1, Arrays.asList("bar"),
+				new NoSuchJobException(String.format(
+						"There is no job %s with default authorization " +
+						"owned by user %s", id1, user)));
+		failUnshareJob(user, id1, Arrays.asList("foo"),
+				new NoSuchJobException(String.format(
+						"There is no job %s with default authorization " +
+						"visible to user %s", id1, user)));
+		checkJob(lenientauth, fj1c, new LinkedList<String>());
+		
+		//test fail getting jobs with alternate auth
+		String id2 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail single", mt);
+		failGetJob(user, id2, new UnimplementedException());
+		failGetJob(user, id2, lenientauth,
+				new NoSuchJobException(String.format(
+						"There is no job %s viewable by user %s", id2, user)));
+		
+		//test listing jobs with alternate auth
+			// start & create some jobs
+		js.startJob(user, id1, "serv1", "stat1", "desc1", null);
+		FakeJob fj1s = new FakeJob(id1, user, "serv1", "started", null,
+				"desc1", "none", null, null, "stat1", false, false, null, null,
+				new AuthorizationStrategy("strat1"), "whee", mth);
+		js.startJob(user, id2, "serv2", "stat2", "desc2", null);
+		FakeJob fj2s = new FakeJob(id2, user, "serv2", "started", null,
+				"desc2", "none", null, null, "stat2", false, false, null, null,
+				new AuthorizationStrategy("strat1"), "fail single", mth);
+		String id3 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat2"), "whee", mt);
+		js.startJob(user, id3, "serv3", "stat3", "desc3", null);
+		FakeJob fj3s = new FakeJob(id3, user, "serv3", "started", null,
+				"desc3", "none", null, null, "stat3", false, false, null, null,
+				new AuthorizationStrategy("strat2"), "whee", mth);
+			//check that std auth job doesn't show up
+		js.createAndStartJob(user, "serv4", "stat4", "desc4", null);
+		
+		//check listing via different strats and params works
+		checkListJobs(Arrays.asList(fj1s, fj2s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat1"),
+				Arrays.asList("whee", "fail single"));
+		checkListJobs(Arrays.asList(fj1s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat1"),
+				Arrays.asList("whee"));
+		checkListJobs(Arrays.asList(fj3s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat2"),
+				Arrays.asList("whee"));
+		
+		//fail listing jobs
+		failListJobs(user, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"), Arrays.asList("foo"),
+				new UnimplementedException());
+		js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail multiple", mt);
+		failListJobs(user, null, lenientauth,
+				new AuthorizationStrategy("strat1"),
+				Arrays.asList("fail multiple"),
+				new UJSAuthorizationException("fail mult req"));
+	}
+	
+	private static void failCreateJob(String user, String exp)
+			throws Exception {
 		try {
-			js.getJob("foo1", jobid);
-			fail("Got a non-existant job");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception", nsje.getLocalizedMessage(),
-					is(String.format("There is no job %s viewable by user foo1", jobid)));
-		}
-		try {
-			js.getJob("foo", "a" + jobid.substring(1));
-			fail("Got a non-existant job");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception", nsje.getLocalizedMessage(),
-					is(String.format("There is no job %s viewable by user foo",
-					"a" + jobid.substring(1))));
-		}
-		try {
-			js.getJob("foo", "a" + jobid);
-			fail("Got a job with a bad id");
+			js.createJob(user);
+			fail("created job with invalid params");
 		} catch (IllegalArgumentException iae) {
-			assertThat("correct exception", iae.getLocalizedMessage(),
-					is(String.format("Job ID %s is not a legal ID",
-					"a" + jobid)));
+			assertThat("correct exception", iae.getLocalizedMessage(), 
+					is(exp));
 		}
+		try {
+			js.createJob(user, new DefaultUJSAuthorizer(),
+					UJSAuthorizer.DEFAULT_AUTH_STRAT,
+					UJSAuthorizer.DEFAULT_AUTH_PARAM,
+					new WorkspaceUserMetadata());
+			fail("created job with invalid params");
+		} catch (IllegalArgumentException iae) {
+			assertThat("correct exception", iae.getLocalizedMessage(), 
+					is(exp));
+		}
+	}
+	
+	private static void failCreateJob(String user, UJSAuthorizer auth,
+			AuthorizationStrategy strat, String authParam,
+			WorkspaceUserMetadata meta, Exception exp)
+			throws Exception {
+		try {
+			js.createJob(user, auth, strat, authParam, meta);
+			fail("created job with bad params");
+		} catch (Exception e) {
+			assertExceptionCorrect(e, exp);
+		}
+	}
+	
+	private static void assertExceptionCorrect(
+			Exception got, Exception expected) {
+		assertThat("incorrect exception. trace:\n" +
+				ExceptionUtils.getStackTrace(got),
+				got.getLocalizedMessage(),
+				is(expected.getLocalizedMessage()));
+		assertThat("incorrect exception type", got, is(expected.getClass()));
+	}
+	
+	@Test
+	public void metadata() throws Exception {
+		String user = "foo";
+		AuthorizationStrategy as = UJSAuthorizer.DEFAULT_AUTH_STRAT;
+		String ap = UJSAuthorizer.DEFAULT_AUTH_PARAM;
+		Map<String, String> m = new HashMap<String, String>();
+		m.put("bar", "baz");
+		m.put("whoo", "wee");
+		String id = js.createJob(user, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new WorkspaceUserMetadata(m));
+		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
+				null, null, null, null, null, null, null, as, ap, m);
+		checkJob(fj);
+		js.startJob(user, id, "serv", "stat", "desc", null);
+		fj = new FakeJob(id, user, "serv", "started", null, "desc", "none",
+				null, null, "stat", false, false, null, null, as, ap, m);
+		checkJob(fj);
+		js.updateJob(user, id, "serv", "stat1", null, null);
+		fj = new FakeJob(id, user, "serv", "started", null, "desc", "none",
+				null, null, "stat1", false, false, null, null, as, ap, m);
+		checkJob(fj);
+		js.completeJob(user, id, "serv", "stat2", null, null);
+		fj = new FakeJob(id, user, "serv", "complete", null, "desc", "none",
+				null, null, "stat2", true, false, null, null, as, ap, m);
+		checkJob(fj);
+		
+		failCreateJob(user, new DefaultUJSAuthorizer(), as, ap, null,
+				new NullPointerException("meta"));
 	}
 	
 	@Test
@@ -165,7 +418,7 @@ public class JobStateTests {
 				new IllegalArgumentException("user cannot be null or the empty string"));
 		testStartJobBadArgs("", jobid, "serv2", "started job", "job desc", null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testStartJobBadArgs(long101, jobid, "serv2", "started job", "job desc", null,
+		testStartJobBadArgs(LONG101, jobid, "serv2", "started job", "job desc", null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
 		testStartJobBadArgs("foo",  null, "serv2", "started job", "job desc", null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
@@ -177,11 +430,11 @@ public class JobStateTests {
 				new IllegalArgumentException("service cannot be null or the empty string"));
 		testStartJobBadArgs("foo", jobid, "", "started job", "job desc", null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testStartJobBadArgs("foo", jobid, long101, "started job", "job desc", null,
+		testStartJobBadArgs("foo", jobid, LONG101, "started job", "job desc", null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testStartJobBadArgs("foo", jobid, "serv2", long201, "job desc", null,
+		testStartJobBadArgs("foo", jobid, "serv2", LONG201, "job desc", null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
-		testStartJobBadArgs("foo", jobid, "serv2", "started job", long1001, null,
+		testStartJobBadArgs("foo", jobid, "serv2", "started job", LONG1001, null,
 				new IllegalArgumentException("description exceeds the maximum length of 1000"));
 		testStartJobBadArgs("foo", jobid, "serv2", "started job", "job desc", nearpast,
 				new IllegalArgumentException("The estimated completion date must be in the future"));
@@ -314,7 +567,9 @@ public class JobStateTests {
 			Boolean error, String errmsg, JobResults results) {
 		checkJob(j, id, stage, estComplete, user, status, service, desc,
 				progtype, prog, maxproj, complete, error, errmsg, results,
-				null);
+				null, UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new HashMap<String, String>());
 	}
 	
 	private void checkJob(String id, String stage, Date estComplete, 
@@ -324,14 +579,34 @@ public class JobStateTests {
 			List<String> shared) throws Exception {
 		checkJob(js.getJob(user, id), id, stage, estComplete, user, status,
 				service, desc, progtype, prog, maxproj, complete, error, errmsg,
-				results, shared);
+				results, shared,
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				UJSAuthorizer.DEFAULT_AUTH_PARAM,
+				new HashMap<String, String>());
+	}
+	
+	private void checkJob(FakeJob fj) throws Exception {
+		checkJob(new DefaultUJSAuthorizer(), fj);
+	}
+	
+	private void checkJob(UJSAuthorizer auth, FakeJob fj) throws Exception {
+		checkJob(auth, fj, null);
+	}
+	
+	private void checkJob(UJSAuthorizer auth, FakeJob fj, List<String> shared)
+			throws Exception {
+		checkJob(js.getJob(fj.user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
+				fj.user, fj.status, fj.service, fj.desc, fj.progtype, fj.prog,
+				fj.maxprog, fj.complete, fj.error, fj.errormsg, fj.results,
+				shared, fj.authstrat, fj.authparam, fj.metadata);
 	}
 	
 	private void checkJob(Job j, String id, String stage, Date estComplete, 
 			String user, String status, String service, String desc,
 			String progtype, Integer prog, Integer maxproj, Boolean complete,
 			Boolean error, String errmsg, JobResults results,
-			List<String> shared) {
+			List<String> shared, AuthorizationStrategy strat,
+			String authParam, Map<String, String> meta) {
 		assertThat("job id ok", j.getID(), is(id));
 		assertThat("job stage ok", j.getStage(), is(stage));
 		assertThat("job user ok", j.getUser(), is(user));
@@ -353,6 +628,54 @@ public class JobStateTests {
 		if (shared != null) {
 			assertThat("shared list ok", j.getShared(), is(shared));
 		}
+		assertThat("incorrect auth strat", j.getAuthorizationStrategy(),
+				is(strat));
+		assertThat("incorrect auth param", j.getAuthorizationParameter(),
+				is(authParam));
+		assertThat("incorrect metadata", j.getMetadata(),
+				is(meta));
+	}
+	
+	@Test
+	public void getJob() throws Exception {
+		String user = "foo";
+		String user2 = "foo1";
+		String id = js.createJob(user);
+		//should work
+		js.getJob(user, id);
+		js.getJob(user, id, new DefaultUJSAuthorizer());
+		js.shareJob(user, id, Arrays.asList(LONG101.substring(1)));
+		//should work
+		js.getJob(LONG101.substring(1), id);
+		js.getJob(LONG101.substring(1), id, new DefaultUJSAuthorizer());
+		
+		failGetJob(LONG101, id, new IllegalArgumentException(
+				"user exceeds the maximum length of 100"));
+		
+		failGetJob(null, id, new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		failGetJob("", id, new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+	
+		failGetJob(user, null, new IllegalArgumentException(
+				"id cannot be null or the empty string"));
+		failGetJob(user, "", new IllegalArgumentException(
+				"id cannot be null or the empty string"));
+		
+		failGetJob(user, id.substring(1), new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID",
+						id.substring(1))));
+		failGetJob(user, "g" + id.substring(1), new IllegalArgumentException(
+				String.format("Job ID %s is not a legal ID",
+						"g" + id.substring(1))));
+		
+		failGetJob(user2, id, new NoSuchJobException(String.format(
+				"There is no job %s viewable by user %s", id, user2)));
+		
+		js.startJob(user, id, "foo", "stat", "desc", null);
+		js.deleteJob(user, id, "foo");
+		failGetJob(user, id, new NoSuchJobException(String.format(
+				"There is no job %s viewable by user %s", id, user)));
 	}
 	
 	@Test
@@ -439,7 +762,7 @@ public class JobStateTests {
 				new IllegalArgumentException("user cannot be null or the empty string"));
 		testUpdateJobBadArgs("", jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testUpdateJobBadArgs(long101, jobid, "serv2", "started job", 1, null,
+		testUpdateJobBadArgs(LONG101, jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
 		testUpdateJobBadArgs("foo",  null, "serv2", "started job", 1, null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
@@ -451,9 +774,9 @@ public class JobStateTests {
 				new IllegalArgumentException("service cannot be null or the empty string"));
 		testUpdateJobBadArgs("foo", jobid, "", "started job", 1, null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testUpdateJobBadArgs("foo", jobid, long101, "started job", 1, null,
+		testUpdateJobBadArgs("foo", jobid, LONG101, "started job", 1, null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testUpdateJobBadArgs("foo", jobid, "serv2", long201, 1, null,
+		testUpdateJobBadArgs("foo", jobid, "serv2", LONG201, 1, null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
 		testUpdateJobBadArgs("foo", jobid, "serv2", "started job", -1, null,
 				new IllegalArgumentException("progress cannot be negative"));
@@ -569,7 +892,7 @@ public class JobStateTests {
 				new IllegalArgumentException("user cannot be null or the empty string"));
 		testCompleteJobBadArgs("", jobid, "service2", "started job", null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testCompleteJobBadArgs(long101, jobid, "service2", "started job", null,
+		testCompleteJobBadArgs(LONG101, jobid, "service2", "started job", null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
 		testCompleteJobBadArgs("comp",  null, "service2", "started job", null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
@@ -581,11 +904,11 @@ public class JobStateTests {
 				new IllegalArgumentException("service cannot be null or the empty string"));
 		testCompleteJobBadArgs("comp", jobid, "", "started job", null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testCompleteJobBadArgs("comp", jobid, long101, "started job", null,
+		testCompleteJobBadArgs("comp", jobid, LONG101, "started job", null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testCompleteJobBadArgs("comp", jobid, "service2", long201, null,
+		testCompleteJobBadArgs("comp", jobid, "service2", LONG201, null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
-		testCompleteJobBadArgs("comp", jobid, "service2", "started job", long100001,
+		testCompleteJobBadArgs("comp", jobid, "service2", "started job", LONG100001,
 				new IllegalArgumentException("error exceeds the maximum length of 100000"));
 	}
 	
@@ -677,6 +1000,14 @@ public class JobStateTests {
 					is(String.format(
 					"There is no job %s viewable by user %s", jobid, user)));
 		}
+		try {
+			js.getJob(user, jobid, new DefaultUJSAuthorizer());
+			fail("got deleted job");
+		} catch (NoSuchJobException nsje) {
+			assertThat("correct exception msg", nsje.getLocalizedMessage(),
+					is(String.format(
+					"There is no job %s viewable by user %s", jobid, user)));
+		}
 	}
 	
 	private void succeedAtDeletingJob(String user, String jobid)
@@ -684,6 +1015,14 @@ public class JobStateTests {
 		js.deleteJob(user, jobid);
 		try {
 			js.getJob(user, jobid);
+			fail("got deleted job");
+		} catch (NoSuchJobException nsje) {
+			assertThat("correct exception msg", nsje.getLocalizedMessage(),
+					is(String.format(
+					"There is no job %s viewable by user %s", jobid, user)));
+		}
+		try {
+			js.getJob(user, jobid, new DefaultUJSAuthorizer());
 			fail("got deleted job");
 		} catch (NoSuchJobException nsje) {
 			assertThat("correct exception msg", nsje.getLocalizedMessage(),
@@ -747,16 +1086,16 @@ public class JobStateTests {
 	public void listJobs() throws Exception {
 		String lj = "listjobs";
 		List<FakeJob> empty = new ArrayList<FakeJob>();
-		checkListJobs(empty, js.listJobs(lj, Arrays.asList("serv1"), false, true, true, true, false));
+		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true, false);
 		String jobid = js.createJob(lj);
-		checkListJobs(empty, js.listJobs(lj, Arrays.asList("serv1"), true, true, true, true, false));
+		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true, false);
 		
 		jobid = js.createAndStartJob(lj, "serv1", "lst", "ldsc", 42, MAX_DATE);
 		FakeJob started = new FakeJob(jobid, lj, "serv1", "started",
 				MAX_DATE,"ldsc", "task", 0, 42, "lst", false, false, null, null);
-		checkListJobs(Arrays.asList(started), js.listJobs(lj, Arrays.asList("serv1"), false, true, true, true, false));
-		checkListJobs(empty, js.listJobs(lj, Arrays.asList("serv2"), true, true, true, true, false));
-		checkListJobs(Arrays.asList(started), js.listJobs(lj, Arrays.asList("serv1"), false, false, false, false, false));
+		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"), true, true, true, false);
+		checkListJobs(empty, lj, Arrays.asList("serv2"), true, true, true, false);
+		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"), false, false, false, false);
 		
 		jobid = js.createAndStartJob(lj, "serv1", "comp-st", "comp-dsc",
 				MAX_DATE);
@@ -774,57 +1113,151 @@ public class JobStateTests {
 		
 		//all 3
 		List<FakeJob> all = Arrays.asList(started, complete, error);
-		checkListJobs(all, js.listJobs(lj, Arrays.asList("serv1"), true, true, true, true, false));
-		checkListJobs(all, js.listJobs(lj, Arrays.asList("serv1"), false, false, false, false, false));
+		checkListJobs(all, lj, Arrays.asList("serv1"), true, true, true, false);
+		checkListJobs(all, lj, Arrays.asList("serv1"), false, false, false, false);
 		
 		//1 of 3
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1"), true, true, false, false, false));
+				lj, Arrays.asList("serv1"), true, false, false, false);
 		checkListJobs(Arrays.asList(complete),
-				js.listJobs(lj, Arrays.asList("serv1"), false, false, true, false, false));
+				lj, Arrays.asList("serv1"), false, true, false, false);
 		checkListJobs(Arrays.asList(error),
-				js.listJobs(lj, Arrays.asList("serv1"), true, false, false, true, false));
+				lj, Arrays.asList("serv1"), false, false, true, false);
 		
 		//2 of 3
 		checkListJobs(Arrays.asList(started, complete),
-				js.listJobs(lj, Arrays.asList("serv1"), false, true, true, false, false));
+				lj, Arrays.asList("serv1"), true, true, false, false);
 		checkListJobs(Arrays.asList(complete, error),
-				js.listJobs(lj, Arrays.asList("serv1"), true, false, true, true, false));
+				lj, Arrays.asList("serv1"), false, true, true, false);
 		checkListJobs(Arrays.asList(started, error),
-				js.listJobs(lj, Arrays.asList("serv1"), false, true, false, true, false));
+				lj, Arrays.asList("serv1"), true, false, true, false);
 		
 		//check on jobs from multiple services
 		jobid = js.createAndStartJob(lj, "serv2", "mst", "mdsc", 42, MAX_DATE);
 		FakeJob multi = new FakeJob(jobid, lj, "serv2", "started",
 				MAX_DATE, "mdsc", "task", 0, 42, "mst", false, false, null, null);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				js.listJobs(lj, new ArrayList<String>(), true, true, true, true, false));
+				lj, new ArrayList<String>(), true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				js.listJobs(lj, null, true, true, true, true, false));
+				lj, null, true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				js.listJobs(lj, Arrays.asList("serv1", "serv2"), false, true, true, true, false));
+				lj, Arrays.asList("serv1", "serv2"), true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete),
-				js.listJobs(lj, Arrays.asList("serv1"), true, true, true, false, false));
+				lj, Arrays.asList("serv1"), true, true, false, false);
 		checkListJobs(Arrays.asList(multi),
-				js.listJobs(lj, Arrays.asList("serv2"), false, true, true, true, false));
+				lj, Arrays.asList("serv2"), true, true, true, false);
 		
 		//check on shared jobs
 		jobid = js.createAndStartJob("listJobsShare", "shareserv", "sst", "sdsc", null);
 		FakeJob shared = new FakeJob(jobid, "listJobsShare", "shareserv", "started",
 				null, "sdsc", "none", null, null, "sst", false, false, null, null);
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), true, true, false, false, true));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
 		js.shareJob("listJobsShare", jobid, Arrays.asList(lj));
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), false, true, false, false, false));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, false);
 		checkListJobs(Arrays.asList(started, shared),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), true, true, false, false, true));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
 		js.unshareJob("listJobsShare", jobid, Arrays.asList(lj));
 		checkListJobs(Arrays.asList(started),
-				js.listJobs(lj, Arrays.asList("serv1", "shareserv"), false, true, false, false, true));
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
 		
+		// fail on user
+		failListJobs(null, Arrays.asList("serv"), new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		failListJobs("", Arrays.asList("serv"), new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		
+		// fail on service
+		failListJobs(lj, Arrays.asList((String) null),
+				new IllegalArgumentException(
+				"service cannot be null or the empty string"));
+		failListJobs(lj, Arrays.asList(""), new IllegalArgumentException(
+				"service cannot be null or the empty string"));
+		//these shouldn't except
+		js.listJobs(lj, Arrays.asList(LONG101.substring(1)),
+				false, false, false, false);
+		js.listJobs(lj, Arrays.asList(LONG101.substring(1)),
+				false, false, false, false, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM));
+		failListJobs(lj, Arrays.asList(LONG101), new IllegalArgumentException(
+				"service exceeds the maximum length of 100"));
+		
+		// fail on auth 
+		failListJobs(lj, null, null, new AuthorizationStrategy("foo"),
+				Arrays.asList("foo"), new NullPointerException());
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				null, Arrays.asList("foo"), new NullPointerException());
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("foo"), Arrays.asList("foo"),
+				new UnimplementedException());
+		
+		// fail on auth params
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"), null,
+				new IllegalArgumentException(
+						"authParams cannot be null or empty"));
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"), new ArrayList<String>(),
+				new IllegalArgumentException(
+						"authParams cannot be null or empty"));
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"),
+				Arrays.asList((String) null), new IllegalArgumentException(
+						"authParam cannot be null or empty"));
+		failListJobs(lj, null, new DefaultUJSAuthorizer(),
+				new AuthorizationStrategy("DEFAULT"),
+				Arrays.asList(""), new IllegalArgumentException(
+						"authParam cannot be null or empty"));
 	}
 	
+	private void failListJobs(String user, List<String> services,
+			Exception exp) {
+		try {
+			js.listJobs(user, services, false, false, false, false);
+			fail("listed jobs w/ bad args");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+		failListJobs(user, services, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM), exp);
+	}
+
+	private void failListJobs(String user, List<String> services,
+			UJSAuthorizer auth, AuthorizationStrategy strat,
+			List<String> params, Exception exp) {
+		try {
+			js.listJobs(user, services, false, false, false, false, auth,
+					strat, params);
+			fail("listed jobs w/ bad args");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+		
+	}
+
+	private void checkListJobs(List<FakeJob> expected, String user,
+			List<String> services, boolean running, boolean complete,
+			boolean error, boolean shared) throws Exception {
+		checkListJobs(expected, js.listJobs(user, services, running, complete,
+				error, shared));
+		checkListJobs(expected, js.listJobs(user, services, running, complete,
+				error, shared, new DefaultUJSAuthorizer(),
+				UJSAuthorizer.DEFAULT_AUTH_STRAT,
+				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM)));
+	}
+	
+	private void checkListJobs(List<FakeJob> expected, String user,
+			List<String> services, boolean running, boolean complete,
+			boolean error, boolean shared, UJSAuthorizer auth,
+			AuthorizationStrategy strat, List<String> params)
+					throws Exception {
+		checkListJobs(expected, js.listJobs(user, services, running, complete,
+				error, shared, auth, strat, params));
+	}
+
 	private void checkListJobs(List<FakeJob> expected, List<Job> result)
 		throws Exception {
 		HashSet<FakeJob> res = new HashSet<FakeJob>();
@@ -858,7 +1291,8 @@ public class JobStateTests {
 				null, null, false, false, null, null, Arrays.asList("foo", "bar", "baz"));
 		
 		failShareJob("foo", jobid, Arrays.asList("bag"), new NoSuchJobException(
-				String.format("There is no job %s owned by user %s", jobid, "foo")));
+				String.format("There is no job %s with default authorization " +
+						"owned by user %s", jobid, "foo")));
 		failShareJob(null, jobid, Arrays.asList("bag"), new IllegalArgumentException(
 				String.format("owner cannot be null or the empty string")));
 		failShareJob("", jobid, Arrays.asList("bag"), new IllegalArgumentException(
@@ -882,9 +1316,11 @@ public class JobStateTests {
 		
 		String nojob = new ObjectId().toString();
 		failUnshareJob(sh, nojob, Arrays.asList("bag"), new NoSuchJobException(
-				String.format("There is no job %s visible to user %s", nojob, sh)));
+				String.format("There is no job %s with default " +
+						"authorization visible to user %s", nojob, sh)));
 		failUnshareJob("bag", jobid, Arrays.asList("bag"), new NoSuchJobException(
-				String.format("There is no job %s visible to user %s", jobid, "bag")));
+				String.format("There is no job %s with default " +
+						"authorization visible to user %s", jobid, "bag")));
 		failUnshareJob("foo", jobid, Arrays.asList("bag"), new IllegalArgumentException(
 				String.format("User %s may only stop sharing job %s for themselves", "foo", jobid)));
 		failUnshareJob(null, jobid, Arrays.asList("bag"), new IllegalArgumentException(
@@ -915,6 +1351,19 @@ public class JobStateTests {
 		try {
 			js.getJob(user, jobid);
 			fail("got job sucessfully but expected fail");
+		} catch (Exception exp) {
+			assertThat("correct exception", exp.getLocalizedMessage(),
+					is(e.getLocalizedMessage()));
+			assertThat("correct exception type", exp, is(e.getClass()));
+		}
+		failGetJob(user, jobid, new DefaultUJSAuthorizer(), e);
+	}
+	
+	private void failGetJob(String user, String jobid, UJSAuthorizer auth,
+			Exception e) {
+		try {
+			js.getJob(user, jobid, auth);
+			fail("got job successfully but expected fail");
 		} catch (Exception exp) {
 			assertThat("correct exception", exp.getLocalizedMessage(),
 					is(e.getLocalizedMessage()));
