@@ -1,7 +1,5 @@
 package us.kbase.userandjobstate.test.kbase;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
@@ -299,11 +297,11 @@ public class WorkspaceAuthTest {
 						new URL("http://localhost:" + WS.getServerPort()));
 		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
 		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
+		String user1 = U1.getUserId();
+		String user2 = U2.getUserId();
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
-		String user1 = U1.getUserId();
-		String user2 = U2.getUserId();
 		setPermissions(WSC1, 1, "w", user2);
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		
@@ -346,6 +344,85 @@ public class WorkspaceAuthTest {
 			Exception exp) {
 		try {
 			auth.authorizeRead(user, j);
+			fail("authorized bad read");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+	}
+	
+	@Test
+	public void testMultipleRead() throws Exception {
+		WorkspaceAuthorizationFactory wafac =
+				new WorkspaceAuthorizationFactory(
+						new URL("http://localhost:" + WS.getServerPort()));
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
+		String user1 = U1.getUserId();
+		String user2 = U2.getUserId();
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo"));
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo1"));
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+			.withWorkspace("foo2"));
+		setPermissions(WSC1, 1, "r", user2);
+		setPermissions(WSC1, 3, "r", user2);
+		
+		wa1.authorizeRead(strat, user1, Arrays.asList("1", "2", "3"));
+		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
+		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "2", "3"),
+				new UJSAuthorizationException(String.format(
+						"User %s cannot read workspace 2", user2)));
+		
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
+				new UJSAuthorizationException("Error contacting the " +
+						"workspace service to get permissions: Workspace 1 " +
+						"is deleted"));
+		failMultipleRead(wa2, strat, user2, Arrays.asList("3", "4"),
+				new UJSAuthorizationException("Error contacting the " +
+						"workspace service to get permissions: No workspace " +
+						"with id 4 exists"));
+		wa2.authorizeRead(strat, user2, Arrays.asList("3"));
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
+		setPermissions(WSC1, 3, "n", user2);
+		//check fencepost error
+		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
+				new UJSAuthorizationException(String.format(
+				"User %s cannot read workspace 3", user2)));
+		setPermissions(WSC1, 3, "w", user2);
+		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
+		setPermissions(WSC1, 3, "a", user2);
+		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
+		
+		
+		
+		failMultipleRead(wa1, strat, user1, Arrays.asList("1", "2", "3", "4",
+				"5", "6", "7", "8", "9", "10", "11"),
+				new UJSAuthorizationException(
+						"No more than 10 workspace IDs may be specified"));
+		failMultipleRead(wa1, strat, user1, Arrays.asList("1", "2", "3", "4",
+				"5", "6", "7", "8", "9", "foo"),
+				new UJSAuthorizationException(
+						"The string foo is not a valid integer workspace ID"));
+		failMultipleRead(wa1, strat, user2, Arrays.asList("1"),
+				new IllegalStateException("A programming error occured: the " +
+						"token username and the supplied username do not " +
+						"match"));
+		
+		failMultipleRead(wa1, new AuthorizationStrategy("foo"), user1,
+				Arrays.asList("1"),
+				new UJSAuthorizationException(
+						"Invalid authorization strategy: foo"));
+	}
+
+	private void failMultipleRead(UJSAuthorizer auth,
+			AuthorizationStrategy strat, String user, List<String> params,
+			Exception exp) {
+		try {
+			auth.authorizeRead(strat, user, params);
 			fail("authorized bad read");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);

@@ -293,6 +293,8 @@ public class JobStateTests {
 		FakeJob fj3s = new FakeJob(id3, user, "serv3", "started", null,
 				"desc3", "none", null, null, "stat3", false, false, null, null,
 				new AuthorizationStrategy("strat2"), "whee", mth);
+			//check that std auth job doesn't show up
+		js.createAndStartJob(user, "serv4", "stat4", "desc4", null);
 		
 		//check listing via different strats and params works
 		checkListJobs(Arrays.asList(fj1s, fj2s), user, null,

@@ -89,6 +89,7 @@ public class WorkspaceAuthorizationFactory {
 				Collections.unmodifiableList(Arrays.asList("r", "w", "a"));
 		private static final List<String> CAN_WRITE =
 				Collections.unmodifiableList(Arrays.asList("w", "a"));
+		private static final int MAX_WS_COUNT = 10;
 		
 		private WorkspaceClient client;
 		private String username;
@@ -196,8 +197,13 @@ public class WorkspaceAuthorizationFactory {
 				throws UJSAuthorizationException {
 			checkWSUser(user);
 			checkStrat(strat);
+			if (authParams.size() > MAX_WS_COUNT) {
+				throw new UJSAuthorizationException(String.format(
+						"No more than %s workspace IDs may be specified",
+						MAX_WS_COUNT));
+			}
 			final List<Map<String, String>> perms = getPerms(authParams);
-			for (int i = 0; i >= authParams.size(); i ++) {
+			for (int i = 0; i < authParams.size(); i ++) {
 				final String p = perms.get(i).get(username);
 				if (!CAN_READ.contains(p)) {
 					throw new UJSAuthorizationException(String.format(
