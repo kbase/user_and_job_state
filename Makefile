@@ -49,9 +49,10 @@ build-libs:
 build-docs: build-libs
 	-rm -r docs 
 	$(ANT) javadoc
-	pod2html --infile=lib/Bio/KBase/$(SERVICE)/Client.pm --outfile=docs/$(SERVICE).html
+	pod2html --infile=lib/Bio/KBase/$(SERVICE)/Client.pm --outfile=docs/$(SERVICE)_perl.html
 	rm -f pod2htm?.tmp
 	cp $(SERVICE).spec docs/.
+	cp docshtml/* docs/.
 
 compile: compile-typespec compile-typespec-java compile-html
 

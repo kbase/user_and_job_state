@@ -309,7 +309,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return null;
 	}
 	//TODO NOW test all the list2 and the various getJob methods with job created w/ ws but now w/o ws
-	//TODO NOW update release notes
 	//TODO ZLATER doc server
 	//TODO ZLATER basic docs like Shock
 	
