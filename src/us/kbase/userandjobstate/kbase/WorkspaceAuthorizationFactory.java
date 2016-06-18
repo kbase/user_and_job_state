@@ -30,7 +30,7 @@ import us.kbase.workspace.WorkspaceIdentity;
  */
 public class WorkspaceAuthorizationFactory {
 	
-	//TODO ZLATER add static cache
+	//TODO ZZLATER add static cache
 	//TODO ZZLATER should add retries to the auth client
 
 	public static final AuthorizationStrategy WS_AUTH =

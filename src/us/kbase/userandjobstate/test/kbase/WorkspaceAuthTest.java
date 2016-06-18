@@ -346,8 +346,6 @@ public class WorkspaceAuthTest {
 				Arrays.asList("1"),
 				new UJSAuthorizationException(
 						"Invalid authorization strategy: foo"));
-		
-		//TODO NOW test listing jobs
 	}
 
 	private void failMultipleRead(UJSAuthorizer auth,

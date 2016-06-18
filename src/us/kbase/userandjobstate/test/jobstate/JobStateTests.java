@@ -240,6 +240,7 @@ public class JobStateTests {
 			}
 		};
 		String user = "foo";
+		String user2 = "bar";
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		Map<String, String> mth = new HashMap<String, String>();
 		// test creating job with alternate auth
@@ -259,6 +260,7 @@ public class JobStateTests {
 		
 		//test getting and sharing jobs with alternate auth
 		checkJob(lenientauth, fj1c);
+		checkJob(lenientauth, fj1c, user2);
 		failShareJob(user, id1, Arrays.asList("bar"),
 				new NoSuchJobException(String.format(
 						"There is no job %s with default authorization " +
@@ -268,6 +270,7 @@ public class JobStateTests {
 						"There is no job %s with default authorization " +
 						"visible to user %s", id1, user)));
 		checkJob(lenientauth, fj1c, new LinkedList<String>());
+		checkJob(lenientauth, fj1c, new LinkedList<String>(), user2);
 		
 		//test fail getting jobs with alternate auth
 		String id2 = js.createJob(user, lenientauth,
@@ -296,7 +299,7 @@ public class JobStateTests {
 			//check that std auth job doesn't show up
 		js.createAndStartJob(user, "serv4", "stat4", "desc4", null);
 		
-		//check listing via different strats and params works
+		//check listing via different strats, params, and users works
 		checkListJobs(Arrays.asList(fj1s, fj2s), user, null,
 				true, false, false, false, lenientauth,
 				new AuthorizationStrategy("strat1"),
@@ -306,6 +309,10 @@ public class JobStateTests {
 				new AuthorizationStrategy("strat1"),
 				Arrays.asList("whee"));
 		checkListJobs(Arrays.asList(fj3s), user, null,
+				true, false, false, false, lenientauth,
+				new AuthorizationStrategy("strat2"),
+				Arrays.asList("whee"));
+		checkListJobs(Arrays.asList(fj3s), user2, null,
 				true, false, false, false, lenientauth,
 				new AuthorizationStrategy("strat2"),
 				Arrays.asList("whee"));
@@ -590,12 +597,24 @@ public class JobStateTests {
 	}
 	
 	private void checkJob(UJSAuthorizer auth, FakeJob fj) throws Exception {
-		checkJob(auth, fj, null);
+		checkJob(auth, fj, fj.user);
 	}
-	
+		
+	private void checkJob(UJSAuthorizer auth, FakeJob fj, String user)
+			throws Exception {
+		checkJob(auth, fj, null, user);
+	}
+
 	private void checkJob(UJSAuthorizer auth, FakeJob fj, List<String> shared)
 			throws Exception {
-		checkJob(js.getJob(fj.user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
+		checkJob(auth, fj, shared, fj.user);
+	}
+
+	private void checkJob(UJSAuthorizer auth, FakeJob fj, List<String> shared,
+			String user)
+			throws Exception {
+	
+		checkJob(js.getJob(user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
 				fj.user, fj.status, fj.service, fj.desc, fj.progtype, fj.prog,
 				fj.maxprog, fj.complete, fj.error, fj.errormsg, fj.results,
 				shared, fj.authstrat, fj.authparam, fj.metadata);
