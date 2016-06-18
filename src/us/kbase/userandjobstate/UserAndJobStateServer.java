@@ -356,6 +356,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			.withE14(makeResults(j.getResults()));
 	}
 
+	//TODO NOW return epoch vs. string
 	private Tuple12<String, String, String, String,
 			Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long,
 			Long, Tuple2<String, String>, Map<String, String>, String, Results>
