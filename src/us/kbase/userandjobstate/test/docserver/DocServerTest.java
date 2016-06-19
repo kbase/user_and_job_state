@@ -6,7 +6,6 @@ import static org.junit.Assert.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -75,7 +74,7 @@ public class DocServerTest {
 		
 		server = createServer("TestDocServer",
 				"/us/kbase/userandjobstate/test/docserver");
-		iniFile = new File(getenv().get("KB_DEPLOYMENT_CONFIG"));
+		iniFile = new File(TestCommon.getenv().get("KB_DEPLOYMENT_CONFIG"));
 		docURL = getServerURL(server);
 		System.out.println("Started doc server at " + docURL);
 	}
@@ -105,7 +104,7 @@ public class DocServerTest {
 				iniFile.getAbsolutePath());
 		
 		//set up env
-		Map<String, String> env = getenv();
+		Map<String, String> env = TestCommon.getenv();
 		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
 		env.put("KB_SERVICE_NAME", "UserAndJobState");
 		
@@ -118,7 +117,7 @@ public class DocServerTest {
 	}
 	
 	private void restoreEnv() throws Exception {
-		Map<String, String> env = getenv();
+		Map<String, String> env = TestCommon.getenv();
 		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
 		env.put("KB_SERVICE_NAME", "UserAndJobState");
 		DocServer.setDefaultDocsLocation(DocServer.DEFAULT_DOCS_LOC);
@@ -129,18 +128,6 @@ public class DocServerTest {
 		if (server != null) {
 			server.stopServer();
 		}
-	}
-	
-	//TODO put this in test utils in common, used all over
-	//http://quirkygba.blogspot.com/2009/11/setting-environment-variables-in-java.html
-	@SuppressWarnings("unchecked")
-	protected static Map<String, String> getenv() throws NoSuchFieldException,
-	SecurityException, IllegalArgumentException, IllegalAccessException {
-		Map<String, String> unmodifiable = System.getenv();
-		Class<?> cu = unmodifiable.getClass();
-		Field m = cu.getDeclaredField("m");
-		m.setAccessible(true);
-		return (Map<String, String>) m.get(unmodifiable);
 	}
 	
 	protected static class ServerThread extends Thread {
