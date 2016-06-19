@@ -7,8 +7,16 @@
     <servlet-name>RootServlet</servlet-name>
     <servlet-class>us.kbase.userandjobstate.UserAndJobStateServer</servlet-class>
     </servlet>
+    <servlet>
+        <servlet-name>DocServlet</servlet-name>
+        <servlet-class>us.kbase.userandjobstate.docserver.DocServer</servlet-class>
+    </servlet>
     <servlet-mapping>
         <servlet-name>RootServlet</servlet-name>
         <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>DocServlet</servlet-name>
+        <url-pattern>/docs/*</url-pattern>
     </servlet-mapping>
 </web-app>

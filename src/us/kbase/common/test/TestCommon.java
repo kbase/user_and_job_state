@@ -45,6 +45,14 @@ public class TestCommon {
 		return !"true".equals(System.getProperty(KEEP_TEMP_DIR));
 	}
 	
+	public static void stfuLoggers() {
+		((ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+				.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME))
+			.setLevel(ch.qos.logback.classic.Level.OFF);
+		java.util.logging.Logger.getLogger("com.mongodb")
+			.setLevel(java.util.logging.Level.OFF);
+	}
+	
 	//http://quirkygba.blogspot.com/2009/11/setting-environment-variables-in-java.html
 	@SuppressWarnings("unchecked")
 	public static Map<String, String> getenv() throws NoSuchFieldException,

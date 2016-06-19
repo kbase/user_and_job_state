@@ -11,6 +11,7 @@
   <property name="dist" location="dist"/>
   <property name="test" location="test"/>
   <property name="jardir" location="../jars/lib/jars/"/>
+  <property name="doc_server_doc_loc" location="/server_docs"/>
   <property name="classes" location="classes"/>
   <property name="doc" location="docs/javadoc"/>
   <property name="tempunpack" location="unpackedjars"/>
@@ -52,6 +53,8 @@
     <include name="apache_commons/commons-logging-1.1.1.jar"/>
     <include name="jcommander/jcommander-1.48.jar"/>
     <include name="kbase/workspace/WorkspaceService-0.4.1.jar"/>
+    <include name="apache_commons/http/httpcore-4.3.jar"/>
+    <include name="apache_commons/http/httpclient-4.3.1.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="testlib">
@@ -132,6 +135,7 @@
           <patternset>
             <include name="**/*.cfg"/>
             <include name="**/*.py"/>
+            <include name="**/*.html"/>
           </patternset>
         </fileset>
       </copy>
@@ -146,13 +150,20 @@
     <copy todir="${war.dir}/lib/" flatten="true">
       <union refid="serverside"/>
     </copy>
+    <mkdir dir="ujs_docs/${doc_server_doc_loc}"/>
+    <mkdir dir="docs"/>
+    <copy todir="ujs_docs/${doc_server_doc_loc}">
+      <fileset dir="docs"/>
+    </copy>
     <war destfile="${dist}/${war.file}" webxml="${war.dir}/web.xml">
       <classes dir="${classes}"/>
+      <classes dir="ujs_docs"/>
       <lib dir="${war.dir}/lib/"/>
     </war>
     <!-- Remove uncompressed class files and libs-->
     <delete dir="${classes}"/>
     <delete dir="${war.dir}/lib"/>
+    <delete dir="ujs_docs"/>
   </target>
 
   <target name="javadoc" description="build javadocs">
@@ -202,6 +213,7 @@
       <test name="us.kbase.userandjobstate.test.kbase.WorkspaceAuthTest"/>
       <test name="us.kbase.userandjobstate.test.kbase.PullWSJobWithoutWSTest"/>
       <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
+      <test name="us.kbase.userandjobstate.test.docserver.DocServerTest"/>
       <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
     </junit>
     <fail message="Test failure detected, check test results." if="test.failed" />
