@@ -133,6 +133,9 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		if (WS != null) {
 			WS.stopServer();
 		}
+		if (UJS != null) {
+			UJS.stopServer();
+		}
 	}
 	
 	@Before

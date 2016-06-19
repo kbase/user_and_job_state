@@ -545,7 +545,20 @@ public class JobState {
 			final AuthorizationStrategy strat,
 			final List<String> authParams)
 			throws CommunicationException, UJSAuthorizationException {
-		//queued is ignored
+		/* Currently when specifying a non default auth strat all the
+		 * authparams need to be readable in order to query jobs. Alternately
+		 * this method could allow listing all owned jobs for the auth strat
+		 * regardless of authparam readability. The authorizeRead method would
+		 * need to return a list of readable and/or nonreadable authparameters
+		 * and then query the database for jobs with the specified authstrat
+		 * where the user is an owner or the authparam is readable. This means
+		 * that different users querying with the same authparam & authstrat
+		 * would see different job lists, which seems confusing and not user
+		 * friendly. Futhermore, to understand what's happening the list of
+		 * readable/unreadable auth params needs to be returned as well, which
+		 * makes the API pretty nasty. The all or nothing method currently in
+		 * play seems much less confusing.
+		 */
 		checkString(user, "user");
 		auth.authorizeRead(strat, user, authParams);
 		String query;
