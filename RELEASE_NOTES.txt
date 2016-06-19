@@ -29,7 +29,8 @@ NEW FEATURES:
   workspace ID as a string as the authorization parameter. Jobs using the
   kbaseworkspace authstrat are shared as the designated workspace is shared.
 - Added the create_job2, get_job_info2, and list_jobs2 methods which can
-  accept or return an authorization strategy and parameter(s).
+  accept or return an authorization strategy and parameter(s). create_job,
+  get_job_info, and list_jobs are now deprecated.
 - User specified metadata can now be associated with a job via the create_job2
   method.
 
