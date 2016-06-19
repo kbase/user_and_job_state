@@ -200,6 +200,7 @@
       <test name="us.kbase.userandjobstate.test.kbase.JSONRPCLayerTest"/>
       <test name="us.kbase.userandjobstate.test.kbase.JSONRPCWithWSAuth"/>
       <test name="us.kbase.userandjobstate.test.kbase.WorkspaceAuthTest"/>
+      <test name="us.kbase.userandjobstate.test.kbase.PullWSJobWithoutWSTest"/>
       <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
       <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
     </junit>

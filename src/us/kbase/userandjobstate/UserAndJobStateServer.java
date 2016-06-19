@@ -308,7 +308,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		return null;
 	}
-	//TODO NOW 1 test all the list2 and the various getJob methods with job created w/ ws but now w/o ws
 	//TODO NOW 2 doc server
 	//TODO NOW 3 basic docs like Shock
 	
