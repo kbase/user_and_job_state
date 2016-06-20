@@ -106,6 +106,7 @@ deploy-scripts:
 deploy-service: deploy-service-libs deploy-service-scripts deploy-cfg
 
 deploy-service-libs:
+	$(ANT) buildwar
 	mkdir -p $(SERVICE_DIR)
 	cp dist/$(WAR) $(SERVICE_DIR)
 	echo $(GITCOMMIT) > $(SERVICE_DIR)/$(SERVICE).serverdist

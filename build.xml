@@ -145,13 +145,15 @@
     <jar destfile="${dist}/client/${clientjar.file}">
       <fileset refid="client-class-files"/>
     </jar>
+  </target>
+
+  <target name="buildwar" description="build the WAR file. Assumes compile has been run">
     <!-- make the war file for the server-->
     <mkdir dir="${war.dir}/lib"/>
     <copy todir="${war.dir}/lib/" flatten="true">
       <union refid="serverside"/>
     </copy>
     <mkdir dir="ujs_docs/${doc_server_doc_loc}"/>
-    <mkdir dir="docs"/>
     <copy todir="ujs_docs/${doc_server_doc_loc}">
       <fileset dir="docs"/>
     </copy>
@@ -161,7 +163,6 @@
       <lib dir="${war.dir}/lib/"/>
     </war>
     <!-- Remove uncompressed class files and libs-->
-    <delete dir="${classes}"/>
     <delete dir="${war.dir}/lib"/>
     <delete dir="ujs_docs"/>
   </target>
