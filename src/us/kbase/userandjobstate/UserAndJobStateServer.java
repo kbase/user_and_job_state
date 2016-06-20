@@ -308,8 +308,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		return null;
 	}
-	//TODO NOW 2 doc server
-	//TODO NOW 3 basic docs like Shock
+	//TODO ZLATER write manual
+	//TODO ZZLATER admin methods
 	
 	private void fail(final String error) {
 		logErr(error);
