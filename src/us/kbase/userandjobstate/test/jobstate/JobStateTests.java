@@ -962,10 +962,18 @@ public class JobStateTests {
 		j = js.getJob("date", jobid);
 		Date complete = j.getLastUpdated();
 		
-		assertTrue("date created < started", create.compareTo(start) == -1);
-		assertTrue("date started < updated", start.compareTo(update) == -1);
-		assertTrue("date updated < updated2", update.compareTo(update2) == -1);
-		assertTrue("date updated2 < complete", update2.compareTo(complete) == -1);
+		assertTrue(String.format("date created < started %s %s",
+				create.getTime(), start.getTime()),
+				create.compareTo(start) == -1);
+		assertTrue(String.format("date started < updated %s %s",
+				start.getTime(), update.getTime()),
+				start.compareTo(update) == -1);
+		assertTrue(String.format("date updated < updated2 %s %s",
+				update.getTime(), update2.getTime()),
+				update.compareTo(update2) == -1);
+		assertTrue(String.format("date updated2 < complete %s %s",
+				update2.getTime(), complete.getTime()),
+				update2.compareTo(complete) == -1);
 	}
 	
 	@Test
