@@ -86,6 +86,7 @@ import us.kbase.common.service.UnauthorizedException;
  */
 public class UserAndJobStateClient {
     private JsonClientCaller caller;
+    private String serviceVersion = null;
     private static URL DEFAULT_URL = null;
     static {
         try {
@@ -238,6 +239,14 @@ public class UserAndJobStateClient {
         caller.setFileForNextRpcResponse(f);
     }
 
+    public String getServiceVersion() {
+        return this.serviceVersion;
+    }
+
+    public void setServiceVersion(String newValue) {
+        this.serviceVersion = newValue;
+    }
+
     /**
      * <p>Original spec-file function name: ver</p>
      * <pre>
@@ -250,7 +259,7 @@ public class UserAndJobStateClient {
     public String ver(RpcContext... jsonRpcContext) throws IOException, JsonClientException {
         List<Object> args = new ArrayList<Object>();
         TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
-        List<String> res = caller.jsonrpcCall("UserAndJobState.ver", args, retType, true, false, jsonRpcContext);
+        List<String> res = caller.jsonrpcCall("UserAndJobState.ver", args, retType, true, false, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -271,7 +280,7 @@ public class UserAndJobStateClient {
         args.add(key);
         args.add(value);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.set_state", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.set_state", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -291,7 +300,7 @@ public class UserAndJobStateClient {
         args.add(key);
         args.add(value);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.set_state_auth", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.set_state_auth", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -312,7 +321,7 @@ public class UserAndJobStateClient {
         args.add(key);
         args.add(auth);
         TypeReference<List<UObject>> retType = new TypeReference<List<UObject>>() {};
-        List<UObject> res = caller.jsonrpcCall("UserAndJobState.get_state", args, retType, true, true, jsonRpcContext);
+        List<UObject> res = caller.jsonrpcCall("UserAndJobState.get_state", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -334,7 +343,7 @@ public class UserAndJobStateClient {
         args.add(key);
         args.add(auth);
         TypeReference<List<Long>> retType = new TypeReference<List<Long>>() {};
-        List<Long> res = caller.jsonrpcCall("UserAndJobState.has_state", args, retType, true, true, jsonRpcContext);
+        List<Long> res = caller.jsonrpcCall("UserAndJobState.has_state", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -358,7 +367,7 @@ public class UserAndJobStateClient {
         args.add(key);
         args.add(auth);
         TypeReference<Tuple2<Long, UObject>> retType = new TypeReference<Tuple2<Long, UObject>>() {};
-        Tuple2<Long, UObject> res = caller.jsonrpcCall("UserAndJobState.get_has_state", args, retType, true, true, jsonRpcContext);
+        Tuple2<Long, UObject> res = caller.jsonrpcCall("UserAndJobState.get_has_state", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res;
     }
 
@@ -377,7 +386,7 @@ public class UserAndJobStateClient {
         args.add(service);
         args.add(key);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.remove_state", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.remove_state", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -395,7 +404,7 @@ public class UserAndJobStateClient {
         args.add(token);
         args.add(key);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.remove_state_auth", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.remove_state_auth", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -414,7 +423,7 @@ public class UserAndJobStateClient {
         args.add(service);
         args.add(auth);
         TypeReference<List<List<String>>> retType = new TypeReference<List<List<String>>>() {};
-        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.list_state", args, retType, true, true, jsonRpcContext);
+        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.list_state", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -432,7 +441,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(auth);
         TypeReference<List<List<String>>> retType = new TypeReference<List<List<String>>>() {};
-        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.list_state_services", args, retType, true, true, jsonRpcContext);
+        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.list_state_services", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -450,7 +459,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(params);
         TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
-        List<String> res = caller.jsonrpcCall("UserAndJobState.create_job2", args, retType, true, true, jsonRpcContext);
+        List<String> res = caller.jsonrpcCall("UserAndJobState.create_job2", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -467,7 +476,7 @@ public class UserAndJobStateClient {
     public String createJob(RpcContext... jsonRpcContext) throws IOException, JsonClientException {
         List<Object> args = new ArrayList<Object>();
         TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
-        List<String> res = caller.jsonrpcCall("UserAndJobState.create_job", args, retType, true, true, jsonRpcContext);
+        List<String> res = caller.jsonrpcCall("UserAndJobState.create_job", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -494,7 +503,7 @@ public class UserAndJobStateClient {
         args.add(progress);
         args.add(estComplete);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.start_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.start_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -519,7 +528,7 @@ public class UserAndJobStateClient {
         args.add(progress);
         args.add(estComplete);
         TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
-        List<String> res = caller.jsonrpcCall("UserAndJobState.create_and_start_job", args, retType, true, true, jsonRpcContext);
+        List<String> res = caller.jsonrpcCall("UserAndJobState.create_and_start_job", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -544,7 +553,7 @@ public class UserAndJobStateClient {
         args.add(prog);
         args.add(estComplete);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.update_job_progress", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.update_job_progress", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -566,7 +575,7 @@ public class UserAndJobStateClient {
         args.add(status);
         args.add(estComplete);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.update_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.update_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -583,7 +592,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<Tuple5<String, String, Long, String, String>> retType = new TypeReference<Tuple5<String, String, Long, String, String>>() {};
-        Tuple5<String, String, Long, String, String> res = caller.jsonrpcCall("UserAndJobState.get_job_description", args, retType, true, true, jsonRpcContext);
+        Tuple5<String, String, Long, String, String> res = caller.jsonrpcCall("UserAndJobState.get_job_description", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res;
     }
 
@@ -601,7 +610,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<Tuple7<String, String, String, Long, String, Long, Long>> retType = new TypeReference<Tuple7<String, String, String, Long, String, Long, Long>>() {};
-        Tuple7<String, String, String, Long, String, Long, Long> res = caller.jsonrpcCall("UserAndJobState.get_job_status", args, retType, true, true, jsonRpcContext);
+        Tuple7<String, String, String, Long, String, Long, Long> res = caller.jsonrpcCall("UserAndJobState.get_job_status", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res;
     }
 
@@ -628,7 +637,7 @@ public class UserAndJobStateClient {
         args.add(error);
         args.add(res);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.complete_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.complete_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -645,7 +654,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<List<Results>> retType = new TypeReference<List<Results>>() {};
-        List<Results> res = caller.jsonrpcCall("UserAndJobState.get_results", args, retType, true, true, jsonRpcContext);
+        List<Results> res = caller.jsonrpcCall("UserAndJobState.get_results", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -663,7 +672,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
-        List<String> res = caller.jsonrpcCall("UserAndJobState.get_detailed_error", args, retType, true, true, jsonRpcContext);
+        List<String> res = caller.jsonrpcCall("UserAndJobState.get_detailed_error", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -681,7 +690,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>> retType = new TypeReference<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>>() {};
-        List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> res = caller.jsonrpcCall("UserAndJobState.get_job_info2", args, retType, true, true, jsonRpcContext);
+        List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> res = caller.jsonrpcCall("UserAndJobState.get_job_info2", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -700,7 +709,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>>> retType = new TypeReference<List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>>>() {};
-        List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> res = caller.jsonrpcCall("UserAndJobState.get_job_info", args, retType, true, true, jsonRpcContext);
+        List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> res = caller.jsonrpcCall("UserAndJobState.get_job_info", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -718,7 +727,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(params);
         TypeReference<List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>>> retType = new TypeReference<List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>>>() {};
-        List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>> res = caller.jsonrpcCall("UserAndJobState.list_jobs2", args, retType, true, true, jsonRpcContext);
+        List<List<Tuple12<String, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>>> res = caller.jsonrpcCall("UserAndJobState.list_jobs2", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -740,14 +749,16 @@ public class UserAndJobStateClient {
         args.add(services);
         args.add(filter);
         TypeReference<List<List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>>>> retType = new TypeReference<List<List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>>>>() {};
-        List<List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>>> res = caller.jsonrpcCall("UserAndJobState.list_jobs", args, retType, true, true, jsonRpcContext);
+        List<List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>>> res = caller.jsonrpcCall("UserAndJobState.list_jobs", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
     /**
      * <p>Original spec-file function name: list_job_services</p>
      * <pre>
-     * List all job services.
+     * List all job services. Note that only services with jobs owned by the
+     * user or shared with the user via the default auth strategy will be
+     * listed.
      * </pre>
      * @return   parameter "services" of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
      * @throws IOException if an IO exception occurs
@@ -756,7 +767,7 @@ public class UserAndJobStateClient {
     public List<String> listJobServices(RpcContext... jsonRpcContext) throws IOException, JsonClientException {
         List<Object> args = new ArrayList<Object>();
         TypeReference<List<List<String>>> retType = new TypeReference<List<List<String>>>() {};
-        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.list_job_services", args, retType, true, true, jsonRpcContext);
+        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.list_job_services", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -777,7 +788,7 @@ public class UserAndJobStateClient {
         args.add(job);
         args.add(users);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.share_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.share_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -797,7 +808,7 @@ public class UserAndJobStateClient {
         args.add(job);
         args.add(users);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.unshare_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.unshare_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -814,7 +825,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<List<String>> retType = new TypeReference<List<String>>() {};
-        List<String> res = caller.jsonrpcCall("UserAndJobState.get_job_owner", args, retType, true, true, jsonRpcContext);
+        List<String> res = caller.jsonrpcCall("UserAndJobState.get_job_owner", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -834,7 +845,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<List<List<String>>> retType = new TypeReference<List<List<String>>>() {};
-        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.get_job_shared", args, retType, true, true, jsonRpcContext);
+        List<List<String>> res = caller.jsonrpcCall("UserAndJobState.get_job_shared", args, retType, true, true, jsonRpcContext, this.serviceVersion);
         return res.get(0);
     }
 
@@ -851,7 +862,7 @@ public class UserAndJobStateClient {
         List<Object> args = new ArrayList<Object>();
         args.add(job);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.delete_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.delete_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
     }
 
     /**
@@ -871,6 +882,13 @@ public class UserAndJobStateClient {
         args.add(token);
         args.add(job);
         TypeReference<Object> retType = new TypeReference<Object>() {};
-        caller.jsonrpcCall("UserAndJobState.force_delete_job", args, retType, false, true, jsonRpcContext);
+        caller.jsonrpcCall("UserAndJobState.force_delete_job", args, retType, false, true, jsonRpcContext, this.serviceVersion);
+    }
+
+    public Map<String, Object> status(RpcContext... jsonRpcContext) throws IOException, JsonClientException {
+        List<Object> args = new ArrayList<Object>();
+        TypeReference<List<Map<String, Object>>> retType = new TypeReference<List<Map<String, Object>>>() {};
+        List<Map<String, Object>> res = caller.jsonrpcCall("UserAndJobState.status", args, retType, true, false, jsonRpcContext, this.serviceVersion);
+        return res.get(0);
     }
 }

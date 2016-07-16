@@ -778,7 +778,9 @@ class UserAndJobState(object):
 
     def list_job_services(self, context=None):
         """
-        List all job services.
+        List all job services. Note that only services with jobs owned by the
+        user or shared with the user via the default auth strategy will be
+        listed.
         :returns: instance of list of type "service_name" (A service name.
            Alphanumerics and the underscore are allowed.)
         """
@@ -857,3 +859,7 @@ class UserAndJobState(object):
         return self._client.call_method(
             'UserAndJobState.force_delete_job',
             [token, job], self._service_ver, context)
+
+    def status(self, context=None):
+        return self._client.call_method('UserAndJobState.status',
+            [], self._service_ver, context)

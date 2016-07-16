@@ -139,7 +139,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     private static final long serialVersionUID = 1L;
     private static final String version = "0.0.1";
     private static final String gitUrl = "https://github.com/mrcreosote/user_and_job_state";
-    private static final String gitCommitHash = "70e47c15a63364fcedb457a5e81bfcceb38fc8a4";
+    private static final String gitCommitHash = "fd3aa5f9dd3f4a3644a6eabc9280f1be781f28dd";
 
     //BEGIN_CLASS_HEADER
 	
@@ -1292,7 +1292,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
     /**
      * <p>Original spec-file function name: list_job_services</p>
      * <pre>
-     * List all job services.
+     * List all job services. Note that only services with jobs owned by the
+     * user or shared with the user via the default auth strategy will be
+     * listed.
      * </pre>
      * @return   parameter "services" of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
      */

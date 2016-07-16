@@ -407,7 +407,10 @@ module UserAndJobState {
 	funcdef list_jobs(list<service_name> services, job_filter filter)
 		returns(list<job_info> jobs);
 	
-	/* List all job services. */
+	/* List all job services. Note that only services with jobs owned by the
+		user or shared with the user via the default auth strategy will be
+		listed.
+	*/
 	funcdef list_job_services() returns(list<service_name> services);
 	
 	/* Share a job. Sharing a job to the same user twice or with the job owner
