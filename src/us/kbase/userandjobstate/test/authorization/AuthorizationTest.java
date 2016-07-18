@@ -1,7 +1,5 @@
 package us.kbase.userandjobstate.test.authorization;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
@@ -33,11 +31,8 @@ import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
-import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
-import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
-import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class AuthorizationTest {
 
@@ -182,8 +177,6 @@ public class AuthorizationTest {
 	public void testSingleRead() throws Exception {
 		String user1 = "foo";
 		String user2 = "bar";
-		WorkspaceUserMetadata wum = new WorkspaceUserMetadata();
-		//TODO NOW alter to not create jobs 
 		Job j = js.getJob(user1, js.createJob(user1));
 		
 		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
@@ -206,19 +199,18 @@ public class AuthorizationTest {
 				"user cannot be null or empty"));
 		
 		LenientAuth la = new LenientAuth();
-		Job j2 = js.getJob(user1, js.createJob(user1, la,
-				new AuthorizationStrategy("foo"), "bar", wum), la);
+		Job j2 = createJob(user1, new AuthorizationStrategy("foo"), "bar");
 		//should work:
 		la.authorizeRead(user1, j2);
 		failSingleRead(dua, user1, j2, new UnimplementedException());
 		
-		final String id = js.createJob(user1, la,
-				new AuthorizationStrategy("fail"), "bar", wum);
-		failGetJob(id, user1, la);
+		Job j3 = createJob(user1, new AuthorizationStrategy("fail"), "bar");
+		failSingleRead(la, user1, j3,
+				new UJSAuthorizationException("strat fail"));
 		
-		final String id2 = js.createJob(user1, la,
-				new AuthorizationStrategy("whoo"), "fail", wum);
-		failGetJob(id2, user1, la);
+		Job j4 = createJob(user1, new AuthorizationStrategy("whoo"), "fail");
+		failSingleRead(la, user1, j4,
+				new UJSAuthorizationException("param fail"));
 	}
 	
 	@Test
@@ -298,22 +290,6 @@ public class AuthorizationTest {
 		return j;
 	}
 
-	/* the only way to test the single read and cancel authorizers is by
-	 * failing to get jobs, since the job constructor is private. Need to think
-	 * about a better way to test this.
-	 */
-	private void failGetJob(String id, String user, UJSAuthorizer auth)
-			throws CommunicationException {
-		try {
-			js.getJob(user, id, auth);
-			fail("got job with bad auth");
-		} catch (NoSuchJobException e) {
-			assertThat("incorrect exception message", e.getLocalizedMessage(),
-					is(String.format("There is no job %s viewable by user %s",
-							id, user)));
-		}
-	}
-	
 	private void failSingleRead(String user, Job j, Exception exp) {
 		failSingleRead(new DefaultUJSAuthorizer(), user, j, exp);
 	}
