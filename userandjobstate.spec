@@ -434,13 +434,15 @@ module UserAndJobState {
 	*/
 	funcdef get_job_shared(job_id job) returns(list<username> users);
 	
-	/* Delete a job. Will fail if the job is not complete.
+	/* Delete a job. Will fail if the job is not complete. Only the job owner
+		can delete a job.
 	*/
 	funcdef delete_job(job_id job) returns();
 	
 	/* Force delete a job - will succeed unless the job has not been started.
 		In that case, the service must start the job and then delete it, since
-		a job is not "owned" by any service until it is started.
+		a job is not "owned" by any service until it is started. Only the job
+		owner can delete a job.
 	*/
 	funcdef force_delete_job(service_token token, job_id job) returns();
 };
