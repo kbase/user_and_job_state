@@ -216,6 +216,14 @@ public class WorkspaceAuthorizationFactory {
 			}
 		}
 		
+		@Override
+		protected void externallyAuthorizeCancel(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			//TODO NOW
+		}
+		
 	}
 
 }

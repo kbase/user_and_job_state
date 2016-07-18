@@ -216,6 +216,14 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				throws UJSAuthorizationException {
 			checkStrat(strat);
 		}
+
+		@Override
+		protected void externallyAuthorizeCancel(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			checkStrat(j.getAuthorizationStrategy()); //TODO NOW TEST 
+		}
 	};
 	
 	private final static DateTimeFormatter DATE_PARSER =

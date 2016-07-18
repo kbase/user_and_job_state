@@ -34,4 +34,12 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 			throws UJSAuthorizationException {
 		throw new UnimplementedException();
 	}
+
+	@Override
+	protected void externallyAuthorizeCancel(
+			final String user,
+			final Job j)
+			throws UJSAuthorizationException {
+		throw new UnimplementedException();
+	}
 }

@@ -4,12 +4,19 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.bson.types.ObjectId;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -114,6 +121,17 @@ public class AuthorizationTest {
 				throw new UJSAuthorizationException("param fail");
 			}
 		}
+
+		@Override
+		protected void externallyAuthorizeCancel(String user, Job j)
+				throws UJSAuthorizationException {
+			if (j.getAuthorizationStrategy().getStrat().equals("fail")) {
+				throw new UJSAuthorizationException("strat fail");
+			}
+			if (j.getAuthorizationParameter().equals("fail")) {
+				throw new UJSAuthorizationException("param fail");
+			}
+		}
 	}
 
 	@Test
@@ -165,6 +183,7 @@ public class AuthorizationTest {
 		String user1 = "foo";
 		String user2 = "bar";
 		WorkspaceUserMetadata wum = new WorkspaceUserMetadata();
+		//TODO NOW alter to not create jobs 
 		Job j = js.getJob(user1, js.createJob(user1));
 		
 		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
@@ -201,10 +220,87 @@ public class AuthorizationTest {
 				new AuthorizationStrategy("whoo"), "fail", wum);
 		failGetJob(id2, user1, la);
 	}
+	
+	@Test
+	public void testCancel() throws Exception {
+		String user1 = "foo";
+		String user2 = "bar";
+		Job j = js.getJob(user1, js.createJob(user1));
+		
+		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
+		//should work
+		dua.authorizeCancel(user1, j);
+		
+		failCancel(user2, j, new UJSAuthorizationException(String.format(
+				"User %s may not cancel job %s", user2, j.getID())));
+		
+		// sharing jobs should not effect cancellation
+		js.shareJob(user1, j.getID(), Arrays.asList(user2));
+		j = js.getJob(user1, j.getID());
+		failCancel(user2, j, new UJSAuthorizationException(String.format(
+				"User %s may not cancel job %s", user2, j.getID())));
+		
+		failCancel(user2, null,
+				new NullPointerException("job cannot be null"));
+		
+		failCancel(null, j, new IllegalArgumentException(
+				"user cannot be null or empty"));
+		failCancel("", j, new IllegalArgumentException(
+				"user cannot be null or empty"));
+		
+		LenientAuth la = new LenientAuth();
+		Job j2 = createJob(user1, new AuthorizationStrategy("foo"), "bar");
+		//should work:
+		la.authorizeCancel(user1, j2);
+		failCancel(dua, user1, j2, new UnimplementedException());
+		
+		Job j3 = createJob(user1, new AuthorizationStrategy("fail"), "bar");
+		failCancel(la, user1, j3, new UJSAuthorizationException("strat fail"));
+		
+		Job j4 = createJob(user1, new AuthorizationStrategy("whoo"), "fail");
+		failCancel(la, user1, j4, new UJSAuthorizationException("param fail"));
+	}
+	
+	private Job createJob(
+			final String user,
+			final AuthorizationStrategy strat,
+			final String authParam)
+			throws Exception {
+		Constructor<Job> jc = Job.class.getDeclaredConstructor();
+		jc.setAccessible(true);
+		Job j = jc.newInstance();
+		
+		Field id = j.getClass().getDeclaredField("_id");
+		id.setAccessible(true);
+		id.set(j, new ObjectId());
+		
+		Field u = j.getClass().getDeclaredField("user");
+		u.setAccessible(true);
+		u.set(j, user);
+		
+		Field s = j.getClass().getDeclaredField("authstrat");
+		s.setAccessible(true);
+		s.set(j, strat.getStrat());
+		
+		Field p = j.getClass().getDeclaredField("authparam");
+		p.setAccessible(true);
+		p.set(j, authParam);
+		
+		final Date d = new Date();
+		Field up = j.getClass().getDeclaredField("updated");
+		up.setAccessible(true);
+		up.set(j, d);
+		
+		Field m = j.getClass().getDeclaredField("meta");
+		m.setAccessible(true);
+		m.set(j, new ArrayList<Map<String, String>>());
+		
+		return j;
+	}
 
-	/* the only way to test the single read authorizer is by failing to
-	 * get jobs, since the job constructor is private. Need to think about
-	 * a better way to test this.
+	/* the only way to test the single read and cancel authorizers is by
+	 * failing to get jobs, since the job constructor is private. Need to think
+	 * about a better way to test this.
 	 */
 	private void failGetJob(String id, String user, UJSAuthorizer auth)
 			throws CommunicationException {
@@ -226,6 +322,20 @@ public class AuthorizationTest {
 			Exception exp) {
 		try {
 			auth.authorizeRead(user, j);
+			fail("authorized bad read");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+	}
+	
+	private void failCancel(String user, Job j, Exception exp) {
+		failCancel(new DefaultUJSAuthorizer(), user, j, exp);
+	}
+	
+	private void failCancel(UJSAuthorizer auth, String user, Job j,
+			Exception exp) {
+		try {
+			auth.authorizeCancel(user, j);
 			fail("authorized bad read");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
@@ -295,15 +405,4 @@ public class AuthorizationTest {
 		}
 		
 	}
-
-	private static void assertExceptionCorrect(
-			Exception got, Exception expected) {
-		assertThat("incorrect exception. trace:\n" +
-				ExceptionUtils.getStackTrace(got),
-				got.getLocalizedMessage(),
-				is(expected.getLocalizedMessage()));
-		assertThat("incorrect exception type", got, is(expected.getClass()));
-	}
-	
-	
 }

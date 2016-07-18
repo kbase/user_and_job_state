@@ -148,6 +148,13 @@ public class WorkspaceAuthTest {
 				String authParam) throws UJSAuthorizationException {
 			//I'll allow it
 		}
+
+		@Override
+		protected void externallyAuthorizeCancel(String user, Job j)
+				throws UJSAuthorizationException {
+			// TODO NOW Auto-generated method stub
+			
+		}
 	};
 	
 	@Test

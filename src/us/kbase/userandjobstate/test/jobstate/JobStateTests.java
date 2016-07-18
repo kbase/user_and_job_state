@@ -238,6 +238,13 @@ public class JobStateTests {
 					throw new UJSAuthorizationException("fail create req");
 				}
 			}
+
+			@Override
+			protected void externallyAuthorizeCancel(String user, Job j)
+				throws UJSAuthorizationException {
+				// TODO NOW Auto-generated method stub
+				
+			}
 		};
 		String user = "foo";
 		String user2 = "bar";
