@@ -949,23 +949,35 @@ public class JobStateTests {
 		String jobid = js.createJob("date");
 		Job j = js.getJob("date", jobid);
 		Date create = j.getLastUpdated();
+		Thread.sleep(1);
 		js.startJob("date", jobid, "serv1", "stat", "desc", null);
 		j = js.getJob("date", jobid);
 		Date start = j.getLastUpdated();
+		Thread.sleep(1);
 		js.updateJob("date", jobid, "serv1", "stat", null, null);
 		j = js.getJob("date", jobid);
 		Date update = j.getLastUpdated();
+		Thread.sleep(1);
 		js.updateJob("date", jobid, "serv1", "stat", null, null);
 		j = js.getJob("date", jobid);
 		Date update2 = j.getLastUpdated();
+		Thread.sleep(1);
 		js.completeJob("date", jobid, "serv1", "stat", null, null);
 		j = js.getJob("date", jobid);
 		Date complete = j.getLastUpdated();
 		
-		assertTrue("date created < started", create.compareTo(start) == -1);
-		assertTrue("date started < updated", start.compareTo(update) == -1);
-		assertTrue("date updated < updated2", update.compareTo(update2) == -1);
-		assertTrue("date updated2 < complete", update2.compareTo(complete) == -1);
+		assertTrue(String.format("date created < started %s %s",
+				create.getTime(), start.getTime()),
+				create.compareTo(start) == -1);
+		assertTrue(String.format("date started < updated %s %s",
+				start.getTime(), update.getTime()),
+				start.compareTo(update) == -1);
+		assertTrue(String.format("date updated < updated2 %s %s",
+				update.getTime(), update2.getTime()),
+				update.compareTo(update2) == -1);
+		assertTrue(String.format("date updated2 < complete %s %s",
+				update2.getTime(), complete.getTime()),
+				update2.compareTo(complete) == -1);
 	}
 	
 	@Test

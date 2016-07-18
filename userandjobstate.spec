@@ -407,7 +407,10 @@ module UserAndJobState {
 	funcdef list_jobs(list<service_name> services, job_filter filter)
 		returns(list<job_info> jobs);
 	
-	/* List all job services. */
+	/* List all job services. Note that only services with jobs owned by the
+		user or shared with the user via the default auth strategy will be
+		listed.
+	*/
 	funcdef list_job_services() returns(list<service_name> services);
 	
 	/* Share a job. Sharing a job to the same user twice or with the job owner
@@ -431,13 +434,15 @@ module UserAndJobState {
 	*/
 	funcdef get_job_shared(job_id job) returns(list<username> users);
 	
-	/* Delete a job. Will fail if the job is not complete.
+	/* Delete a job. Will fail if the job is not complete. Only the job owner
+		can delete a job.
 	*/
 	funcdef delete_job(job_id job) returns();
 	
 	/* Force delete a job - will succeed unless the job has not been started.
 		In that case, the service must start the job and then delete it, since
-		a job is not "owned" by any service until it is started.
+		a job is not "owned" by any service until it is started. Only the job
+		owner can delete a job.
 	*/
 	funcdef force_delete_job(service_token token, job_id job) returns();
 };

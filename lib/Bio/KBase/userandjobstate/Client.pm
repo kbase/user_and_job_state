@@ -219,9 +219,10 @@ Returns the version of the userandjobstate service.
 							       "Invalid argument count for function ver (received $n, expecting 0)");
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.ver",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.ver",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -306,9 +307,10 @@ Set the state of a key for a service without service authentication.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.set_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.set_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -393,9 +395,10 @@ Set the state of a key for a service with service authentication.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.set_state_auth",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.set_state_auth",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -486,9 +489,10 @@ Get the state of a key for a service.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -579,9 +583,10 @@ Determine if a key exists for a service.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.has_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.has_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -676,9 +681,10 @@ and the key value will be null.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_has_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_has_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -760,9 +766,10 @@ Remove a key value pair without service authentication.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.remove_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.remove_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -844,9 +851,10 @@ Remove a key value pair with service authentication.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.remove_state_auth",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.remove_state_auth",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -934,9 +942,10 @@ List all keys.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.list_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1021,9 +1030,10 @@ List all state services.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.list_state_services",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_state_services",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1118,9 +1128,10 @@ Create a new job status report.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.create_job2",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.create_job2",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1189,9 +1200,10 @@ Create a new job status report.
 							       "Invalid argument count for function create_job (received $n, expecting 0)");
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.create_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.create_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1303,9 +1315,10 @@ Start a job and specify the job parameters.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.start_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.start_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1416,9 +1429,10 @@ Create and start a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.create_and_start_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.create_and_start_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1517,9 +1531,10 @@ Update the status and progress for a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.update_job_progress",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.update_job_progress",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1613,9 +1628,10 @@ Update the status for a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.update_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.update_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1714,9 +1730,10 @@ Get the description of a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_job_description",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_description",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1819,9 +1836,10 @@ Get the status of a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_job_status",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_status",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1942,9 +1960,10 @@ the job is considered to have errored out.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.complete_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.complete_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2047,9 +2066,10 @@ Get the job results.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_results",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_results",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2132,9 +2152,10 @@ Get the detailed error message, if any
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_detailed_error",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_detailed_error",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2309,9 +2330,10 @@ Get information about a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_job_info2",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_info2",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2463,9 +2485,10 @@ Get information about a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_job_info",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_info",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2652,9 +2675,10 @@ List jobs.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.list_jobs2",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_jobs2",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2813,9 +2837,10 @@ services.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.list_jobs",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_jobs",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2865,7 +2890,9 @@ service_name is a string
 
 =item Description
 
-List all job services.
+List all job services. Note that only services with jobs owned by the
+user or shared with the user via the default auth strategy will be
+listed.
 
 =back
 
@@ -2883,9 +2910,10 @@ List all job services.
 							       "Invalid argument count for function list_job_services (received $n, expecting 0)");
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.list_job_services",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_job_services",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2971,9 +2999,10 @@ strategy will fail.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.share_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.share_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -3059,9 +3088,10 @@ not using the default auth strategy will fail.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.unshare_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.unshare_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -3144,9 +3174,10 @@ Get the owner of a job.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_job_owner",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_owner",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -3231,9 +3262,10 @@ default auth strategy.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.get_job_shared",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_shared",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -3283,7 +3315,8 @@ job_id is a string
 
 =item Description
 
-Delete a job. Will fail if the job is not complete.
+Delete a job. Will fail if the job is not complete. Only the job owner
+can delete a job.
 
 =back
 
@@ -3312,9 +3345,10 @@ Delete a job. Will fail if the job is not complete.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.delete_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.delete_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -3370,7 +3404,8 @@ job_id is a string
 
 Force delete a job - will succeed unless the job has not been started.
 In that case, the service must start the job and then delete it, since
-a job is not "owned" by any service until it is started.
+a job is not "owned" by any service until it is started. Only the job
+owner can delete a job.
 
 =back
 
@@ -3400,9 +3435,10 @@ a job is not "owned" by any service until it is started.
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
-	method => "UserAndJobState.force_delete_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.force_delete_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -3423,6 +3459,36 @@ a job is not "owned" by any service until it is started.
 }
  
   
+sub status
+{
+    my($self, @args) = @_;
+    if ((my $n = @args) != 0) {
+        Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+                                   "Invalid argument count for function status (received $n, expecting 0)");
+    }
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+        method => "UserAndJobState.status",
+        params => \@args,
+    });
+    if ($result) {
+        if ($result->is_error) {
+            Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+                           code => $result->content->{error}->{code},
+                           method_name => 'status',
+                           data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+                          );
+        } else {
+            return wantarray ? @{$result->result} : $result->result->[0];
+        }
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method status",
+                        status_line => $self->{client}->status_line,
+                        method_name => 'status',
+                       );
+    }
+}
+   
 
 sub version {
     my ($self) = @_;

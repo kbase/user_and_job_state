@@ -139,7 +139,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     private static final long serialVersionUID = 1L;
     private static final String version = "0.0.1";
     private static final String gitUrl = "https://github.com/mrcreosote/user_and_job_state";
-    private static final String gitCommitHash = "70e47c15a63364fcedb457a5e81bfcceb38fc8a4";
+    private static final String gitCommitHash = "cd7dc1ae862a5d99320fa0465a66298623427622";
 
     //BEGIN_CLASS_HEADER
 	
@@ -1292,7 +1292,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
     /**
      * <p>Original spec-file function name: list_job_services</p>
      * <pre>
-     * List all job services.
+     * List all job services. Note that only services with jobs owned by the
+     * user or shared with the user via the default auth strategy will be
+     * listed.
      * </pre>
      * @return   parameter "services" of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
      */
@@ -1391,7 +1393,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     /**
      * <p>Original spec-file function name: delete_job</p>
      * <pre>
-     * Delete a job. Will fail if the job is not complete.
+     * Delete a job. Will fail if the job is not complete. Only the job owner
+     * can delete a job.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      */
@@ -1407,7 +1410,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <pre>
      * Force delete a job - will succeed unless the job has not been started.
      * In that case, the service must start the job and then delete it, since
-     * a job is not "owned" by any service until it is started.
+     * a job is not "owned" by any service until it is started. Only the job
+     * owner can delete a job.
      * </pre>
      * @param   token   instance of original type "service_token" (A globus ID token that validates that the service really is said service.)
      * @param   job   instance of original type "job_id" (A job id.)
