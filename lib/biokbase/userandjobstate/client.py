@@ -840,7 +840,8 @@ class UserAndJobState(object):
 
     def delete_job(self, job, context=None):
         """
-        Delete a job. Will fail if the job is not complete.
+        Delete a job. Will fail if the job is not complete. Only the job owner
+        can delete a job.
         :param job: instance of type "job_id" (A job id.)
         """
         return self._client.call_method(
@@ -851,7 +852,8 @@ class UserAndJobState(object):
         """
         Force delete a job - will succeed unless the job has not been started.
         In that case, the service must start the job and then delete it, since
-        a job is not "owned" by any service until it is started.
+        a job is not "owned" by any service until it is started. Only the job
+        owner can delete a job.
         :param token: instance of type "service_token" (A globus ID token
            that validates that the service really is said service.)
         :param job: instance of type "job_id" (A job id.)

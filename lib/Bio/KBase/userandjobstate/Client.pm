@@ -3315,7 +3315,8 @@ job_id is a string
 
 =item Description
 
-Delete a job. Will fail if the job is not complete.
+Delete a job. Will fail if the job is not complete. Only the job owner
+can delete a job.
 
 =back
 
@@ -3403,7 +3404,8 @@ job_id is a string
 
 Force delete a job - will succeed unless the job has not been started.
 In that case, the service must start the job and then delete it, since
-a job is not "owned" by any service until it is started.
+a job is not "owned" by any service until it is started. Only the job
+owner can delete a job.
 
 =back
 
