@@ -243,8 +243,9 @@ public class JobStateTests {
 			@Override
 			protected void externallyAuthorizeCancel(String user, Job j)
 				throws UJSAuthorizationException {
-				// TODO NOW Auto-generated method stub
-				
+				if ("fail cancel".equals(j.getAuthorizationParameter())) {
+					throw new UJSAuthorizationException("fail cancel req");
+				}
 			}
 		};
 		String user = "foo";
@@ -287,6 +288,16 @@ public class JobStateTests {
 		failGetJob(user, id2, lenientauth,
 				new NoSuchJobException(String.format(
 						"There is no job %s viewable by user %s", id2, user)));
+		
+		//test fail canceling jobs with alternate auth
+		String id4 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail cancel", mt);
+		js.startJob(user, id4, "s", "stat", "desc", null);
+		failCancelJob(user, id4, "status", new UnimplementedException());
+		failCancelJob(user, id4, "status", lenientauth,
+				new NoSuchJobException(String.format(
+						"There is no job %s that may be canceled by user %s",
+						id4, user)));
 		
 		//test listing jobs with alternate auth
 			// start & create some jobs
@@ -783,8 +794,17 @@ public class JobStateTests {
 			final String jobid,
 			final String status,
 			final Exception exp) {
+		failCancelJob(user, jobid, status, new DefaultUJSAuthorizer(), exp);
+	}
+	
+	private void failCancelJob(
+			final String user,
+			final String jobid,
+			final String status,
+			final UJSAuthorizer auth,
+			final Exception exp) {
 		try {
-			js.cancelJob(user, jobid, status);
+			js.cancelJob(user, jobid, status, auth);
 			fail("expected cancelJob call to fail");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
