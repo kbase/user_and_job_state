@@ -52,6 +52,8 @@ public class JobState {
 	private final static String EST_COMP = "estcompl";
 	private final static String COMPLETE = "complete";
 	private final static String ERROR = "error";
+	// only present if job was canceled
+	private final static String CANCELEDBY = "canceledby";
 	private final static String ERROR_MSG = "errormsg";
 	private final static String DESCRIPTION = "desc";
 	private final static String PROG_TYPE = "progtype";
@@ -456,7 +458,9 @@ public class JobState {
 		return ret;
 	}
 
-	private DBObject buildStartedJobQuery(final String user, final String jobID,
+	private DBObject buildStartedJobQuery(
+			final String user,
+			final String jobID,
 			final String service) {
 		checkString(user, "user", MAX_LEN_USER);
 		final ObjectId id = checkJobID(jobID);
@@ -466,6 +470,67 @@ public class JobState {
 		query.put(SERVICE, service);
 		query.put(COMPLETE, false);
 		return query;
+	}
+	
+	private static final String QRY_COMPLETE =  String.format(
+			"{%s: #, %s: #}", MONGO_ID, COMPLETE);
+	
+	public void cancelJob(
+			final String user,
+			final String jobID,
+			final String status)
+			throws CommunicationException, NoSuchJobException {
+		cancelJob(user, jobID, status, new DefaultUJSAuthorizer());
+	}
+	
+	public void cancelJob(
+			final String user,
+			final String jobID,
+			final String status,
+			final UJSAuthorizer auth)
+			throws CommunicationException, NoSuchJobException {
+		checkString(user, "user", MAX_LEN_USER);
+		checkMaxLen(status, "status", MAX_LEN_STATUS);
+		final ObjectId oi = checkJobID(jobID);
+		final NoSuchJobException nsje = new NoSuchJobException(String.format(
+				"There is no job %s that may be canceled by user %s",
+				jobID, user));
+		final Job j;
+		try {
+			// setting complete = false means that non-started jobs don't show
+			// up
+			j = jobjong.findOne(QRY_COMPLETE, oi, false).as(Job.class);
+		} catch (MongoException me) {
+			throw new CommunicationException(
+					"There was a problem communicating with the database", me);
+		}
+		if (j == null) {
+			throw nsje;
+		}
+		try {
+			auth.authorizeCancel(user, j);
+		} catch (UJSAuthorizationException e) {
+			throw nsje;
+		}
+		final DBObject query = new BasicDBObject(MONGO_ID, oi);
+		query.put(COMPLETE, false);
+		
+		final DBObject set = new BasicDBObject(STATUS, status);
+		set.put(UPDATED, new Date());
+		set.put(CANCELEDBY, user);
+		set.put(COMPLETE, true);
+		final WriteResult wr;
+		try {
+			wr = jobcol.update(query, new BasicDBObject("$set", set));
+		} catch (MongoException me) {
+			throw new CommunicationException(
+					"There was a problem communicating with the database", me);
+		}
+		// this should only happen if there's a race condition and the job
+		// is completed/deleted between fetching the job and updating the job
+		if (wr.getN() != 1) {
+			throw nsje;
+		}
 	}
 	
 	public void deleteJob(final String user, final String jobID)
@@ -559,6 +624,7 @@ public class JobState {
 		 * makes the API pretty nasty. The all or nothing method currently in
 		 * play seems much less confusing.
 		 */
+		// TODO NOW handle canceled jobs
 		checkString(user, "user");
 		auth.authorizeRead(strat, user, authParams);
 		String query;

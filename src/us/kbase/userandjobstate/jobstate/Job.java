@@ -20,7 +20,7 @@ public class Job {
 	public static final String STARTED = "started";
 	public static final String COMPLETE = "complete";
 	public static final String ERROR = "error";
-	public static final String DELETED = "deleted";
+	public static final String CANCELED = "canceled";
 	
 	private ObjectId _id;
 	private String user;
@@ -35,6 +35,7 @@ public class Job {
 	private Date estcompl;
 	private Boolean complete;
 	private Boolean error;
+	private String canceledby;
 	private String errormsg;
 	private JobResults results;
 	private List<String> shared;
@@ -49,6 +50,9 @@ public class Job {
 	}
 	
 	public String getStage() {
+		if (canceledby != null) {
+			return CANCELED;
+		}
 		if (service == null) {
 			return CREATED;
 		}
@@ -112,6 +116,14 @@ public class Job {
 
 	public Boolean isComplete() {
 		return complete;
+	}
+	
+	public boolean isCanceled() {
+		return canceledby != null;
+	}
+	
+	public String getCanceledBy() {
+		return canceledby;
 	}
 
 	public Boolean hasError() {

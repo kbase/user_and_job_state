@@ -5,6 +5,8 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
+
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -138,7 +139,7 @@ public class JobStateTests {
 		assertThat("get job id", jobid, OBJ_ID_MATCH);
 		Job j = js.getJob("foo", jobid);
 		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
-				null, null, null, null, null, null);
+				null, null, null, null, null, null, null);
 		
 		failGetJob("foo1", jobid, new NoSuchJobException(String.format(
 							"There is no job %s viewable by user foo1",
@@ -156,7 +157,7 @@ public class JobStateTests {
 		assertThat("get job id", jobid, OBJ_ID_MATCH);
 		j = js.getJob("foo", jobid);
 		checkJob(j, jobid, "created", null, "foo", null, null, null, null,
-				null, null, null, null, null, null);
+				null, null, null, null, null, null, null);
 		
 		failGetJob("foo1", jobid, new NoSuchJobException(String.format(
 							"There is no job %s viewable by user foo1",
@@ -369,15 +370,6 @@ public class JobStateTests {
 		}
 	}
 	
-	private static void assertExceptionCorrect(
-			Exception got, Exception expected) {
-		assertThat("incorrect exception. trace:\n" +
-				ExceptionUtils.getStackTrace(got),
-				got.getLocalizedMessage(),
-				is(expected.getLocalizedMessage()));
-		assertThat("incorrect exception type", got, is(expected.getClass()));
-	}
-	
 	@Test
 	public void metadata() throws Exception {
 		String user = "foo";
@@ -417,8 +409,9 @@ public class JobStateTests {
 		String jobid = js.createJob("foo");
 		js.startJob("foo", jobid, "serv1", "started job", "job desc", null);
 		Job j = js.getJob("foo", jobid);
-		checkJob(j, jobid, "started", null, "foo", "started job", "serv1",
-				"job desc", "none", null, null, false, false, null, null);
+		checkJob(j, jobid, "started", null, "foo", null, "started job",
+				"serv1", "job desc", "none", null, null, false, false, null,
+				null);
 		testStartJobBadArgs("foo", jobid, "serv2", "started job", "job desc", null,
 				new NoSuchJobException(String.format(
 						"There is no unstarted job %s for user foo", jobid)));
@@ -466,39 +459,40 @@ public class JobStateTests {
 		js.startJob("unicode", jobid, "serv3", uni, "desc3", 200,
 				nearfuture);
 		j = js.getJob("unicode", jobid);
-		checkJob(j, jobid, "started", nearfuture, "unicode", uni,
+		checkJob(j, jobid, "started", nearfuture, "unicode", null, uni,
 				"serv3", "desc3", "task", 0, 200, false, false, null, null);
 		
 		jobid = js.createJob("foo3");
 		js.startJob("foo3", jobid, "serv3", "start3", "desc3", 200, nearfuture);
 		j = js.getJob("foo3", jobid);
-		checkJob(j, jobid, "started", nearfuture, "foo3", "start3", "serv3",
-				"desc3", "task", 0, 200, false, false, null, null);
+		checkJob(j, jobid, "started", nearfuture, "foo3", null, "start3",
+				"serv3", "desc3", "task", 0, 200, false, false, null, null);
 		jobid = js.createJob("foo4");
 		js.startJobWithPercentProg("foo4", jobid, "serv4", "start4", "desc4",
 				nearfuture);
 		j = js.getJob("foo4", jobid);
-		checkJob(j, jobid, "started", nearfuture, "foo4", "start4", "serv4",
-				"desc4", "percent", 0, 100, false, false, null, null);
+		checkJob(j, jobid, "started", nearfuture, "foo4", null, "start4",
+				"serv4", "desc4", "percent", 0, 100, false, false, null, null);
 		
 		jobid = js.createAndStartJob("fooc1", "servc1", "startc1", "desc_c1",
 				nearfuture);
 		j = js.getJob("fooc1", jobid);
-		checkJob(j, jobid, "started", nearfuture, "fooc1", "startc1",
+		checkJob(j, jobid, "started", nearfuture, "fooc1", null, "startc1",
 				"servc1", "desc_c1", "none", null, null, false, false, null,
 				null);
 		
 		jobid = js.createAndStartJob("fooc2", "servc2", "startc2", "desc_c2",
 				50, nearfuture);
 		j = js.getJob("fooc2", jobid);
-		checkJob(j, jobid, "started", nearfuture, "fooc2", "startc2", "servc2",
-				"desc_c2", "task", 0, 50, false, false, null, null);
+		checkJob(j, jobid, "started", nearfuture, "fooc2", null, "startc2",
+				"servc2", "desc_c2", "task", 0, 50, false, false, null, null);
 		
 		jobid = js.createAndStartJobWithPercentProg("fooc3", "servc3",
 				"startc3", "desc_c3", nearfuture);
 		j = js.getJob("fooc3", jobid);
-		checkJob(j, jobid, "started", nearfuture, "fooc3", "startc3", "servc3",
-				"desc_c3", "percent", 0, 100, false, false, null, null);
+		checkJob(j, jobid, "started", nearfuture, "fooc3", null, "startc3",
+				"servc3", "desc_c3", "percent", 0, 100, false, false, null,
+				null);
 		
 	}
 	
@@ -576,24 +570,24 @@ public class JobStateTests {
 	}
 	
 	private void checkJob(Job j, String id, String stage, Date estComplete, 
-			String user, String status, String service, String desc,
-			String progtype, Integer prog, Integer maxproj, Boolean complete,
-			Boolean error, String errmsg, JobResults results) {
-		checkJob(j, id, stage, estComplete, user, status, service, desc,
-				progtype, prog, maxproj, complete, error, errmsg, results,
-				null, UJSAuthorizer.DEFAULT_AUTH_STRAT,
+			String user, String canceledby, String status, String service,
+			String desc, String progtype, Integer prog, Integer maxproj,
+			Boolean complete, Boolean error, String errmsg, JobResults results) {
+		checkJob(j, id, stage, estComplete, user, canceledby, status, service,
+				desc, progtype, prog, maxproj, complete, error, errmsg,
+				results, null, UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				UJSAuthorizer.DEFAULT_AUTH_PARAM,
 				new HashMap<String, String>());
 	}
 	
 	private void checkJob(String id, String stage, Date estComplete, 
-			String user, String status, String service, String desc,
+			String user, String canceledby, String status, String service, String desc,
 			String progtype, Integer prog, Integer maxproj, Boolean complete,
 			Boolean error, String errmsg, JobResults results,
 			List<String> shared) throws Exception {
-		checkJob(js.getJob(user, id), id, stage, estComplete, user, status,
-				service, desc, progtype, prog, maxproj, complete, error, errmsg,
-				results, shared,
+		checkJob(js.getJob(user, id), id, stage, estComplete, user, canceledby,
+				status, service, desc, progtype, prog, maxproj, complete,
+				error, errmsg, results, shared,
 				UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				UJSAuthorizer.DEFAULT_AUTH_PARAM,
 				new HashMap<String, String>());
@@ -621,21 +615,25 @@ public class JobStateTests {
 			String user)
 			throws Exception {
 	
+		//TODO NOW may need to add canceled by to FakeJob
 		checkJob(js.getJob(user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
-				fj.user, fj.status, fj.service, fj.desc, fj.progtype, fj.prog,
-				fj.maxprog, fj.complete, fj.error, fj.errormsg, fj.results,
-				shared, fj.authstrat, fj.authparam, fj.metadata);
+				fj.user, null, fj.status, fj.service, fj.desc, fj.progtype,
+				fj.prog, fj.maxprog, fj.complete, fj.error, fj.errormsg,
+				fj.results, shared, fj.authstrat, fj.authparam, fj.metadata);
 	}
 	
 	private void checkJob(Job j, String id, String stage, Date estComplete, 
-			String user, String status, String service, String desc,
-			String progtype, Integer prog, Integer maxproj, Boolean complete,
-			Boolean error, String errmsg, JobResults results,
+			String user, String canceledby, String status, String service,
+			String desc, String progtype, Integer prog, Integer maxproj,
+			Boolean complete, Boolean error, String errmsg, JobResults results,
 			List<String> shared, AuthorizationStrategy strat,
 			String authParam, Map<String, String> meta) {
 		assertThat("job id ok", j.getID(), is(id));
 		assertThat("job stage ok", j.getStage(), is(stage));
 		assertThat("job user ok", j.getUser(), is(user));
+		assertThat("job canceled by ok", j.getCanceledBy(), is(canceledby));
+		assertThat("job iscanceled ok", j.isCanceled(),
+				is(canceledby != null));
 		assertThat("job service ok", j.getService(), is(service));
 		assertThat("job desc ok", j.getDescription(), is(desc));
 		assertThat("job progtype ok", j.getProgType(), is(progtype));
@@ -705,6 +703,96 @@ public class JobStateTests {
 	}
 	
 	@Test
+	public void cancelJob() throws Exception {
+		String user = "canceluser";
+		
+		//happy path test
+		String jobid = js.createAndStartJob(user, "serv1", "st1", "d1", null);
+		Job j = js.getJob(user, jobid);
+		checkJob(j, jobid, "started", null, user, null, "st1", "serv1", "d1",
+				"none", null, null, false, false, null, null);
+		js.cancelJob(user, jobid, "canceled1");
+		j = js.getJob(user, jobid);
+		checkJob(j, jobid, "canceled", null, user, user, "canceled1",
+				"serv1", "d1", "none", null, null, true, false, null, null);
+		
+		// with null status
+		jobid = js.createAndStartJob(user, "serv2", "st2", "d2", null);
+		j = js.getJob(user, jobid);
+		checkJob(j, jobid, "started", null, user, null, "st2", "serv2", "d2",
+				"none", null, null, false, false, null, null);
+		js.cancelJob(user, jobid, null);
+		j = js.getJob(user, jobid);
+		checkJob(j, jobid, "canceled", null, user, user, null,
+				"serv2", "d2", "none", null, null, true, false, null, null);
+		
+		//test can't cancel an unstarted job
+		jobid = js.createJob(user);
+		failCancelJob(user, jobid, "cancel", new NoSuchJobException(
+				String.format("There is no job %s that may be canceled by user %s",
+						jobid, user)));
+		
+		//test can't cancel a complete job
+		jobid = js.createAndStartJob(user, "serv", "stat", "desc", null);
+		js.completeJob(user, jobid, "serv", "stat2", null, null);
+		failCancelJob(user, jobid, "cancel", new NoSuchJobException(
+				String.format("There is no job %s that may be canceled by user %s",
+						jobid, user)));
+		
+		//test can't cancel a shared job
+		jobid = js.createAndStartJob(user, "serv", "stat", "desc", null);
+		js.shareJob(user, jobid, Arrays.asList("someuser"));
+		failCancelJob("someuser", jobid, "cancel", new NoSuchJobException(
+				String.format("There is no job %s that may be canceled by user %s",
+						jobid, "someuser")));
+		
+		// test bad args
+		jobid = js.createAndStartJob(user, "serv", "stat", "desc", null);
+		failCancelJob(user + "a", jobid, "stat", new NoSuchJobException(
+				String.format("There is no job %s that may be canceled by user %s",
+						jobid, user + "a")));
+		failCancelJob(user, "a" + jobid.substring(1), "stat",
+				new NoSuchJobException(String.format(
+						"There is no job %s that may be canceled by user %s",
+						"a" + jobid.substring(1), user)));
+		failCancelJob(null, jobid, "stat", new IllegalArgumentException(
+						"user cannot be null or the empty string"));
+		failCancelJob("", jobid, "stat", new IllegalArgumentException(
+				"user cannot be null or the empty string"));
+		failCancelJob(LONG101, jobid, "stat", new IllegalArgumentException(
+				"user exceeds the maximum length of 100"));
+		failCancelJob(user, null, "stat", new IllegalArgumentException(
+				"id cannot be null or the empty string"));
+		failCancelJob(user, "", "stat", new IllegalArgumentException(
+				"id cannot be null or the empty string"));
+		failCancelJob(user, "afeaefafaefaefafeaf", "stat",
+				new IllegalArgumentException(
+						"Job ID afeaefafaefaefafeaf is not a legal ID"));
+		failCancelJob(user, jobid, LONG201, new IllegalArgumentException(
+				"status exceeds the maximum length of 200"));
+		
+		//make sure job can be canceled with good args
+		js.cancelJob(user, jobid, "cancel3");
+		j = js.getJob(user, jobid);
+		checkJob(j, jobid, "canceled", null, user, user, "cancel3", "serv",
+				"desc", "none", null, null, true, false, null, null);
+	}
+	
+	private void failCancelJob(
+			final String user,
+			final String jobid,
+			final String status,
+			final Exception exp) {
+		try {
+			js.cancelJob(user, jobid, status);
+			fail("expected cancelJob call to fail");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+		
+	}
+
+	@Test
 	public void updateJob() throws Exception {
 		Date nearfuture = new Date(new Date().getTime() + 10000);
 		Date nearpast = new Date(new Date().getTime() - 10);
@@ -712,118 +800,125 @@ public class JobStateTests {
 		String jobid = js.createAndStartJob("bar", "service1", "st", "de", 33,
 				null);
 		Job j = js.getJob("bar", jobid);
-		checkJob(j, jobid, "started", null, "bar", "st", "service1", "de",
-				"task", 0, 33, false, false, null, null);
+		checkJob(j, jobid, "started", null, "bar", null, "st", "service1",
+				"de", "task", 0, 33, false, false, null, null);
 		
 		js.updateJob("bar", jobid, "service1", "new st", 4, null);
 		j = js.getJob("bar", jobid);
-		checkJob(j, jobid, "started", null, "bar", "new st",
+		checkJob(j, jobid, "started", null, "bar", null, "new st",
 				"service1", "de", "task", 4, 33, false, false, null, null);
 		
 		js.updateJob("bar", jobid, "service1", "new st2", 16, nearfuture);
 		j = js.getJob("bar", jobid);
-		checkJob(j, jobid, "started", nearfuture, "bar", "new st2",
+		checkJob(j, jobid, "started", nearfuture, "bar", null, "new st2",
 				"service1", "de", "task", 20, 33, false, false, null, null);
 		
 		js.updateJob("bar", jobid, "service1", "this really should be done",
 				16, null);
 		j = js.getJob("bar", jobid);
-		checkJob(j, jobid, "started", nearfuture, "bar",
+		checkJob(j, jobid, "started", nearfuture, "bar",null, 
 				"this really should be done", "service1", "de", "task", 33, 33,
 				false, false, null, null);
 		
 		//no progress tracking
 		jobid = js.createAndStartJob("bar2", "service2", "st2", "de2", null);
 		j = js.getJob("bar2", jobid);
-		checkJob(j, jobid, "started", null, "bar2", "st2", "service2", "de2",
-				"none", null, null, false, false, null, null);
+		checkJob(j, jobid, "started", null, "bar2",null, "st2", "service2",
+				"de2", "none", null, null, false, false, null, null);
 		
 		js.updateJob("bar2", jobid, "service2", "st2-2", null, nearfuture);
 		j = js.getJob("bar2", jobid);
-		checkJob(j, jobid, "started", nearfuture, "bar2", "st2-2", "service2",
-				"de2", "none", null, null, false, false, null, null);
+		checkJob(j, jobid, "started", nearfuture, "bar2", null, "st2-2",
+				"service2", "de2", "none", null, null, false, false, null,
+				null);
 		
 		js.updateJob("bar2", jobid, "service2", "st2-3", 6, null);
 		j = js.getJob("bar2", jobid);
-		checkJob(j, jobid, "started", nearfuture, "bar2", "st2-3", "service2",
-				"de2", "none", null, null, false, false, null, null);
+		checkJob(j, jobid, "started", nearfuture, "bar2", null, "st2-3",
+				"service2", "de2", "none", null, null, false, false, null, null);
 		
 		//percentage based tracking
 		jobid = js.createAndStartJobWithPercentProg("bar3", "service3", "st3",
 				"de3", null);
 		j = js.getJob("bar3", jobid);
-		checkJob(j, jobid, "started", null, "bar3", "st3", "service3", "de3",
-				"percent", 0, 100, false, false, null, null);
+		checkJob(j, jobid, "started", null, "bar3", null, "st3", "service3",
+				"de3", "percent", 0, 100, false, false, null, null);
 		
 		js.updateJob("bar3", jobid, "service3", "st3-2", 30, null);
 		j = js.getJob("bar3", jobid);
-		checkJob(j, jobid, "started", null, "bar3", "st3-2", "service3", "de3",
-				"percent", 30, 100, false, false, null, null);
+		checkJob(j, jobid, "started", null, "bar3", null, "st3-2", "service3",
+				"de3", "percent", 30, 100, false, false, null, null);
 		
 		js.updateJob("bar3", jobid, "service3", "st3-3", 2, nearfuture);
 		j = js.getJob("bar3", jobid);
-		checkJob(j, jobid, "started", nearfuture, "bar3", "st3-3",
+		checkJob(j, jobid, "started", nearfuture, "bar3", null, "st3-3",
 				"service3", "de3", "percent", 32, 100, false, false, null,
 				null);
 		
 		js.updateJob("bar3", jobid, "service3", "st3-4", 80, null);
 		j = js.getJob("bar3", jobid);
-		checkJob(j, jobid, "started", nearfuture, "bar3", "st3-4",
+		checkJob(j, jobid, "started", nearfuture, "bar3", null, "st3-4",
 				"service3", "de3", "percent", 100, 100, false, false, null,
 				null);
 		
-		testUpdateJobBadArgs("bar3", jobid, "service2", "stat", null, null,
+		failUpdateJob("bar3", jobid, "service2", "stat", null, null,
 				new NoSuchJobException(String.format(
 						"There is no uncompleted job %s for user bar3 started by service service2",
 						jobid)));
-		testUpdateJobBadArgs("bar2", jobid, "service3", "stat", null, null,
+		failUpdateJob("bar2", jobid, "service3", "stat", null, null,
 				new NoSuchJobException(String.format(
 						"There is no uncompleted job %s for user bar2 started by service service3",
 						jobid)));
-		testUpdateJobBadArgs("bar2", "a" + jobid.substring(1), "service2", "stat", null, null,
+		failUpdateJob("bar2", "a" + jobid.substring(1), "service2", "stat", null, null,
 				new NoSuchJobException(String.format(
 						"There is no uncompleted job %s for user bar2 started by service service2",
 						"a" + jobid.substring(1))));
-		testUpdateJobBadArgs(null, jobid, "serv2", "started job", 1, null,
+		failUpdateJob(null, jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testUpdateJobBadArgs("", jobid, "serv2", "started job", 1, null,
+		failUpdateJob("", jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testUpdateJobBadArgs(LONG101, jobid, "serv2", "started job", 1, null,
+		failUpdateJob(LONG101, jobid, "serv2", "started job", 1, null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
-		testUpdateJobBadArgs("foo",  null, "serv2", "started job", 1, null,
+		failUpdateJob("foo",  null, "serv2", "started job", 1, null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
-		testUpdateJobBadArgs("foo", "", "serv2", "started job", 1, null,
+		failUpdateJob("foo", "", "serv2", "started job", 1, null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
-		testUpdateJobBadArgs("foo", "afeaefafaefaefafeaf", "serv2", "started job", 1, null,
+		failUpdateJob("foo", "afeaefafaefaefafeaf", "serv2", "started job", 1, null,
 				new IllegalArgumentException("Job ID afeaefafaefaefafeaf is not a legal ID"));
-		testUpdateJobBadArgs("foo", jobid, null, "started job", 1, null,
+		failUpdateJob("foo", jobid, null, "started job", 1, null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testUpdateJobBadArgs("foo", jobid, "", "started job", 1, null,
+		failUpdateJob("foo", jobid, "", "started job", 1, null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testUpdateJobBadArgs("foo", jobid, LONG101, "started job", 1, null,
+		failUpdateJob("foo", jobid, LONG101, "started job", 1, null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testUpdateJobBadArgs("foo", jobid, "serv2", LONG201, 1, null,
+		failUpdateJob("foo", jobid, "serv2", LONG201, 1, null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
-		testUpdateJobBadArgs("foo", jobid, "serv2", "started job", -1, null,
+		failUpdateJob("foo", jobid, "serv2", "started job", -1, null,
 				new IllegalArgumentException("progress cannot be negative"));
-		testUpdateJobBadArgs("foo", jobid, "serv2", "started job", -1, nearpast,
+		failUpdateJob("foo", jobid, "serv2", "started job", -1, nearpast,
 				new IllegalArgumentException("The estimated completion date must be in the future"));
 		
 		//fail on updating a completed or unstarted job
 		jobid = js.createJob("foobar");
-		testUpdateJobBadArgs("foobar", jobid, "serv2", "stat", 1, null,
+		failUpdateJob("foobar", jobid, "serv2", "stat", 1, null,
 				new NoSuchJobException(String.format(
 				"There is no uncompleted job %s for user foobar started by service serv2",
 				jobid)));
 		jobid = js.createAndStartJob("foobar", "serv2", "stat", "desc", null);
 		js.completeJob("foobar", jobid, "serv2", "stat", null, null);
-		testUpdateJobBadArgs("foobar", jobid, "serv2", "stat", 1, null,
+		failUpdateJob("foobar", jobid, "serv2", "stat", 1, null,
+				new NoSuchJobException(String.format(
+				"There is no uncompleted job %s for user foobar started by service serv2",
+				jobid)));
+		jobid = js.createAndStartJob("foobar", "serv2", "stat", "desc", null);
+		js.cancelJob("foobar", jobid, "cancel");
+		failUpdateJob("foobar", jobid, "serv2", "stat", 1, null,
 				new NoSuchJobException(String.format(
 				"There is no uncompleted job %s for user foobar started by service serv2",
 				jobid)));
 	}
 	
-	private void testUpdateJobBadArgs(String user, String jobid, String service,
+	private void failUpdateJob(String user, String jobid, String service,
 			String status, Integer progress, Date estCompl, Exception exception)
 			throws Exception {
 		try {
@@ -847,17 +942,21 @@ public class JobStateTests {
 				Arrays.asList("node1", "node2"));
 		js.completeJob("comp", jobid, "cserv1", "cstat1-3", "thing", res1);
 		Job j = js.getJob("comp", jobid);
-		checkJob(j, jobid, "error", null, "comp", "cstat1-3", "cserv1", "cdesc1",
-				"task", 5, 5, true, true, "thing", res1);
-		try {
-			js.completeJob("comp", jobid, "cserv1", "cstat1-4", null, res1);
-			fail("completed a completed job");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception msg", nsje.getLocalizedMessage(),
-					is(String.format(
-					"There is no uncompleted job %s for user comp started by service cserv1",
-					jobid)));
-		}
+		checkJob(j, jobid, "error", null, "comp", null, "cstat1-3", "cserv1",
+				"cdesc1", "task", 5, 5, true, true, "thing", res1);
+		failCompleteJob("comp", jobid, "cserv1", "cstat1-4", null, res1,
+				new NoSuchJobException(String.format(
+						"There is no uncompleted job %s for user comp started by service cserv1",
+						jobid)));
+		
+		// ensure you can't complete a canceled job
+		String jobid2 = js.createAndStartJob("canceluser", "can1", "canstat1",
+				"candesc1", 5, null);
+		js.cancelJob("canceluser", jobid2, "cancelstat");
+		failCompleteJob("canceluser", jobid2, "can1", "foo", null,
+				new NoSuchJobException(String.format(
+						"There is no uncompleted job %s for user canceluser started by service can1",
+						jobid2)));
 		
 		List<JobResult> ljr = new LinkedList<JobResult>();
 		ljr.add(new JobResult("s1", "a url", "an Id", "some desc"));
@@ -873,8 +972,9 @@ public class JobStateTests {
 		js.updateJob("comp", jobid, "cserv2", "cstat2-3", 50, null);
 		js.completeJob("comp", jobid, "cserv2", "cstat2-3", null, res2);
 		j = js.getJob("comp", jobid);
-		checkJob(j, jobid, "complete", null, "comp", "cstat2-3", "cserv2", "cdesc2",
-				"percent", 100, 100, true, false, null, res2);
+		checkJob(j, jobid, "complete", null, "comp", null, "cstat2-3",
+				"cserv2", "cdesc2", "percent", 100, 100, true, false, null,
+				res2);
 		
 		ljr = new LinkedList<JobResult>();
 		
@@ -886,62 +986,77 @@ public class JobStateTests {
 				"cdesc3", null);
 		js.completeJob("comp", jobid, "cserv3", "cstat3-3", null, res3);
 		j = js.getJob("comp", jobid);
-		checkJob(j, jobid, "complete", null, "comp", "cstat3-3", "cserv3", "cdesc3",
-				"percent", 100, 100, true, false, null, res3);
+		checkJob(j, jobid, "complete", null, "comp", null, "cstat3-3",
+				"cserv3", "cdesc3", "percent", 100, 100, true, false, null,
+				res3);
 		
 		jobid = js.createJob("comp");
-		try {
-			js.completeJob("comp", jobid, "cserv2", "badstat", null, res2);
-			fail("completed an unstarted job");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception msg", nsje.getLocalizedMessage(),
-					is(String.format(
+		failCompleteJob("comp", jobid, "cserv2", "badstat", null, res2,
+				new NoSuchJobException(String.format(
 					"There is no uncompleted job %s for user comp started by service cserv2",
 					jobid)));
-		}
 		
 		jobid = js.createAndStartJob("comp", "service2", "stat", "desc", null);
 		
-		testCompleteJobBadArgs("comp1", jobid, "service2", "stat", null,
+		failCompleteJob("comp1", jobid, "service2", "stat", null,
 				new NoSuchJobException(String.format(
 						"There is no uncompleted job %s for user comp1 started by service service2",
 						jobid)));
-		testCompleteJobBadArgs("comp", jobid, "service3", "stat", null,
+		failCompleteJob("comp", jobid, "service3", "stat", null,
 				new NoSuchJobException(String.format(
 						"There is no uncompleted job %s for user comp started by service service3",
 						jobid)));
-		testCompleteJobBadArgs("comp", "a" + jobid.substring(1), "service2", "stat", null,
+		failCompleteJob("comp", "a" + jobid.substring(1), "service2", "stat", null,
 				new NoSuchJobException(String.format(
 						"There is no uncompleted job %s for user comp started by service service2",
 						"a" + jobid.substring(1))));
-		testCompleteJobBadArgs(null, jobid, "service2", "started job", null,
+		failCompleteJob(null, jobid, "service2", "started job", null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testCompleteJobBadArgs("", jobid, "service2", "started job", null,
+		failCompleteJob("", jobid, "service2", "started job", null,
 				new IllegalArgumentException("user cannot be null or the empty string"));
-		testCompleteJobBadArgs(LONG101, jobid, "service2", "started job", null,
+		failCompleteJob(LONG101, jobid, "service2", "started job", null,
 				new IllegalArgumentException("user exceeds the maximum length of 100"));
-		testCompleteJobBadArgs("comp",  null, "service2", "started job", null,
+		failCompleteJob("comp",  null, "service2", "started job", null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
-		testCompleteJobBadArgs("comp", "", "service2", "started job", null,
+		failCompleteJob("comp", "", "service2", "started job", null,
 				new IllegalArgumentException("id cannot be null or the empty string"));
-		testCompleteJobBadArgs("comp", "afeaefafaefaefafeaf", "service2", "started job", null,
+		failCompleteJob("comp", "afeaefafaefaefafeaf", "service2", "started job", null,
 				new IllegalArgumentException("Job ID afeaefafaefaefafeaf is not a legal ID"));
-		testCompleteJobBadArgs("comp", jobid, null, "started job", null,
+		failCompleteJob("comp", jobid, null, "started job", null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testCompleteJobBadArgs("comp", jobid, "", "started job", null,
+		failCompleteJob("comp", jobid, "", "started job", null,
 				new IllegalArgumentException("service cannot be null or the empty string"));
-		testCompleteJobBadArgs("comp", jobid, LONG101, "started job", null,
+		failCompleteJob("comp", jobid, LONG101, "started job", null,
 				new IllegalArgumentException("service exceeds the maximum length of 100"));
-		testCompleteJobBadArgs("comp", jobid, "service2", LONG201, null,
+		failCompleteJob("comp", jobid, "service2", LONG201, null,
 				new IllegalArgumentException("status exceeds the maximum length of 200"));
-		testCompleteJobBadArgs("comp", jobid, "service2", "started job", LONG100001,
+		failCompleteJob("comp", jobid, "service2", "started job", LONG100001,
 				new IllegalArgumentException("error exceeds the maximum length of 100000"));
 	}
 	
-	private void testCompleteJobBadArgs(String user, String jobid, String service,
-			String status, String errormsg, Exception exception) throws Exception {
+	private void failCompleteJob(
+			final String user,
+			final String jobid,
+			final String service,
+			final String status,
+			final String errormsg,
+			final Exception exception)
+			throws Exception {
+		failCompleteJob(user, jobid, service, status, errormsg, null,
+				exception);
+	}
+	
+	private void failCompleteJob(
+			final String user,
+			final String jobid,
+			final String service,
+			final String status,
+			final String errormsg,
+			final JobResults res,
+			final Exception exception)
+			throws Exception {
 		try {
-			js.completeJob(user, jobid, service, status, errormsg, null);
+			js.completeJob(user, jobid, service, status, errormsg, res);
 			fail("completed job with bad args");
 		} catch (Exception e) {
 			assertThat("correct exception type", e,
@@ -985,6 +1100,18 @@ public class JobStateTests {
 		assertTrue(String.format("date updated2 < complete %s %s",
 				update2.getTime(), complete.getTime()),
 				update2.compareTo(complete) == -1);
+		
+		String jobid2 = js.createJob("date");
+		js.startJob("date", jobid2, "serv1", "stat", "desc", null);
+		Job j2 = js.getJob("date", jobid2);
+		Date start2 = j2.getLastUpdated();
+		Thread.sleep(1);
+		js.cancelJob("date", jobid2, "stat");
+		j2 = js.getJob("date", jobid2);
+		Date cancel = j2.getLastUpdated();
+		assertTrue(String.format("date started < cancelled %s %s",
+				start2.getTime(), cancel.getTime()),
+				start2.compareTo(cancel) == -1);
 	}
 	
 	@Test
@@ -993,8 +1120,8 @@ public class JobStateTests {
 				null);
 		js.completeJob("delete", jobid, "serv1", "st", null, null);
 		Job j = js.getJob("delete", jobid); //should work
-		checkJob(j, jobid, "complete", null, "delete", "st", "serv1", "dsc",
-				"none", null, null, true, false, null, null);
+		checkJob(j, jobid, "complete", null, "delete", null, "st", "serv1",
+				"dsc", "none", null, null, true, false, null, null);
 		succeedAtDeletingJob("delete", jobid);
 		failToDeleteJob("delete", jobid, null);
 		
@@ -1313,8 +1440,9 @@ public class JobStateTests {
 		failGetJob("foo", jobid, new NoSuchJobException(String.format(
 				"There is no job %s viewable by user %s", jobid, "foo")));
 		js.shareJob(sh, jobid, Arrays.asList("foo", "bar"));
-		checkJob(jobid, "started", null, sh, "st", "shareserv", "dsc", "none",
-				null, null, false, false, null, null, Arrays.asList("foo", "bar"));
+		checkJob(jobid, "started", null, sh, null, "st", "shareserv", "dsc",
+				"none", null, null, false, false, null, null,
+				Arrays.asList("foo", "bar"));
 		js.getJob("share", jobid); //should work
 		js.getJob("foo", jobid); //should work
 		js.getJob("bar", jobid); //should work
@@ -1322,11 +1450,13 @@ public class JobStateTests {
 				"There is no job %s viewable by user %s", jobid, "baz")));
 		
 		js.shareJob(sh, jobid, Arrays.asList("foo", "bar", "baz"));
-		checkJob(jobid, "started", null, sh, "st", "shareserv", "dsc", "none",
-				null, null, false, false, null, null, Arrays.asList("foo", "bar", "baz"));
+		checkJob(jobid, "started", null, sh, null, "st", "shareserv", "dsc",
+				"none", null, null, false, false, null, null,
+				Arrays.asList("foo", "bar", "baz"));
 		js.shareJob(sh, jobid, Arrays.asList(sh)); //noop
-		checkJob(jobid, "started", null, sh, "st", "shareserv", "dsc", "none",
-				null, null, false, false, null, null, Arrays.asList("foo", "bar", "baz"));
+		checkJob(jobid, "started", null, sh, null, "st", "shareserv", "dsc",
+				"none", null, null, false, false, null, null,
+				Arrays.asList("foo", "bar", "baz"));
 		
 		failShareJob("foo", jobid, Arrays.asList("bag"), new NoSuchJobException(
 				String.format("There is no job %s with default authorization " +
@@ -1367,21 +1497,24 @@ public class JobStateTests {
 				String.format("user cannot be null or the empty string")));
 		
 		js.unshareJob(sh, jobid, Arrays.asList("bar", "baz"));
-		checkJob(jobid, "started", null, sh, "st", "shareserv", "dsc", "none",
-				null, null, false, false, null, null, Arrays.asList("foo"));
+		checkJob(jobid, "started", null, sh, null, "st", "shareserv", "dsc",
+				"none", null, null, false, false, null, null,
+				Arrays.asList("foo"));
 		failGetJob("bar", jobid, new NoSuchJobException(String.format(
 				"There is no job %s viewable by user %s", jobid, "bar")));
 		failGetJob("baz", jobid, new NoSuchJobException(String.format(
 				"There is no job %s viewable by user %s", jobid, "baz")));
 		js.getJob("foo", jobid); //should work
 		js.unshareJob("foo", jobid, Arrays.asList("foo"));
-		checkJob(jobid, "started", null, sh, "st", "shareserv", "dsc", "none",
-				null, null, false, false, null, null, new ArrayList<String>());
+		checkJob(jobid, "started", null, sh, null, "st", "shareserv", "dsc",
+				"none", null, null, false, false, null, null,
+				new ArrayList<String>());
 		failGetJob("foo", jobid, new NoSuchJobException(String.format(
 				"There is no job %s viewable by user %s", jobid, "foo")));
 		js.unshareJob(sh, jobid, Arrays.asList(sh, "bar", "baz")); //noop
-		checkJob(jobid, "started", null, sh, "st", "shareserv", "dsc", "none",
-				null, null, false, false, null, null, new ArrayList<String>());
+		checkJob(jobid, "started", null, sh, null, "st", "shareserv", "dsc",
+				"none", null, null, false, false, null, null,
+				new ArrayList<String>());
 		js.getJob(sh, jobid); //should work
 	}
 	
