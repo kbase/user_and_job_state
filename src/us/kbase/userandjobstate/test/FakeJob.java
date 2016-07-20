@@ -14,7 +14,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 
-import us.kbase.common.service.Tuple12;
+import us.kbase.common.service.Tuple13;
 import us.kbase.common.service.Tuple14;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.Tuple3;
@@ -71,7 +71,7 @@ public class FakeJob {
 	}
 	
 	public FakeJob asV1DB() {
-		return new FakeJob(id, user, canceledby, service, stage, estcompl,
+		return new FakeJob(id, null, null, service, stage, estcompl,
 				desc, progtype, prog, maxprog, status, complete, error,
 				errormsg, results);
 				
@@ -207,30 +207,30 @@ public class FakeJob {
 		}
 	}
 	
-	public FakeJob(Tuple12<String, String, String, String,
-				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
-				Long, Long, Tuple2<String, String>, Map<String, String>,
-				String, Results> j) {
-		this.user = null;
+	public FakeJob(Tuple13<String, Tuple2<String, String>, String, String,
+				String, Tuple3<String, String, String>,
+				Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>,
+				Map<String, String>, String, Results> j) {
 		this.id = j.getE1();
-		this.service = j.getE2();
-		this.stage = j.getE3();
-		this.status = j.getE4();
-		this.estcompl = j.getE5().getE3() == null ? null :
-			DATE_PARSER.parseDateTime(j.getE5().getE3()).toDate();
-		this.prog = longToInt(j.getE6().getE1());
-		this.maxprog = longToInt(j.getE6().getE2());
-		this.progtype = j.getE6().getE3();
-		this.complete = j.getE7() != 0;
-		this.canceledby = null;
-		this.isCanceled = false;
-		this.error = j.getE8() != 0;
-		authstrat = new AuthorizationStrategy(j.getE9().getE1());
-		authparam = j.getE9().getE2();
-		metadata = j.getE10();
-		this.desc = j.getE11();
+		this.user = j.getE2().getE1();
+		this.canceledby = j.getE2().getE2();
+		this.isCanceled = canceledby != null;
+		this.service = j.getE3();
+		this.stage = j.getE4();
+		this.status = j.getE5();
+		this.estcompl = j.getE6().getE3() == null ? null :
+			DATE_PARSER.parseDateTime(j.getE6().getE3()).toDate();
+		this.prog = longToInt(j.getE7().getE1());
+		this.maxprog = longToInt(j.getE7().getE2());
+		this.progtype = j.getE7().getE3();
+		this.complete = j.getE8() != 0;
+		this.error = j.getE9() != 0;
+		this.authstrat = new AuthorizationStrategy(j.getE10().getE1());
+		this.authparam = j.getE10().getE2();
+		this.metadata = j.getE11();
+		this.desc = j.getE12();
 		this.errormsg = null;
-		this.results = makeResults(j.getE12());
+		this.results = makeResults(j.getE13());
 	}
 
 	//no checking, assumes the cast is ok

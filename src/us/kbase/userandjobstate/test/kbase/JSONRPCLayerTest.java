@@ -283,25 +283,27 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		
 		@SuppressWarnings("deprecation")
 		String jobid = CLIENT1.createJob();
-		checkJob(CLIENT1, jobid, "created",null, null, null, null,
+		checkJob(CLIENT1, jobid, USER1, null, "created",null, null, null, null,
 				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
 		CLIENT1.startJob(jobid, TOKEN2, "new stat", "ne desc",
 				new InitProgress().withPtype("none"), null);
-		checkJob(CLIENT1, jobid, "started", "new stat", USER2, "ne desc",
-				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "new stat", USER2,
+				"ne desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		
 		jobid = CLIENT1.createJob2(new CreateJobParams().withAuthstrat(null));
 		CLIENT1.startJob(jobid, TOKEN2, "new stat2", "ne desc2",
 				new InitProgress().withPtype("percent"), nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "new stat2", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "new stat2", USER2,
 				"ne desc2", "percent", 0L, 100L, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createJob2(new CreateJobParams().withAuthstrat(""));
 		CLIENT1.startJob(jobid, TOKEN2, "new stat3", "ne desc3",
 				new InitProgress().withPtype("task").withMax(5L), null);
-		checkJob(CLIENT1, jobid, "started", "new stat3", USER2, "ne desc3",
-				"task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "new stat3", USER2,
+				"ne desc3", "task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
 		
 		startJobBadArgs(null, TOKEN2, "s", "d", new InitProgress().withPtype("none"),
 				null, "id cannot be null or the empty string", true);
@@ -355,20 +357,21 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat", "cs desc",
 				new InitProgress().withPtype("none"), nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "cs stat", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "cs stat", USER2,
 				"cs desc", "none", null, null, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat2", "cs desc2",
 				new InitProgress().withPtype("percent"), null);
-		checkJob(CLIENT1, jobid, "started", "cs stat2", USER2, "cs desc2",
-				"percent", 0L, 100L, null, 0L, 0L, null, null, DEF, DEF,
-				MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "cs stat2", USER2,
+				"cs desc2", "percent", 0L, 100L, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat3", "cs desc3",
 				new InitProgress().withPtype("task").withMax(5L), null);
-		checkJob(CLIENT1, jobid, "started", "cs stat3", USER2, "cs desc3",
-				"task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "cs stat3", USER2,
+				"cs desc3", "task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
 		
 		failCreateJob(CLIENT1, "kbaseworkspace", "1", "The UJS is not configured to " +
 				"delegate authorization to the workspace service");
@@ -386,33 +389,37 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				new HashMap<String, String>()));
 		String id3 = CLIENT1.createJob2(new CreateJobParams().withMeta(m));
 		
-		checkJob(CLIENT1, id1, "created", null, null, null, null, null, null,
-				null, null, null, null, null, DEF, DEF, MTMAP);
-		checkJob(CLIENT1, id2, "created", null, null, null, null, null, null,
-				null, null, null, null, null, DEF, DEF, MTMAP);
-		checkJob(CLIENT1, id3, "created", null, null, null, null, null, null,
-				null, null, null, null, null, DEF, DEF, m);
+		checkJob(CLIENT1, id1, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id2, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, m);
 		
 		CLIENT1.startJob(id1, TOKEN2, "stat1", "desc1", noprog, null);
 		CLIENT1.startJob(id3, TOKEN2, "stat3", "desc2", noprog, null);
-		checkJob(CLIENT1, id1, "started", "stat1", USER2, "desc1", "none",
-				null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
-		checkJob(CLIENT1, id3, "started", "stat3", USER2, "desc2", "none",
-				null, null, null, 0L, 0L, null, null, DEF, DEF, m);
+		checkJob(CLIENT1, id1, USER1, null, "started", "stat1", USER2, "desc1",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "started", "stat3", USER2, "desc2",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, m);
 		
 		CLIENT1.updateJob(id1, TOKEN2, "stat1-2", null);
 		CLIENT1.updateJob(id3, TOKEN2, "stat3-2", null);
-		checkJob(CLIENT1, id1, "started", "stat1-2", USER2, "desc1", "none",
-				null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
-		checkJob(CLIENT1, id3, "started", "stat3-2", USER2, "desc2", "none",
-				null, null, null, 0L, 0L, null, null, DEF, DEF, m);
+		checkJob(CLIENT1, id1, USER1, null, "started", "stat1-2", USER2,
+				"desc1", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "started", "stat3-2", USER2,
+				"desc2", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, m);
 
 		CLIENT1.completeJob(id1, TOKEN2, "stat1-3", null, null);
 		CLIENT1.completeJob(id3, TOKEN2, "stat3-3", null, null);
-		checkJob(CLIENT1, id1, "complete", "stat1-3", USER2, "desc1", "none",
-				null, null, null, 1L, 0L, null, null, DEF, DEF, MTMAP);
-		checkJob(CLIENT1, id3, "complete", "stat3-3", USER2, "desc2", "none",
-				null, null, null, 1L, 0L, null, null, DEF, DEF, m);
+		checkJob(CLIENT1, id1, USER1, null, "complete", "stat1-3", USER2,
+				"desc1", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "complete", "stat3-3", USER2,
+				"desc2", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, m);
 	}
 	
 	private void startJobBadArgs(String jobid, String token, String stat, String desc,
@@ -464,43 +471,45 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "up stat", "up desc",
 				new InitProgress().withPtype("none"), null);
 		CLIENT1.updateJob(jobid, TOKEN2, "up stat2", null);
-		checkJob(CLIENT1, jobid, "started", "up stat2", USER2, "up desc",
-				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up stat2", USER2,
+				"up desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up stat3", 40L, null);
-		checkJob(CLIENT1, jobid, "started", "up stat3", USER2, "up desc",
-				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up stat3", USER2,
+				"up desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up stat3", null, nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up stat3", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up stat3", USER2,
 				"up desc", "none", null, null, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up2 stat", "up2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up2 stat2", 40L, null);
-		checkJob(CLIENT1, jobid, "started", "up2 stat2", USER2, "up2 desc",
-				"percent", 40L, 100L, null, 0L, 0L, null, null, DEF, DEF,
-				MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up2 stat2", USER2,
+				"up2 desc", "percent", 40L, 100L, null, 0L, 0L, null, null,
+				DEF, DEF, MTMAP);
 		CLIENT1.updateJob(jobid, TOKEN2, "up2 stat3", nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up2 stat3", USER2, "up2 desc",
-				"percent", 40L, 100L, nearfuture[1], 0L, 0L, null,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up2 stat3", USER2,
+				"up2 desc", "percent", 40L, 100L, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up2 stat4", 70L, null);
-		checkJob(CLIENT1, jobid, "started", "up2 stat4", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up2 stat4", USER2,
 				"up2 desc", "percent", 100L, 100L, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up3 stat", "up3 desc",
 				new InitProgress().withPtype("task").withMax(42L), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up3 stat2", 30L, nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up3 stat2", USER2, "up3 desc",
-				"task", 30L, 42L, nearfuture[1], 0L, 0L, null, null, DEF, DEF,
-				MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up3 stat2", USER2,
+				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null,
+				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJob(jobid, TOKEN2, "up3 stat3", null);
-		checkJob(CLIENT1, jobid, "started", "up3 stat3", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up3 stat3", USER2,
 				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up3 stat4", 15L, null);
-		checkJob(CLIENT1, jobid, "started", "up3 stat4", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up3 stat4", USER2,
 				"up3 desc", "task", 42L, 42L, nearfuture[1], 0L, 0L, null,
 				null, DEF, DEF, MTMAP);
 		
@@ -583,17 +592,18 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "c stat", "c desc",
 				new InitProgress().withPtype("none"), null);
 		CLIENT1.completeJob(jobid, TOKEN2, "c stat2", null, null);
-		checkJob(CLIENT1, jobid, "complete", "c stat2", USER2, "c desc",
-				"none", null, null, null, 1L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "complete", "c stat2", USER2,
+				"c desc", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "c2 stat", "c2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "c2 stat2", 40L, null);
 		CLIENT1.completeJob(jobid, TOKEN2, "c2 stat3", "omg err",
 				new Results());
-		checkJob(CLIENT1, jobid, "error", "c2 stat3", USER2, "c2 desc",
-				"percent", 100L, 100L, null, 1L, 1L, "omg err", new Results(),
-				DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "error", "c2 stat3", USER2,
+				"c2 desc", "percent", 100L, 100L, null, 1L, 1L, "omg err",
+				new Results(), DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "c3 stat", "c3 desc",
 				new InitProgress().withPtype("task").withMax(37L), null);
@@ -608,9 +618,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 						.withWorkspaceurl("wurl")
 						.withResults(r);
 		CLIENT1.completeJob(jobid, TOKEN2, "c3 stat3", null, res);
-		checkJob(CLIENT1, jobid, "complete", "c3 stat3", USER2, "c3 desc",
-				"task", 37L, 37L, nearfuture[1], 1L, 0L, null, res, DEF, DEF,
-				MTMAP);
+		checkJob(CLIENT1, jobid, USER1, null, "complete", "c3 stat3", USER2,
+				"c3 desc", "task", 37L, 37L, nearfuture[1], 1L, 0L, null, res,
+				DEF, DEF, MTMAP);
 		
 		failCompleteJob(null, TOKEN2, "s", null, null,
 				"id cannot be null or the empty string");
@@ -857,7 +867,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		
 		String jobid = CLIENT1.createAndStartJob(TOKEN1, "ljs stat",
 				"ljs desc", noprog, null);
-		FakeJob shared = new FakeJob(jobid, null, null, USER1, "started", null,
+		FakeJob shared = new FakeJob(jobid, USER1, null, USER1, "started", null,
 				"ljs desc", "none", null, null, "ljs stat", false, false, null,
 				null);
 		CLIENT1.shareJob(jobid, Arrays.asList(USER2));
@@ -897,7 +907,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RXCE", empty);
 		
 		CLIENT2.startJob(jobid, TOKEN1, "lj stat", "lj desc", noprog, null);
-		FakeJob started = new FakeJob(jobid, null, null, USER1, "started",
+		FakeJob started = new FakeJob(jobid, USER2, null, USER1, "started",
 				null, "lj desc", "none", null, null, "lj stat", false, false,
 				null, null);
 		Set<FakeJob> setstarted = new HashSet<FakeJob>(Arrays.asList(started));
@@ -926,7 +936,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj2 stat", "lj2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT2.updateJobProgress(jobid, TOKEN1, "lj2 stat2", 42L, null);
-		FakeJob started2 = new FakeJob(jobid, null, null, USER1, "started",
+		FakeJob started2 = new FakeJob(jobid, USER2, null, USER1, "started",
 				null, "lj2 desc", "percent", 42, 100, "lj2 stat2", false,
 				false, null, null);
 		setstarted.add(started2);
@@ -947,7 +957,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		started2 = null;
 		JobResults res = new JobResults(null, null, null, null,
 				Arrays.asList("node1", "node2"));
-		FakeJob complete = new FakeJob(jobid, null, null, USER1, "complete",
+		FakeJob complete = new FakeJob(jobid, USER2, null, USER1, "complete",
 				null, "lj2 desc", "percent", 100, 100, "lj2 stat3", true,
 				false, null, res);
 		Set<FakeJob> setcomplete = new HashSet<FakeJob>(Arrays.asList(complete));
@@ -979,7 +989,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj3 stat", "lj3 desc",
 				new InitProgress().withPtype("task").withMax(55L), null);
 		CLIENT2.updateJobProgress(jobid, TOKEN1, "lj3 stat2", 40L, null);
-		started2 = new FakeJob(jobid, null, null, USER1, "started", null,
+		started2 = new FakeJob(jobid, USER2, null, USER1, "started", null,
 				"lj3 desc", "task", 40, 55, "lj3 stat2", false, false, null,
 				null);
 		setstarted.add(started2);
@@ -1002,7 +1012,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		started2 = null;
 		JobResults res2 = new JobResults(null, null,
 				Arrays.asList("wss1", "wss2"), null, null);
-		FakeJob error = new FakeJob(jobid, null, null, USER1, "error", null,
+		FakeJob error = new FakeJob(jobid, USER2, null, USER1, "error", null,
 				"lj3 desc", "task", 55, 55, "lj3 stat3", true, true, null,
 				res2);
 		Set<FakeJob> seterr = new HashSet<FakeJob>(Arrays.asList(error));
@@ -1080,8 +1090,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT2.createAndStartJob(TOKEN1, "sh stat", "sh desc", noprog, null);
 		CLIENT2.shareJob(jobid, Arrays.asList(USER1));
 		//next line ensures that all job read functions are accessible to client 1
-		checkJob(CLIENT1, jobid, "started", "sh stat", USER1, "sh desc",
-				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, jobid, USER2, null, "started", "sh stat", USER1,
+				"sh desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		failShareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
 				"There is no job %s with default authorization owned by user %s",
 				jobid, USER1));

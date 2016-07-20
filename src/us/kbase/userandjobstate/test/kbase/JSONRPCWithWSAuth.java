@@ -56,7 +56,9 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	public static UserAndJobStateClient UJSC2;
 	
 	public static AuthUser U1;
+	public static String USER1;
 	public static AuthUser U2;
+	public static String USER2;
 	public static String TOKEN1;
 	public static String TOKEN2;
 	
@@ -82,6 +84,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 			throw new TestException("Could not log in test user test.user2: " +
 					user2, e);
 		}
+		USER1 = U1.getUserId();
+		USER2 = U2.getUserId();
 		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
@@ -153,8 +157,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		WSC1.createWorkspace(new CreateWorkspaceParams().withWorkspace("foo"));
 		String id = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
-		checkJob(UJSC1, id, "created", null, null, null, null, null, null,
-				null, null, null, null, null, KBWS, "1", MTMAP);
+		checkJob(UJSC1, id, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
 		
 		failCreateJob(UJSC1, "foo", "1",
 				"Invalid authorization strategy: foo");
@@ -168,8 +172,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 			.withWorkspace("foo1"));
 		String id2 = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("2"));
-		checkJob(UJSC1, id2, "created", null, null, null, null, null, null,
-				null, null, null, null, null, KBWS, "2", MTMAP);
+		checkJob(UJSC1, id2, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, KBWS, "2", MTMAP);
 		
 		failCreateJob(UJSC2, KBWS, "1", String.format(
 				"User %s cannot write to workspace 1", U2.getUserId()));
@@ -181,13 +185,13 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		setPermissions(WSC1, 1, "w", U2.getUserId());
 		String id3 = UJSC2.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
-		checkJob(UJSC1, id3, "created", null, null, null, null, null, null,
-				null, null, null, null, null, KBWS, "1", MTMAP);
+		checkJob(UJSC1, id3, USER2, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
 		setPermissions(WSC1, 1, "a", U2.getUserId());
 		String id4 = UJSC2.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
-		checkJob(UJSC1, id4, "created", null, null, null, null, null, null,
-				null, null, null, null, null, KBWS, "1", MTMAP);
+		checkJob(UJSC1, id4, USER2, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
 	}
 	
 	@Test
@@ -203,12 +207,12 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		//test that deleting a workspace keeps the job visible to the owner
 		String id =  UJSC1.createJob2(new CreateJobParams()
 			.withAuthstrat(KBWS).withAuthparam("1"));
-		checkJob(UJSC1, id, "created", null, null, null, null, null, null,
-				null, null, null, null, null, KBWS, "1", MTMAP);
+		checkJob(UJSC1, id, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC1.getJobOwner(id), is(user1));
 		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
-		checkJob(UJSC2, id, "created", null, null, null, null, null, null,
-				null, null, null, null, null, KBWS, "1", MTMAP);
+		checkJob(UJSC2, id, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
 		
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
@@ -221,13 +225,13 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		UJSC1.startJob(id, TOKEN2, "stat1", "desc1", noprog, null);
 		UJSC1.updateJob(id, TOKEN2, "up stat2", null);
 		UJSC1.completeJob(id, TOKEN2, "c stat2", null, null);
-		checkJob(UJSC1, id, "complete", "c stat2", user2, "desc1",
+		checkJob(UJSC1, id, USER1, null, "complete", "c stat2", user2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC1.getJobOwner(id), is(user1));
 		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
 		
 		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		checkJob(UJSC2, id, "complete", "c stat2", user2, "desc1",
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", user2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
 		
@@ -237,12 +241,12 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		failGetJobShared(UJSC2, id, err);
 		
 		setPermissions(WSC1, 1, "w", user2);
-		checkJob(UJSC2, id, "complete", "c stat2", user2, "desc1",
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", user2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
 		
 		setPermissions(WSC1, 1, "a", user2);
-		checkJob(UJSC2, id, "complete", "c stat2", user2, "desc1",
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", user2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
 		
@@ -274,13 +278,13 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		// check that this doesn't show up in ws lists
 		UJSC1.createAndStartJob(TOKEN2, "defstat", "defdesc", noprog, null);
 		
-		FakeJob fj1 = new FakeJob(id1, null, null, user2, "started", null,
+		FakeJob fj1 = new FakeJob(id1, USER1, null, user2, "started", null,
 				"desc1", "none", null, null, "stat1", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "1", MTMAP);
-		FakeJob fj2 = new FakeJob(id2, null, null, user2, "started", null,
+		FakeJob fj2 = new FakeJob(id2, USER1, null, user2, "started", null,
 				"desc2", "none", null, null, "stat2", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "2", MTMAP);
-		FakeJob fj3 = new FakeJob(id3, null, null, user2, "started", null,
+		FakeJob fj3 = new FakeJob(id3, USER1, null, user2, "started", null,
 				"desc3", "none", null, null, "stat3", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "3", MTMAP);
 		Set<FakeJob> fjs123 = new HashSet<FakeJob>(

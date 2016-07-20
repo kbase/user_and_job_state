@@ -26,7 +26,7 @@ import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.service.JsonClientException;
 import us.kbase.common.service.ServerException;
-import us.kbase.common.service.Tuple12;
+import us.kbase.common.service.Tuple13;
 import us.kbase.common.service.Tuple14;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.Tuple3;
@@ -197,46 +197,53 @@ public class JSONRPCLayerTestUtils {
 		return dateform;
 	}
 	
-	protected void checkJob(UserAndJobStateClient cli, String id, String stage,
-			String status, String service, String desc, String progtype,
-			Long prog, Long maxprog, String estCompl, Long complete,
-			Long error, String errormsg, Results results,
-			String authStrat, String authParam, Map<String, String> meta)
+	protected void checkJob(UserAndJobStateClient cli, String id, String owner,
+			String canceledby, String stage, String status, String service,
+			String desc, String progtype, Long prog, Long maxprog,
+			String estCompl, Long complete, Long error, String errormsg,
+			Results results, String authStrat, String authParam,
+			Map<String, String> meta)
 			throws Exception {
 		
-		Tuple12<String, String, String, String, Tuple3<String, String, String>,
-			Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>,
-			Map<String, String>, String, Results> ret = cli.getJobInfo2(id);
+		Tuple13<String, Tuple2<String, String>, String, String, String,
+			Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long,
+			Long, Tuple2<String, String>, Map<String, String>, String,
+			Results> ret = cli.getJobInfo2(id);
 		String s = " for job " + id;
 		SimpleDateFormat dateform = getDateFormat();
 		
 		assertThat("job id ok" + s, ret.getE1(), is(id));
-		assertThat("job service ok" + s, ret.getE2(), is(service));
-		assertThat("job stage ok" + s, ret.getE3(), is(stage));
-		assertThat("job status ok" + s, ret.getE4(), is(status));
 		
-		Tuple3<String, String, String> dates = ret.getE5();
+		Tuple2<String, String> users = ret.getE2();
+		assertThat("job owner ok", users.getE1(), is(owner));
+		assertThat("job canceled by ok", users.getE2(), is(canceledby));
+		
+		assertThat("job service ok" + s, ret.getE3(), is(service));
+		assertThat("job stage ok" + s, ret.getE4(), is(stage));
+		assertThat("job status ok" + s, ret.getE5(), is(status));
+		
+		Tuple3<String, String, String> dates = ret.getE6();
 		if (dates.getE1() != null) {
 			dateform.parse(dates.getE1()); // should throw error if bad format
 		}
 		dateform.parse(dates.getE2()); // should throw error if bad format
 		assertThat("job est comp ok" + s, dates.getE3(), is(estCompl));
 		
-		Tuple3<Long, Long, String> progt = ret.getE6();
+		Tuple3<Long, Long, String> progt = ret.getE7();
 		assertThat("job prog ok" + s, progt.getE1(), is(prog));
 		assertThat("job maxprog ok" + s, progt.getE2(), is(maxprog));
 		assertThat("job prog type ok" + s, progt.getE3(), is(progtype));
 		
-		assertThat("job complete ok" + s, ret.getE7(), is(complete));
-		assertThat("job error ok" + s, ret.getE8(), is(error));
+		assertThat("job complete ok" + s, ret.getE8(), is(complete));
+		assertThat("job error ok" + s, ret.getE9(), is(error));
 		
-		Tuple2<String, String> auth = ret.getE9();
+		Tuple2<String, String> auth = ret.getE10();
 		assertThat("job authstrat ok" + s, auth.getE1(), is(authStrat));
 		assertThat("job authparam ok" + s, auth.getE2(), is(authParam));
 		
-		assertThat("job meta ok" + s, ret.getE10(), is(meta));
-		assertThat("job desc ok" + s, ret.getE11(), is(desc));
-		checkResults(ret.getE12(), results);
+		assertThat("job meta ok" + s, ret.getE11(), is(meta));
+		assertThat("job desc ok" + s, ret.getE12(), is(desc));
+		checkResults(ret.getE13(), results);
 		
 		checkJob(cli, id, stage, status, service, desc, progtype, prog,
 				maxprog, estCompl, complete, error, errormsg, results);
@@ -436,7 +443,7 @@ public class JSONRPCLayerTestUtils {
 			throws IOException, JsonClientException {
 		Set<FakeJob> got = new HashSet<FakeJob>();
 		//ew.
-		for (Tuple12<String, String, String, String,
+		for (Tuple13<String, Tuple2<String, String>, String, String, String,
 				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
 				Long, Long, Tuple2<String, String>, Map<String, String>,
 				String, Results> j: cli.listJobs2(new ListJobsParams()

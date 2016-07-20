@@ -1985,6 +1985,93 @@ the job is considered to have errored out.
  
 
 
+=head2 cancel_job
+
+  $obj->cancel_job($job, $status)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$job is an UserAndJobState.job_id
+$status is an UserAndJobState.job_status
+job_id is a string
+job_status is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$job is an UserAndJobState.job_id
+$status is an UserAndJobState.job_status
+job_id is a string
+job_status is a string
+
+
+=end text
+
+=item Description
+
+Cancel a job.
+
+=back
+
+=cut
+
+ sub cancel_job
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 2)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function cancel_job (received $n, expecting 2)");
+    }
+    {
+	my($job, $status) = @args;
+
+	my @_bad_arguments;
+        (!ref($job)) or push(@_bad_arguments, "Invalid type for argument 1 \"job\" (value was \"$job\")");
+        (!ref($status)) or push(@_bad_arguments, "Invalid type for argument 2 \"status\" (value was \"$status\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to cancel_job:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'cancel_job');
+	}
+    }
+
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.cancel_job",
+	    params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'cancel_job',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return;
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method cancel_job",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'cancel_job',
+				       );
+    }
+}
+ 
+
+
 =head2 get_results
 
   $res = $obj->get_results($job)
@@ -2191,19 +2278,24 @@ Get the detailed error message, if any
 $job is an UserAndJobState.job_id
 $info is an UserAndJobState.job_info2
 job_id is a string
-job_info2 is a reference to a list containing 12 items:
+job_info2 is a reference to a list containing 13 items:
 	0: (job) an UserAndJobState.job_id
-	1: (service) an UserAndJobState.service_name
-	2: (stage) an UserAndJobState.job_stage
-	3: (status) an UserAndJobState.job_status
-	4: (times) an UserAndJobState.time_info
-	5: (progress) an UserAndJobState.progress_info
-	6: (complete) an UserAndJobState.boolean
-	7: (error) an UserAndJobState.boolean
-	8: (auth) an UserAndJobState.auth_info
-	9: (meta) an UserAndJobState.usermeta
-	10: (desc) an UserAndJobState.job_description
-	11: (res) an UserAndJobState.Results
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
 service_name is a string
 job_stage is a string
 job_status is a string
@@ -2248,19 +2340,24 @@ Result is a reference to a hash where the following keys are defined:
 $job is an UserAndJobState.job_id
 $info is an UserAndJobState.job_info2
 job_id is a string
-job_info2 is a reference to a list containing 12 items:
+job_info2 is a reference to a list containing 13 items:
 	0: (job) an UserAndJobState.job_id
-	1: (service) an UserAndJobState.service_name
-	2: (stage) an UserAndJobState.job_stage
-	3: (status) an UserAndJobState.job_status
-	4: (times) an UserAndJobState.time_info
-	5: (progress) an UserAndJobState.progress_info
-	6: (complete) an UserAndJobState.boolean
-	7: (error) an UserAndJobState.boolean
-	8: (auth) an UserAndJobState.auth_info
-	9: (meta) an UserAndJobState.usermeta
-	10: (desc) an UserAndJobState.job_description
-	11: (res) an UserAndJobState.Results
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
 service_name is a string
 job_stage is a string
 job_status is a string
@@ -2532,20 +2629,25 @@ service_name is a string
 job_filter is a string
 auth_strategy is a string
 auth_param is a string
-job_info2 is a reference to a list containing 12 items:
+job_info2 is a reference to a list containing 13 items:
 	0: (job) an UserAndJobState.job_id
-	1: (service) an UserAndJobState.service_name
-	2: (stage) an UserAndJobState.job_stage
-	3: (status) an UserAndJobState.job_status
-	4: (times) an UserAndJobState.time_info
-	5: (progress) an UserAndJobState.progress_info
-	6: (complete) an UserAndJobState.boolean
-	7: (error) an UserAndJobState.boolean
-	8: (auth) an UserAndJobState.auth_info
-	9: (meta) an UserAndJobState.usermeta
-	10: (desc) an UserAndJobState.job_description
-	11: (res) an UserAndJobState.Results
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
 job_id is a string
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
 job_stage is a string
 job_status is a string
 time_info is a reference to a list containing 3 items:
@@ -2595,20 +2697,25 @@ service_name is a string
 job_filter is a string
 auth_strategy is a string
 auth_param is a string
-job_info2 is a reference to a list containing 12 items:
+job_info2 is a reference to a list containing 13 items:
 	0: (job) an UserAndJobState.job_id
-	1: (service) an UserAndJobState.service_name
-	2: (stage) an UserAndJobState.job_stage
-	3: (status) an UserAndJobState.job_status
-	4: (times) an UserAndJobState.time_info
-	5: (progress) an UserAndJobState.progress_info
-	6: (complete) an UserAndJobState.boolean
-	7: (error) an UserAndJobState.boolean
-	8: (auth) an UserAndJobState.auth_info
-	9: (meta) an UserAndJobState.usermeta
-	10: (desc) an UserAndJobState.job_description
-	11: (res) an UserAndJobState.Results
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
 job_id is a string
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
 job_stage is a string
 job_status is a string
 time_info is a reference to a list containing 3 items:
@@ -3778,7 +3885,7 @@ a string
 =item Description
 
 A string that describes the stage of processing of the job.
-One of 'created', 'started', 'completed', or 'error'.
+One of 'created', 'started', 'completed', 'canceled' or 'error'.
 
 
 =item Definition
@@ -4318,6 +4425,43 @@ meta has a value which is an UserAndJobState.usermeta
 
 
 
+=head2 user_info
+
+=over 4
+
+
+
+=item Description
+
+Who owns a job and who canceled a job (null if not canceled).
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 2 items:
+0: (owner) an UserAndJobState.username
+1: (canceledby) an UserAndJobState.username
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 2 items:
+0: (owner) an UserAndJobState.username
+1: (canceledby) an UserAndJobState.username
+
+
+=end text
+
+=back
+
+
+
 =head2 time_info
 
 =over 4
@@ -4449,19 +4593,20 @@ Information about a job.
 =begin html
 
 <pre>
-a reference to a list containing 12 items:
+a reference to a list containing 13 items:
 0: (job) an UserAndJobState.job_id
-1: (service) an UserAndJobState.service_name
-2: (stage) an UserAndJobState.job_stage
-3: (status) an UserAndJobState.job_status
-4: (times) an UserAndJobState.time_info
-5: (progress) an UserAndJobState.progress_info
-6: (complete) an UserAndJobState.boolean
-7: (error) an UserAndJobState.boolean
-8: (auth) an UserAndJobState.auth_info
-9: (meta) an UserAndJobState.usermeta
-10: (desc) an UserAndJobState.job_description
-11: (res) an UserAndJobState.Results
+1: (users) an UserAndJobState.user_info
+2: (service) an UserAndJobState.service_name
+3: (stage) an UserAndJobState.job_stage
+4: (status) an UserAndJobState.job_status
+5: (times) an UserAndJobState.time_info
+6: (progress) an UserAndJobState.progress_info
+7: (complete) an UserAndJobState.boolean
+8: (error) an UserAndJobState.boolean
+9: (auth) an UserAndJobState.auth_info
+10: (meta) an UserAndJobState.usermeta
+11: (desc) an UserAndJobState.job_description
+12: (res) an UserAndJobState.Results
 
 </pre>
 
@@ -4469,19 +4614,20 @@ a reference to a list containing 12 items:
 
 =begin text
 
-a reference to a list containing 12 items:
+a reference to a list containing 13 items:
 0: (job) an UserAndJobState.job_id
-1: (service) an UserAndJobState.service_name
-2: (stage) an UserAndJobState.job_stage
-3: (status) an UserAndJobState.job_status
-4: (times) an UserAndJobState.time_info
-5: (progress) an UserAndJobState.progress_info
-6: (complete) an UserAndJobState.boolean
-7: (error) an UserAndJobState.boolean
-8: (auth) an UserAndJobState.auth_info
-9: (meta) an UserAndJobState.usermeta
-10: (desc) an UserAndJobState.job_description
-11: (res) an UserAndJobState.Results
+1: (users) an UserAndJobState.user_info
+2: (service) an UserAndJobState.service_name
+3: (stage) an UserAndJobState.job_stage
+4: (status) an UserAndJobState.job_status
+5: (times) an UserAndJobState.time_info
+6: (progress) an UserAndJobState.progress_info
+7: (complete) an UserAndJobState.boolean
+8: (error) an UserAndJobState.boolean
+9: (auth) an UserAndJobState.auth_info
+10: (meta) an UserAndJobState.usermeta
+11: (desc) an UserAndJobState.job_description
+12: (res) an UserAndJobState.Results
 
 
 =end text
@@ -4565,6 +4711,7 @@ A string-based filter for listing jobs.
         If the string contains:
                 'R' - running jobs are returned.
                 'C' - completed jobs are returned.
+                'N' - canceled jobs are returned.
                 'E' - jobs that errored out are returned.
                 'S' - shared jobs are returned.
         The string can contain any combination of these codes in any order.

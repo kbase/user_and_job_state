@@ -148,7 +148,7 @@ module UserAndJobState {
 	typedef string job_id;
 	
 	/* A string that describes the stage of processing of the job.
-		One of 'created', 'started', 'completed', or 'error'.
+		One of 'created', 'started', 'completed', 'canceled' or 'error'.
 	*/
 	typedef string job_stage;
 	
@@ -316,12 +316,18 @@ module UserAndJobState {
 	*/
 	funcdef complete_job(job_id job, service_token token, job_status status,
 		detailed_err error, Results res) returns();
+	
+	/* Cancel a job. */
+	funcdef cancel_job(job_id job, job_status status) returns();
 		
 	/* Get the job results. */
 	funcdef get_results(job_id job) returns(Results res);
 	
 	/* Get the detailed error message, if any */
 	funcdef get_detailed_error(job_id job) returns(detailed_err error);
+	
+	/* Who owns a job and who canceled a job (null if not canceled). */
+	typedef tuple<username owner, username canceledby> user_info;
 	
 	/* Job timing information. */
 	typedef tuple<timestamp started, timestamp last_update,
@@ -335,10 +341,11 @@ module UserAndJobState {
 		progress_info;
 		
 	/* Information about a job. */
-	typedef tuple<job_id job, service_name service, job_stage stage,
-		job_status status, time_info times, progress_info progress,
-		boolean complete, boolean error, auth_info auth, usermeta meta,
-		job_description desc, Results res> job_info2;
+	typedef tuple<job_id job, user_info users, service_name service,
+		job_stage stage, job_status status, time_info times,
+		progress_info progress, boolean complete, boolean error,
+		auth_info auth, usermeta meta, job_description desc, Results res>
+		job_info2;
 	
 	/* Information about a job.
 		@deprecated job_info2
@@ -362,6 +369,7 @@ module UserAndJobState {
 		If the string contains:
 			'R' - running jobs are returned.
 			'C' - completed jobs are returned.
+			'N' - canceled jobs are returned.
 			'E' - jobs that errored out are returned.
 			'S' - shared jobs are returned.
 		The string can contain any combination of these codes in any order.

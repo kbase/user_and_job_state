@@ -122,8 +122,9 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 				new InitProgress().withPtype("none"), null);
 		
 		//check job is accessible
-		checkJob(cli, id, "started", "stat", USER.getUserId(), "desc", "none",
-				null, null, null, 0L, 0L, null, null, KBWS, "1", MTMAP);
+		checkJob(cli, id, USER.getUserId(), null, "started", "stat",
+				USER.getUserId(), "desc", "none", null, null, null, 0L, 0L,
+				null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", cli.getJobOwner(id), is(USER.getUserId()));
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
 		
@@ -161,8 +162,9 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
 		//check jobs are acessible again
-		checkJob(cli, id, "started", "stat", USER.getUserId(), "desc", "none",
-				null, null, null, 0L, 0L, null, null, KBWS, "1", MTMAP);
+		checkJob(cli, id, USER.getUserId(), null, "started", "stat",
+				USER.getUserId(), "desc", "none", null, null, null, 0L, 0L,
+				null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", cli.getJobOwner(id), is(USER.getUserId()));
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
 		
