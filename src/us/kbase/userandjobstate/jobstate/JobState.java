@@ -675,19 +675,48 @@ public class JobState {
 			final boolean complete, //TODO NOW
 			final boolean canceled,
 			final boolean error) {
-		//this seems dumb.
-		if (running && !complete && !error) {
+		/* TODO ZZLATER should have a indexed state variable in the job db doc 
+		 * that is either created, running, complete, error, or canceled.
+		 * remove error flag.
+		 * requires DB update, but would make this much simpler.
+		 * This is fucking dumb. Live with it for now.
+		 */
+		if (running && !complete && !canceled && !error) {
 			queryPrefix += ", " + COMPLETE + ": false}";
-		} else if (!running && complete && !error) {
-			queryPrefix += ", " + COMPLETE + ": true, " + ERROR + ": false}";
-		} else if (!running && !complete && error) {
+		} else if (!running && complete && !canceled && !error) {
+			queryPrefix += ", " + COMPLETE + ": true, " + ERROR + ": false, " +
+					CANCELEDBY + ": {$exists: false}}";
+		} else if (!running && !complete && canceled && !error) {
+			queryPrefix += ", " + CANCELEDBY + ": {$exists: true}}";
+		} else if (!running && !complete && !canceled && error) {
 			queryPrefix += ", " + ERROR + ": true}";
-		} else if (running && complete && !error) {
+		} else if (running && complete && !canceled && !error) {
+			queryPrefix += ", " + ERROR + ": false, " +
+					CANCELEDBY + ": {$exists: false}}";
+		} else if (running && !complete && canceled && !error) {
+			queryPrefix += ", $or: [{" + COMPLETE + ": false}, {" +
+					CANCELEDBY + ": {$exists: true}}]}";
+		} else if (running && !complete && !canceled && error) {
+			queryPrefix += ", $or: [{" + COMPLETE + ": false}, {" +
+					ERROR + ": true}]}";
+		} else if (running && complete && canceled && !error) {
 			queryPrefix += ", " + ERROR + ": false}";
-		} else if (!running && complete && error) {
+		} else if (running && complete && !canceled && error) {
+			queryPrefix += ", " + CANCELEDBY + ": {$exists: false}}";
+		} else if (running && !complete && canceled && error) {
+			queryPrefix += ", $or: [{ " + COMPLETE + ": false}, {" +
+					ERROR + ": true}, {" +
+					CANCELEDBY + ": {$exists: true}}]}";
+		} else if (!running && complete && canceled && !error) {
+			queryPrefix += ", " + COMPLETE + ": true, " + ERROR + ": false}";
+		} else if (!running && complete && !canceled && error) {
+			queryPrefix += ", " + COMPLETE + ": true, " +
+					CANCELEDBY + ": {$exists: false}}";
+		} else if (!running && complete && canceled && error) {
 			queryPrefix += ", " + COMPLETE + ": true}";
-		} else if (running && !complete && error) {
-			queryPrefix += ", $or: [{" + COMPLETE + ": false}, {" + ERROR + ": true}]}";
+		} else if (!running && !complete && canceled && error) {
+			queryPrefix += ", $or: [{" + ERROR + ": true}, {" +
+					CANCELEDBY + ": {$exists: true}}]}";
 		} else {
 			queryPrefix += "}";
 		}
