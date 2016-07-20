@@ -855,11 +855,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RCEX", empty);
 		checkListJobs(CLIENT2, USER1, "RCEXS", empty);
 		
-		String jobid = CLIENT1.createAndStartJob(TOKEN1, "ljs stat", "ljs desc", noprog, null);
-		FakeJob shared = new FakeJob(jobid, null, USER1, "started", null, "ljs desc",
-				"none", null, null, "ljs stat", false, false, null, null);
+		String jobid = CLIENT1.createAndStartJob(TOKEN1, "ljs stat",
+				"ljs desc", noprog, null);
+		FakeJob shared = new FakeJob(jobid, null, null, USER1, "started", null,
+				"ljs desc", "none", null, null, "ljs stat", false, false, null,
+				null);
 		CLIENT1.shareJob(jobid, Arrays.asList(USER2));
-		Set<FakeJob> setsharedonly = new HashSet<FakeJob>(Arrays.asList(shared)); 
+		Set<FakeJob> setsharedonly = new HashSet<FakeJob>(
+				Arrays.asList(shared)); 
 		
 		checkListJobs(CLIENT2, USER1, null, empty);
 		checkListJobs(CLIENT2, USER1, "", empty);
@@ -894,8 +897,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RXCE", empty);
 		
 		CLIENT2.startJob(jobid, TOKEN1, "lj stat", "lj desc", noprog, null);
-		FakeJob started = new FakeJob(jobid, null, USER1, "started", null, "lj desc",
-				"none", null, null, "lj stat", false, false, null, null);
+		FakeJob started = new FakeJob(jobid, null, null, USER1, "started",
+				null, "lj desc", "none", null, null, "lj stat", false, false,
+				null, null);
 		Set<FakeJob> setstarted = new HashSet<FakeJob>(Arrays.asList(started));
 		Set<FakeJob> setstartshare = new HashSet<FakeJob>(setstarted);
 		setstartshare.add(shared);
@@ -922,9 +926,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj2 stat", "lj2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT2.updateJobProgress(jobid, TOKEN1, "lj2 stat2", 42L, null);
-		FakeJob started2 = new FakeJob(jobid, null, USER1, "started", null,
-				"lj2 desc", "percent", 42, 100, "lj2 stat2", false, false, null,
-				null);
+		FakeJob started2 = new FakeJob(jobid, null, null, USER1, "started",
+				null, "lj2 desc", "percent", 42, 100, "lj2 stat2", false,
+				false, null, null);
 		setstarted.add(started2);
 		checkListJobs(CLIENT2, USER1, null, setstarted);
 		checkListJobs(CLIENT2, USER1, "", setstarted);
@@ -943,9 +947,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		started2 = null;
 		JobResults res = new JobResults(null, null, null, null,
 				Arrays.asList("node1", "node2"));
-		FakeJob complete = new FakeJob(jobid, null, USER1, "complete", null,
-				"lj2 desc", "percent", 100, 100, "lj2 stat3", true, false,
-				null, res);
+		FakeJob complete = new FakeJob(jobid, null, null, USER1, "complete",
+				null, "lj2 desc", "percent", 100, 100, "lj2 stat3", true,
+				false, null, res);
 		Set<FakeJob> setcomplete = new HashSet<FakeJob>(Arrays.asList(complete));
 		Set<FakeJob> setstartcomp = new HashSet<FakeJob>();
 		setstartcomp.addAll(setstarted);
@@ -975,7 +979,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj3 stat", "lj3 desc",
 				new InitProgress().withPtype("task").withMax(55L), null);
 		CLIENT2.updateJobProgress(jobid, TOKEN1, "lj3 stat2", 40L, null);
-		started2 = new FakeJob(jobid, null, USER1, "started", null,
+		started2 = new FakeJob(jobid, null, null, USER1, "started", null,
 				"lj3 desc", "task", 40, 55, "lj3 stat2", false, false, null,
 				null);
 		setstarted.add(started2);
@@ -998,7 +1002,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		started2 = null;
 		JobResults res2 = new JobResults(null, null,
 				Arrays.asList("wss1", "wss2"), null, null);
-		FakeJob error = new FakeJob(jobid, null, USER1, "error", null,
+		FakeJob error = new FakeJob(jobid, null, null, USER1, "error", null,
 				"lj3 desc", "task", 55, 55, "lj3 stat3", true, true, null,
 				res2);
 		Set<FakeJob> seterr = new HashSet<FakeJob>(Arrays.asList(error));

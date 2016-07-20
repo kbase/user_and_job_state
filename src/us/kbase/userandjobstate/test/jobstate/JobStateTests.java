@@ -203,8 +203,8 @@ public class JobStateTests {
 		String id = js.createJob(user, new DefaultUJSAuthorizer(),
 				new AuthorizationStrategy("DEFAULT"), "whoo", mt);
 		
-		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
-				null, null, null, null, null, null, null,
+		FakeJob fj = new FakeJob(id, user, null, null, "created", null, null,
+				null, null, null, null, null, null, null, null,
 				new AuthorizationStrategy("DEFAULT"), "whoo",
 				new HashMap<String, String>());
 		checkJob(fj);
@@ -262,8 +262,8 @@ public class JobStateTests {
 		
 		String id1 = js.createJob(user, lenientauth,
 				new AuthorizationStrategy("strat1"), "whee", mt);
-		FakeJob fj1c = new FakeJob(id1, user, null, "created", null, null, null,
-				null, null, null, null, null, null, null,
+		FakeJob fj1c = new FakeJob(id1, user, null, null, "created", null,
+				null, null, null, null, null, null, null, null, null,
 				new AuthorizationStrategy("strat1"), "whee",
 				new HashMap<String, String>());
 		
@@ -302,17 +302,17 @@ public class JobStateTests {
 		//test listing jobs with alternate auth
 			// start & create some jobs
 		js.startJob(user, id1, "serv1", "stat1", "desc1", null);
-		FakeJob fj1s = new FakeJob(id1, user, "serv1", "started", null,
+		FakeJob fj1s = new FakeJob(id1, user, null, "serv1", "started", null,
 				"desc1", "none", null, null, "stat1", false, false, null, null,
 				new AuthorizationStrategy("strat1"), "whee", mth);
 		js.startJob(user, id2, "serv2", "stat2", "desc2", null);
-		FakeJob fj2s = new FakeJob(id2, user, "serv2", "started", null,
+		FakeJob fj2s = new FakeJob(id2, user, null, "serv2", "started", null,
 				"desc2", "none", null, null, "stat2", false, false, null, null,
 				new AuthorizationStrategy("strat1"), "fail single", mth);
 		String id3 = js.createJob(user, lenientauth,
 				new AuthorizationStrategy("strat2"), "whee", mt);
 		js.startJob(user, id3, "serv3", "stat3", "desc3", null);
-		FakeJob fj3s = new FakeJob(id3, user, "serv3", "started", null,
+		FakeJob fj3s = new FakeJob(id3, user, null, "serv3", "started", null,
 				"desc3", "none", null, null, "stat3", false, false, null, null,
 				new AuthorizationStrategy("strat2"), "whee", mth);
 			//check that std auth job doesn't show up
@@ -320,19 +320,19 @@ public class JobStateTests {
 		
 		//check listing via different strats, params, and users works
 		checkListJobs(Arrays.asList(fj1s, fj2s), user, null,
-				true, false, false, false, lenientauth,
+				true, false, false, false, false, lenientauth,
 				new AuthorizationStrategy("strat1"),
 				Arrays.asList("whee", "fail single"));
 		checkListJobs(Arrays.asList(fj1s), user, null,
-				true, false, false, false, lenientauth,
+				true, false, false, false, false, lenientauth,
 				new AuthorizationStrategy("strat1"),
 				Arrays.asList("whee"));
 		checkListJobs(Arrays.asList(fj3s), user, null,
-				true, false, false, false, lenientauth,
+				true, false, false, false, false, lenientauth,
 				new AuthorizationStrategy("strat2"),
 				Arrays.asList("whee"));
 		checkListJobs(Arrays.asList(fj3s), user2, null,
-				true, false, false, false, lenientauth,
+				true, false, false, false, false, lenientauth,
 				new AuthorizationStrategy("strat2"),
 				Arrays.asList("whee"));
 		
@@ -393,20 +393,23 @@ public class JobStateTests {
 				UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				UJSAuthorizer.DEFAULT_AUTH_PARAM,
 				new WorkspaceUserMetadata(m));
-		FakeJob fj = new FakeJob(id, user, null, "created", null, null, null,
-				null, null, null, null, null, null, null, as, ap, m);
+		FakeJob fj = new FakeJob(id, user, null, null, "created", null, null,
+				null, null, null, null, null, null, null, null, as, ap, m);
 		checkJob(fj);
 		js.startJob(user, id, "serv", "stat", "desc", null);
-		fj = new FakeJob(id, user, "serv", "started", null, "desc", "none",
-				null, null, "stat", false, false, null, null, as, ap, m);
+		fj = new FakeJob(id, user, null, "serv", "started", null, "desc",
+				"none", null, null, "stat", false, false, null, null, as, ap,
+				m);
 		checkJob(fj);
 		js.updateJob(user, id, "serv", "stat1", null, null);
-		fj = new FakeJob(id, user, "serv", "started", null, "desc", "none",
-				null, null, "stat1", false, false, null, null, as, ap, m);
+		fj = new FakeJob(id, user, null, "serv", "started", null, "desc",
+				"none", null, null, "stat1", false, false, null, null, as, ap,
+				m);
 		checkJob(fj);
 		js.completeJob(user, id, "serv", "stat2", null, null);
-		fj = new FakeJob(id, user, "serv", "complete", null, "desc", "none",
-				null, null, "stat2", true, false, null, null, as, ap, m);
+		fj = new FakeJob(id, user, null, "serv", "complete", null, "desc",
+				"none", null, null, "stat2", true, false, null, null, as, ap,
+				m);
 		checkJob(fj);
 		
 		failCreateJob(user, new DefaultUJSAuthorizer(), as, ap, null,
@@ -626,9 +629,8 @@ public class JobStateTests {
 			String user)
 			throws Exception {
 	
-		//TODO NOW may need to add canceled by to FakeJob
 		checkJob(js.getJob(user, fj.id, auth), fj.id, fj.stage, fj.estcompl,
-				fj.user, null, fj.status, fj.service, fj.desc, fj.progtype,
+				fj.user, fj.canceledby, fj.status, fj.service, fj.desc, fj.progtype,
 				fj.prog, fj.maxprog, fj.complete, fj.error, fj.errormsg,
 				fj.results, shared, fj.authstrat, fj.authparam, fj.metadata);
 	}
@@ -1271,81 +1273,97 @@ public class JobStateTests {
 	public void listJobs() throws Exception {
 		String lj = "listjobs";
 		List<FakeJob> empty = new ArrayList<FakeJob>();
-		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true, false);
+		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true,
+				true, false);
 		String jobid = js.createJob(lj);
-		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true, false);
+		checkListJobs(empty, lj, Arrays.asList("serv1"), true, true, true,
+				true, false);
 		
 		jobid = js.createAndStartJob(lj, "serv1", "lst", "ldsc", 42, MAX_DATE);
-		FakeJob started = new FakeJob(jobid, lj, "serv1", "started",
-				MAX_DATE,"ldsc", "task", 0, 42, "lst", false, false, null, null);
-		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"), true, true, true, false);
-		checkListJobs(empty, lj, Arrays.asList("serv2"), true, true, true, false);
-		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"), false, false, false, false);
+		FakeJob started = new FakeJob(jobid, lj, null, "serv1", "started",
+				MAX_DATE,"ldsc", "task", 0, 42, "lst", false, false, null,
+				null);
+		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"),
+				true, true, true, true, false);
+		checkListJobs(empty, lj, Arrays.asList("serv2"), true, true,
+				true, true, false);
+		checkListJobs(Arrays.asList(started), lj, Arrays.asList("serv1"),
+				false, false, false, false, false);
 		
 		jobid = js.createAndStartJob(lj, "serv1", "comp-st", "comp-dsc",
 				MAX_DATE);
 		js.completeJob(lj, jobid, "serv1", "comp-st1", null, null);
-		FakeJob complete = new FakeJob(jobid, lj, "serv1", "complete",
+		FakeJob complete = new FakeJob(jobid, lj, null, "serv1", "complete",
 				MAX_DATE, "comp-dsc", "none", null, null, "comp-st1",
 				true, false, null, null);
 		
 		jobid = js.createAndStartJobWithPercentProg(lj, "serv1", "err-st",
 				"err-dsc", MAX_DATE);
 		js.completeJob(lj, jobid, "serv1", "err-st1", "some error", null);
-		FakeJob error = new FakeJob(jobid, lj, "serv1", "error",
+		FakeJob error = new FakeJob(jobid, lj, null, "serv1", "error",
 				MAX_DATE, "err-dsc", "percent", 100, 100, "err-st1", true,
 				true, "some error", null);
 		
 		//all 3
 		List<FakeJob> all = Arrays.asList(started, complete, error);
-		checkListJobs(all, lj, Arrays.asList("serv1"), true, true, true, false);
-		checkListJobs(all, lj, Arrays.asList("serv1"), false, false, false, false);
+		checkListJobs(all, lj, Arrays.asList("serv1"), true, true, true,
+				true, false);
+		checkListJobs(all, lj, Arrays.asList("serv1"), false, false, false,
+				false, false);
 		
 		//1 of 3
 		checkListJobs(Arrays.asList(started),
-				lj, Arrays.asList("serv1"), true, false, false, false);
+				lj, Arrays.asList("serv1"), true, false, false, false, false);
 		checkListJobs(Arrays.asList(complete),
-				lj, Arrays.asList("serv1"), false, true, false, false);
+				lj, Arrays.asList("serv1"), false, true, false, false, false);
 		checkListJobs(Arrays.asList(error),
-				lj, Arrays.asList("serv1"), false, false, true, false);
+				lj, Arrays.asList("serv1"), false, false, false, true, false);
 		
 		//2 of 3
 		checkListJobs(Arrays.asList(started, complete),
-				lj, Arrays.asList("serv1"), true, true, false, false);
+				lj, Arrays.asList("serv1"), true, true, false, false, false);
 		checkListJobs(Arrays.asList(complete, error),
-				lj, Arrays.asList("serv1"), false, true, true, false);
+				lj, Arrays.asList("serv1"), false, true, false, true, false);
 		checkListJobs(Arrays.asList(started, error),
-				lj, Arrays.asList("serv1"), true, false, true, false);
+				lj, Arrays.asList("serv1"), true, false, false, true, false);
 		
 		//check on jobs from multiple services
 		jobid = js.createAndStartJob(lj, "serv2", "mst", "mdsc", 42, MAX_DATE);
-		FakeJob multi = new FakeJob(jobid, lj, "serv2", "started",
-				MAX_DATE, "mdsc", "task", 0, 42, "mst", false, false, null, null);
+		FakeJob multi = new FakeJob(jobid, lj, null, "serv2", "started",
+				MAX_DATE, "mdsc", "task", 0, 42, "mst", false, false, null,
+				null);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				lj, new ArrayList<String>(), true, true, true, false);
+				lj, new ArrayList<String>(), true, true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				lj, null, true, true, true, false);
+				lj, null, true, true, true, true, false);
 		checkListJobs(Arrays.asList(started, complete, error, multi),
-				lj, Arrays.asList("serv1", "serv2"), true, true, true, false);
+				lj, Arrays.asList("serv1", "serv2"), true, true, true, true,
+				false);
 		checkListJobs(Arrays.asList(started, complete),
-				lj, Arrays.asList("serv1"), true, true, false, false);
+				lj, Arrays.asList("serv1"), true, true, false, false, false);
 		checkListJobs(Arrays.asList(multi),
-				lj, Arrays.asList("serv2"), true, true, true, false);
+				lj, Arrays.asList("serv2"), true, true, true, true, false);
 		
 		//check on shared jobs
-		jobid = js.createAndStartJob("listJobsShare", "shareserv", "sst", "sdsc", null);
-		FakeJob shared = new FakeJob(jobid, "listJobsShare", "shareserv", "started",
-				null, "sdsc", "none", null, null, "sst", false, false, null, null);
+		jobid = js.createAndStartJob("listJobsShare", "shareserv", "sst",
+				"sdsc", null);
+		FakeJob shared = new FakeJob(jobid, "listJobsShare", null, "shareserv",
+				"started", null, "sdsc", "none", null, null, "sst", false,
+				false, null, null);
 		checkListJobs(Arrays.asList(started),
-				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false,
+				false, true);
 		js.shareJob("listJobsShare", jobid, Arrays.asList(lj));
 		checkListJobs(Arrays.asList(started),
-				lj, Arrays.asList("serv1", "shareserv"), true, false, false, false);
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false,
+				false, false);
 		checkListJobs(Arrays.asList(started, shared),
-				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false,
+				false, true);
 		js.unshareJob("listJobsShare", jobid, Arrays.asList(lj));
 		checkListJobs(Arrays.asList(started),
-				lj, Arrays.asList("serv1", "shareserv"), true, false, false, true);
+				lj, Arrays.asList("serv1", "shareserv"), true, false, false,
+				false, true);
 		
 		// fail on user
 		failListJobs(null, Arrays.asList("serv"), new IllegalArgumentException(
@@ -1361,9 +1379,9 @@ public class JobStateTests {
 				"service cannot be null or the empty string"));
 		//these shouldn't except
 		js.listJobs(lj, Arrays.asList(LONG101.substring(1)),
-				false, false, false, false);
+				false, false, false, false, false);
 		js.listJobs(lj, Arrays.asList(LONG101.substring(1)),
-				false, false, false, false, new DefaultUJSAuthorizer(),
+				false, false, false, false, false, new DefaultUJSAuthorizer(),
 				UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM));
 		failListJobs(lj, Arrays.asList(LONG101), new IllegalArgumentException(
@@ -1400,7 +1418,7 @@ public class JobStateTests {
 	private void failListJobs(String user, List<String> services,
 			Exception exp) {
 		try {
-			js.listJobs(user, services, false, false, false, false);
+			js.listJobs(user, services, false, false, false, false, false);
 			fail("listed jobs w/ bad args");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
@@ -1414,8 +1432,8 @@ public class JobStateTests {
 			UJSAuthorizer auth, AuthorizationStrategy strat,
 			List<String> params, Exception exp) {
 		try {
-			js.listJobs(user, services, false, false, false, false, auth,
-					strat, params);
+			js.listJobs(user, services, false, false, false, false, false,
+					auth, strat, params);
 			fail("listed jobs w/ bad args");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
@@ -1423,24 +1441,39 @@ public class JobStateTests {
 		
 	}
 
-	private void checkListJobs(List<FakeJob> expected, String user,
-			List<String> services, boolean running, boolean complete,
-			boolean error, boolean shared) throws Exception {
+	private void checkListJobs(
+			final List<FakeJob> expected,
+			final String user,
+			final List<String> services,
+			final boolean running,
+			final boolean complete,
+			final boolean canceled,
+			final boolean error,
+			final boolean shared)
+			throws Exception {
 		checkListJobs(expected, js.listJobs(user, services, running, complete,
-				error, shared));
+				canceled, error, shared));
 		checkListJobs(expected, js.listJobs(user, services, running, complete,
-				error, shared, new DefaultUJSAuthorizer(),
+				canceled, error, shared, new DefaultUJSAuthorizer(),
 				UJSAuthorizer.DEFAULT_AUTH_STRAT,
 				Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM)));
 	}
 	
-	private void checkListJobs(List<FakeJob> expected, String user,
-			List<String> services, boolean running, boolean complete,
-			boolean error, boolean shared, UJSAuthorizer auth,
-			AuthorizationStrategy strat, List<String> params)
-					throws Exception {
+	private void checkListJobs(
+			final List<FakeJob> expected,
+			final String user,
+			final List<String> services,
+			final boolean running,
+			final boolean complete,
+			final boolean canceled,
+			final boolean error,
+			final boolean shared,
+			final UJSAuthorizer auth,
+			final AuthorizationStrategy strat,
+			final List<String> params)
+			throws Exception {
 		checkListJobs(expected, js.listJobs(user, services, running, complete,
-				error, shared, auth, strat, params));
+				canceled, error, shared, auth, strat, params));
 	}
 
 	private void checkListJobs(List<FakeJob> expected, List<Job> result)
@@ -1449,7 +1482,8 @@ public class JobStateTests {
 		for (Job j: result) {
 			res.add(new FakeJob(j));
 		}
-		assertThat("got expected jobs back", res, is(new HashSet<FakeJob>(expected)));
+		assertThat("got expected jobs back", res,
+				is(new HashSet<FakeJob>(expected)));
 	}
 	
 	@Test

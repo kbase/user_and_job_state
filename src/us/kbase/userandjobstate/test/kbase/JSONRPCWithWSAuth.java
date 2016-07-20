@@ -274,14 +274,14 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		// check that this doesn't show up in ws lists
 		UJSC1.createAndStartJob(TOKEN2, "defstat", "defdesc", noprog, null);
 		
-		FakeJob fj1 = new FakeJob(id1, null, user2, "started", null, "desc1",
-				"none", null, null, "stat1", false, false, null, null,
+		FakeJob fj1 = new FakeJob(id1, null, null, user2, "started", null,
+				"desc1", "none", null, null, "stat1", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "1", MTMAP);
-		FakeJob fj2 = new FakeJob(id2, null, user2, "started", null, "desc2",
-				"none", null, null, "stat2", false, false, null, null,
+		FakeJob fj2 = new FakeJob(id2, null, null, user2, "started", null,
+				"desc2", "none", null, null, "stat2", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "2", MTMAP);
-		FakeJob fj3 = new FakeJob(id3, null, user2, "started", null, "desc3",
-				"none", null, null, "stat3", false, false, null, null,
+		FakeJob fj3 = new FakeJob(id3, null, null, user2, "started", null,
+				"desc3", "none", null, null, "stat3", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "3", MTMAP);
 		Set<FakeJob> fjs123 = new HashSet<FakeJob>(
 				Arrays.asList(fj1, fj2, fj3));

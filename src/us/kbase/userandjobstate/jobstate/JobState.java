@@ -584,12 +584,18 @@ public class JobState {
 		return services;
 	}
 	
-	public List<Job> listJobs(final String user, final List<String> services,
-			final boolean running, final boolean complete, final boolean error,
+	public List<Job> listJobs(
+			final String user,
+			final List<String> services,
+			final boolean running,
+			final boolean complete,
+			final boolean canceled,
+			final boolean error,
 			final boolean shared)
 			throws CommunicationException {
 		try {
-			return listJobs(user, services, running, complete, error, shared,
+			return listJobs(user, services, running, complete, canceled, error,
+					shared,
 					new DefaultUJSAuthorizer(),
 					UJSAuthorizer.DEFAULT_AUTH_STRAT,
 					Arrays.asList(UJSAuthorizer.DEFAULT_AUTH_PARAM));
@@ -604,6 +610,7 @@ public class JobState {
 			final List<String> services,
 			final boolean running,
 			final boolean complete,
+			final boolean canceled,
 			final boolean error,
 			final boolean shared,
 			final UJSAuthorizer auth,
@@ -624,7 +631,6 @@ public class JobState {
 		 * makes the API pretty nasty. The all or nothing method currently in
 		 * play seems much less confusing.
 		 */
-		// TODO NOW handle canceled jobs
 		checkString(user, "user");
 		auth.authorizeRead(strat, user, authParams);
 		String query;
@@ -649,22 +655,7 @@ public class JobState {
 		} else {
 			query += String.format(", %s: {$ne: null}", SERVICE);
 		}
-		//this seems dumb.
-		if (running && !complete && !error) {
-			query += ", " + COMPLETE + ": false}";
-		} else if (!running && complete && !error) {
-			query += ", " + COMPLETE + ": true, " + ERROR + ": false}";
-		} else if (!running && !complete && error) {
-			query += ", " + ERROR + ": true}";
-		} else if (running && complete && !error) {
-			query += ", " + ERROR + ": false}";
-		} else if (!running && complete && error) {
-			query += ", " + COMPLETE + ": true}";
-		} else if (running && !complete && error) {
-			query += ", $or: [{" + COMPLETE + ": false}, {" + ERROR + ": true}]}";
-		} else {
-			query += "}";
-		}
+		query = completeQuery(query, running, complete, canceled, error);
 		final List<Job> jobs = new LinkedList<Job>();
 		try {
 			final Iterable<Job> j  = jobjong.find(query).as(Job.class);
@@ -676,6 +667,31 @@ public class JobState {
 					"There was a problem communicating with the database", me);
 		}
 		return jobs;
+	}
+
+	private String completeQuery(
+			String queryPrefix,
+			final boolean running,
+			final boolean complete, //TODO NOW
+			final boolean canceled,
+			final boolean error) {
+		//this seems dumb.
+		if (running && !complete && !error) {
+			queryPrefix += ", " + COMPLETE + ": false}";
+		} else if (!running && complete && !error) {
+			queryPrefix += ", " + COMPLETE + ": true, " + ERROR + ": false}";
+		} else if (!running && !complete && error) {
+			queryPrefix += ", " + ERROR + ": true}";
+		} else if (running && complete && !error) {
+			queryPrefix += ", " + ERROR + ": false}";
+		} else if (!running && complete && error) {
+			queryPrefix += ", " + COMPLETE + ": true}";
+		} else if (running && !complete && error) {
+			queryPrefix += ", $or: [{" + COMPLETE + ": false}, {" + ERROR + ": true}]}";
+		} else {
+			queryPrefix += "}";
+		}
+		return queryPrefix;
 	}
 	
 	private final static String QRY_FIND_JOB_BY_OWNER = String.format(

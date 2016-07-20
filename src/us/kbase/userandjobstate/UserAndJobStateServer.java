@@ -469,7 +469,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	private boolean[] parseFilter(final String filter) {
-		final boolean[] ret = new boolean[4];
+		final boolean[] ret = new boolean[5];
 		if (filter != null) {
 			if (filter.indexOf("R") > -1) {
 				ret[0] = true;
@@ -477,11 +477,14 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			if (filter.indexOf("C") > -1) {
 				ret[1] = true;
 			}
-			if (filter.indexOf("E") > -1) {
+			if (filter.indexOf("N") > -1) {
 				ret[2] = true;
 			}
-			if (filter.indexOf("S") > -1) {
+			if (filter.indexOf("E") > -1) {
 				ret[3] = true;
+			}
+			if (filter.indexOf("S") > -1) {
+				ret[4] = true;
 			}
 		}
 		return ret;
@@ -1251,10 +1254,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		if (as == null || as.isEmpty() ||
 				as.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat())) {
 			jobs = js.listJobs(authPart.getUserName(), services,
-				rces[0], rces[1], rces[2], rces[3]);
+				rces[0], rces[1], rces[2], rces[3], rces[4]);
 		} else {
 			jobs = js.listJobs(authPart.getUserName(), services,
-					rces[0], rces[1], rces[2], rces[3],
+					rces[0], rces[1], rces[2], rces[3], rces[4],
 					getAuthorizer(authPart),
 					new AuthorizationStrategy(params.getAuthstrat()),
 					params.getAuthparams());
@@ -1290,7 +1293,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				String, String, Long, Long, String, String, Long,
 				Long, String, Results>>();
 		for (final Job j: js.listJobs(authPart.getUserName(), services,
-				rces[0], rces[1], rces[2], rces[3])) {
+				rces[0], rces[1], rces[2], rces[3], rces[4])) {
 			returnVal.add(jobToJobInfo(j));
 		}
         //END list_jobs
