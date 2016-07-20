@@ -560,10 +560,57 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				"Service token is invalid");
 	}
 	
+	@Test
+	public void cancelJob() throws Exception {
+		// there's really not much to test here, it's one frigging line in the
+		// server code and the rest is tested at the lib level
+		// can't test alternate auth here because can't create a job with
+		// alternate auth (as expected)
+		String jobid = CLIENT1.createJob2(new CreateJobParams());
+		CLIENT1.startJob(jobid, TOKEN2, "can1", "cand1",
+				new InitProgress().withPtype("none"), null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "can1", USER2,
+				"cand1", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		
+		//check another user can't cancel
+		CLIENT1.shareJob(jobid, Arrays.asList(USER2));
+		failCancelJob(CLIENT2, jobid, "foo", String.format(
+				"There is no job %s that may be canceled by user %s",
+				jobid, USER2));
+		//check same as before
+		checkJob(CLIENT1, jobid, USER1, null, "started", "can1", USER2,
+				"cand1", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		
+		// happy path
+		CLIENT1.cancelJob(jobid, "cancel1");
+		checkJob(CLIENT1, jobid, USER1, USER1, "canceled", "cancel1", USER2,
+				"cand1", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		
+		//can't cancel an already canceled job
+		failCancelJob(CLIENT1, jobid, "stat", String.format(
+				"There is no job %s that may be canceled by user %s",
+				jobid, USER1));
+	}
+	
+	private void failCancelJob(UserAndJobStateClient cli, String jobid, String status, String exception)
+			throws Exception {
+		try {
+			cli.cancelJob(jobid, status);
+			fail("canceled with bad args");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getMessage(), is(exception));
+		}
+		
+	}
+
 	private void updateJobBadArgs(String jobid, String token, String status,
 			Long prog, String estCompl, String exception) throws Exception {
 		try {
 			CLIENT1.updateJobProgress(jobid, token, status, prog, estCompl);
+			fail("updated with bad args");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
@@ -574,12 +621,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			String estCompl, String exception) throws Exception {
 		try {
 			CLIENT1.updateJob(jobid, token, status, estCompl);
+			fail("updated with bad args");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
 		}
 		try {
 			CLIENT1.updateJobProgress(jobid, token, status, 1L, estCompl);
+			fail("updated with bad args");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
