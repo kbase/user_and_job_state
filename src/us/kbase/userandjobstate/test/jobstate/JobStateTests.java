@@ -1174,6 +1174,11 @@ public class JobStateTests {
 		succeedAtDeletingJob("delete", jobid, "serv1");
 		failToDeleteJob("delete", jobid, "serv1");
 		
+		jobid = js.createAndStartJob("delete", "serv1", "st", "dsc", null);
+		js.cancelJob("delete", jobid, "cancel");
+		succeedAtDeletingJob("delete", jobid);
+		failToDeleteJob("delete", jobid, "serv1");
+		
 	}
 	
 	private void succeedAtDeletingJob(String user, String jobid, String service)

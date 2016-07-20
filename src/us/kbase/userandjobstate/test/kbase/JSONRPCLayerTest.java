@@ -901,6 +901,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RS", empty);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "CS", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", empty);
@@ -930,10 +932,13 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RS", setsharedonly);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "CS", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", empty);
 		checkListJobs(CLIENT2, USER1, "RCS", setsharedonly);
+		checkListJobs(CLIENT2, USER1, "RCNS", setsharedonly);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
 		checkListJobs(CLIENT2, USER1, "CES", empty);
 		checkListJobs(CLIENT2, USER1, "RE", empty);
@@ -949,9 +954,11 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "R", empty);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
 		checkListJobs(CLIENT2, USER1, "RC", empty);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
 		checkListJobs(CLIENT2, USER1, "RE", empty);
+		checkListJobs(CLIENT2, USER1, "RCN", empty);
 		checkListJobs(CLIENT2, USER1, "RCE", empty);
 		checkListJobs(CLIENT2, USER1, "RXCE", empty);
 		
@@ -969,12 +976,18 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RS", setstartshare);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "CS", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", setstarted);
 		checkListJobs(CLIENT2, USER1, "RCS", setstartshare);
+		checkListJobs(CLIENT2, USER1, "RN", setstarted);
+		checkListJobs(CLIENT2, USER1, "RNS", setstartshare);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
 		checkListJobs(CLIENT2, USER1, "CES", empty);
+		checkListJobs(CLIENT2, USER1, "CN", empty);
+		checkListJobs(CLIENT2, USER1, "CNS", empty);
 		checkListJobs(CLIENT2, USER1, "RE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RES", setstartshare);
 		checkListJobs(CLIENT2, USER1, "RCE", setstarted);
@@ -993,9 +1006,12 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "", setstarted);
 		checkListJobs(CLIENT2, USER1, "R", setstarted);
 		checkListJobs(CLIENT2, USER1, "C", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "RC", setstarted);
+		checkListJobs(CLIENT2, USER1, "RN", setstarted);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
+		checkListJobs(CLIENT2, USER1, "CEN", empty);
 		checkListJobs(CLIENT2, USER1, "RE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RCE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RCwE", setstarted);
@@ -1024,16 +1040,56 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "CS", setcomplete);
 		checkListJobs(CLIENT2, USER1, "C0", setcomplete);
 		checkListJobs(CLIENT2, USER1, "C0S", setcomplete);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", setstartcomp);
 		checkListJobs(CLIENT2, USER1, "RCS", setstartcompshare);
+		checkListJobs(CLIENT2, USER1, "RN", setstarted);
+		checkListJobs(CLIENT2, USER1, "RNS", setstartshare);
+		checkListJobs(CLIENT2, USER1, "RCN", setstartcomp);
+		checkListJobs(CLIENT2, USER1, "RCNS", setstartcompshare);
 		checkListJobs(CLIENT2, USER1, "CE", setcomplete);
 		checkListJobs(CLIENT2, USER1, "CES", setcomplete);
+		checkListJobs(CLIENT2, USER1, "NE", empty);
+		checkListJobs(CLIENT2, USER1, "NES", empty);
 		checkListJobs(CLIENT2, USER1, "RE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RES", setstartshare);
 		checkListJobs(CLIENT2, USER1, "RCE", setstartcomp);
 		checkListJobs(CLIENT2, USER1, "RCES", setstartcompshare);
+		
+		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj-can stat", "lj-can desc",
+				noprog, null);
+		CLIENT2.cancelJob(jobid, "lj-canceled");
+		FakeJob canceled = new FakeJob(jobid, USER2, USER2, USER1, "canceled",
+				null, "lj-can desc", "none", null, null, "lj-canceled", true,
+				false, null, null);
+		
+		// these tests are frigging crazy, not going to do everything in the
+		// other batches here.
+		Set<FakeJob> setcanceled = new HashSet<FakeJob>(
+				Arrays.asList(canceled));
+		HashSet<FakeJob> setstartcancel = new HashSet<FakeJob>(setstarted);
+		setstartcancel.add(canceled);
+		HashSet<FakeJob> setstartcompcancel = new HashSet<FakeJob>(
+				setstartcomp);
+		setstartcompcancel.add(canceled);
+		
+		checkListJobs(CLIENT2, USER1, null, setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "", setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "R", setstarted);
+		checkListJobs(CLIENT2, USER1, "C", setcomplete);
+		checkListJobs(CLIENT2, USER1, "N", setcanceled);
+		checkListJobs(CLIENT2, USER1, "E", empty);
+		checkListJobs(CLIENT2, USER1, "RC", setstartcomp);
+		checkListJobs(CLIENT2, USER1, "RCN", setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "CE", setcomplete);
+		checkListJobs(CLIENT2, USER1, "C#E", setcomplete);
+		checkListJobs(CLIENT2, USER1, "RE", setstarted);
+		checkListJobs(CLIENT2, USER1, "REN", setstartcancel);
+		checkListJobs(CLIENT2, USER1, "RCE", setstartcomp);
+		checkListJobs(CLIENT2, USER1, "RCEN", setstartcompcancel);
 		
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj3 stat", "lj3 desc",
 				new InitProgress().withPtype("task").withMax(55L), null);
@@ -1043,8 +1099,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				null);
 		setstarted.add(started2);
 		setstartcomp.add(started2);
-		checkListJobs(CLIENT2, USER1, null, setstartcomp);
-		checkListJobs(CLIENT2, USER1, "", setstartcomp);
+		setstartcompcancel.add(started2);
+		checkListJobs(CLIENT2, USER1, null, setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "", setstartcompcancel);
 		checkListJobs(CLIENT2, USER1, "R", setstarted);
 		checkListJobs(CLIENT2, USER1, "C", setcomplete);
 		checkListJobs(CLIENT2, USER1, "E", empty);
@@ -1066,7 +1123,10 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				res2);
 		Set<FakeJob> seterr = new HashSet<FakeJob>(Arrays.asList(error));
 		Set<FakeJob> all = new HashSet<FakeJob>(
+				Arrays.asList(started, complete, error, canceled));
+		Set<FakeJob> setstartcmperr = new HashSet<FakeJob>(
 				Arrays.asList(started, complete, error));
+		
 		checkListJobs(CLIENT2, USER1, null, all);
 		checkListJobs(CLIENT2, USER1, "", all);
 		checkListJobs(CLIENT2, USER1, "x", all);
@@ -1078,10 +1138,12 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				Arrays.asList(complete, error)));
 		checkListJobs(CLIENT2, USER1, "RE", new HashSet<FakeJob>(
 				Arrays.asList(started, error)));
-		checkListJobs(CLIENT2, USER1, "RCE", all);
+		checkListJobs(CLIENT2, USER1, "RCE", setstartcmperr);
 		
+		CLIENT2.deleteJob(canceled.getID());
 		CLIENT2.forceDeleteJob(TOKEN1, started.getID());
 		all.remove(started);
+		all.remove(canceled);
 		checkListJobs(CLIENT2, USER1, null, all);
 		checkListJobs(CLIENT2, USER1, "", all);
 		checkListJobs(CLIENT2, USER1, "goodness this is odd input", all);
