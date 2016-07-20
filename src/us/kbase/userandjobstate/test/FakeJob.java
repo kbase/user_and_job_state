@@ -14,7 +14,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 
-import us.kbase.common.service.Tuple12;
+import us.kbase.common.service.Tuple13;
 import us.kbase.common.service.Tuple14;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.Tuple3;
@@ -37,6 +37,8 @@ public class FakeJob {
 	public final Integer prog;
 	public final Integer maxprog;
 	public final String status;
+	public final String canceledby;
+	public final boolean isCanceled;
 	public final Boolean complete;
 	public final Boolean error;
 	public final String errormsg;
@@ -58,6 +60,8 @@ public class FakeJob {
 		status = j.getStatus();
 		assertThat("updated is date", j.getLastUpdated(), is(Date.class));
 		complete = j.isComplete();
+		canceledby = j.getCanceledBy();
+		isCanceled = j.isCanceled();
 		error = j.hasError();
 		errormsg = j.getErrorMsg();
 		results = j.getResults();
@@ -67,16 +71,28 @@ public class FakeJob {
 	}
 	
 	public FakeJob asV1DB() {
-		return new FakeJob(id, user, service, stage, estcompl, desc, progtype,
-				prog, maxprog, status, complete, error, errormsg, results);
+		return new FakeJob(id, null, null, service, stage, estcompl,
+				desc, progtype, prog, maxprog, status, complete, error,
+				errormsg, results);
 				
 	}
 	
-	public FakeJob(final String id, final String user, final String service,
-			final String stage, final Date estComplete, final String desc,
-			final String progtype, final Integer prog, final Integer maxprog,
-			final String status, final Boolean complete, final Boolean error,
-			final String errormsg, final JobResults results) {
+	public FakeJob(
+			final String id,
+			final String user,
+			final String canceledby,
+			final String service,
+			final String stage,
+			final Date estComplete,
+			final String desc,
+			final String progtype,
+			final Integer prog,
+			final Integer maxprog,
+			final String status,
+			final Boolean complete,
+			final Boolean error,
+			final String errormsg,
+			final JobResults results) {
 		this.id = id;
 		this.user = user;
 		this.service = service;
@@ -88,6 +104,8 @@ public class FakeJob {
 		this.maxprog = maxprog;
 		this.status = status;
 		this.complete = complete;
+		this.canceledby = canceledby;
+		this.isCanceled = canceledby != null;
 		this.error = error;
 		this.errormsg = errormsg;
 		this.results = results;
@@ -96,12 +114,24 @@ public class FakeJob {
 		metadata = new HashMap<String, String>();
 	}
 	
-	public FakeJob(final String id, final String user, final String service,
-			final String stage, final Date estComplete, final String desc,
-			final String progtype, final Integer prog, final Integer maxprog,
-			final String status, final Boolean complete, final Boolean error,
-			final String errormsg, final JobResults results,
-			final AuthorizationStrategy authstrat, final String authparam,
+	public FakeJob(
+			final String id,
+			final String user,
+			final String canceledby,
+			final String service,
+			final String stage,
+			final Date estComplete,
+			final String desc,
+			final String progtype,
+			final Integer prog,
+			final Integer maxprog,
+			final String status,
+			final Boolean complete,
+			final Boolean error,
+			final String errormsg,
+			final JobResults results,
+			final AuthorizationStrategy authstrat,
+			final String authparam,
 			final Map<String, String> metadata) {
 		this.id = id;
 		this.user = user;
@@ -114,6 +144,8 @@ public class FakeJob {
 		this.maxprog = maxprog;
 		this.status = status;
 		this.complete = complete;
+		this.canceledby = canceledby;
+		this.isCanceled = canceledby != null;
 		this.error = error;
 		this.errormsg = errormsg;
 		this.results = results;
@@ -144,6 +176,8 @@ public class FakeJob {
 		this.estcompl = ji.getE10() == null ? null :
 			DATE_PARSER.parseDateTime(ji.getE4()).toDate();
 		this.complete = ji.getE11() != 0;
+		this.canceledby = null;
+		this.isCanceled = false;
 		this.error = ji.getE12() != 0;
 		this.desc = ji.getE13();
 		this.errormsg = null;
@@ -173,28 +207,30 @@ public class FakeJob {
 		}
 	}
 	
-	public FakeJob(Tuple12<String, String, String, String,
-				Tuple3<String, String, String>, Tuple3<Long, Long, String>,
-				Long, Long, Tuple2<String, String>, Map<String, String>,
-				String, Results> j) {
-		this.user = null;
+	public FakeJob(Tuple13<String, Tuple2<String, String>, String, String,
+				String, Tuple3<String, String, String>,
+				Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>,
+				Map<String, String>, String, Results> j) {
 		this.id = j.getE1();
-		this.service = j.getE2();
-		this.stage = j.getE3();
-		this.status = j.getE4();
-		this.estcompl = j.getE5().getE3() == null ? null :
-			DATE_PARSER.parseDateTime(j.getE5().getE3()).toDate();
-		this.prog = longToInt(j.getE6().getE1());
-		this.maxprog = longToInt(j.getE6().getE2());
-		this.progtype = j.getE6().getE3();
-		this.complete = j.getE7() != 0;
-		this.error = j.getE8() != 0;
-		authstrat = new AuthorizationStrategy(j.getE9().getE1());
-		authparam = j.getE9().getE2();
-		metadata = j.getE10();
-		this.desc = j.getE11();
+		this.user = j.getE2().getE1();
+		this.canceledby = j.getE2().getE2();
+		this.isCanceled = canceledby != null;
+		this.service = j.getE3();
+		this.stage = j.getE4();
+		this.status = j.getE5();
+		this.estcompl = j.getE6().getE3() == null ? null :
+			DATE_PARSER.parseDateTime(j.getE6().getE3()).toDate();
+		this.prog = longToInt(j.getE7().getE1());
+		this.maxprog = longToInt(j.getE7().getE2());
+		this.progtype = j.getE7().getE3();
+		this.complete = j.getE8() != 0;
+		this.error = j.getE9() != 0;
+		this.authstrat = new AuthorizationStrategy(j.getE10().getE1());
+		this.authparam = j.getE10().getE2();
+		this.metadata = j.getE11();
+		this.desc = j.getE12();
 		this.errormsg = null;
-		this.results = makeResults(j.getE12());
+		this.results = makeResults(j.getE13());
 	}
 
 	//no checking, assumes the cast is ok
@@ -232,6 +268,10 @@ public class FakeJob {
 		builder.append(maxprog);
 		builder.append(", status=");
 		builder.append(status);
+		builder.append(", canceledby=");
+		builder.append(canceledby);
+		builder.append(", isCanceled=");
+		builder.append(isCanceled);
 		builder.append(", complete=");
 		builder.append(complete);
 		builder.append(", error=");
@@ -254,25 +294,20 @@ public class FakeJob {
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result
-				+ ((authparam == null) ? 0 : authparam.hashCode());
-		result = prime * result
-				+ ((authstrat == null) ? 0 : authstrat.hashCode());
-		result = prime * result
-				+ ((complete == null) ? 0 : complete.hashCode());
+		result = prime * result + ((authparam == null) ? 0 : authparam.hashCode());
+		result = prime * result + ((authstrat == null) ? 0 : authstrat.hashCode());
+		result = prime * result + ((canceledby == null) ? 0 : canceledby.hashCode());
+		result = prime * result + ((complete == null) ? 0 : complete.hashCode());
 		result = prime * result + ((desc == null) ? 0 : desc.hashCode());
 		result = prime * result + ((error == null) ? 0 : error.hashCode());
-		result = prime * result
-				+ ((errormsg == null) ? 0 : errormsg.hashCode());
-		result = prime * result
-				+ ((estcompl == null) ? 0 : estcompl.hashCode());
+		result = prime * result + ((errormsg == null) ? 0 : errormsg.hashCode());
+		result = prime * result + ((estcompl == null) ? 0 : estcompl.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		result = prime * result + (isCanceled ? 1231 : 1237);
 		result = prime * result + ((maxprog == null) ? 0 : maxprog.hashCode());
-		result = prime * result
-				+ ((metadata == null) ? 0 : metadata.hashCode());
+		result = prime * result + ((metadata == null) ? 0 : metadata.hashCode());
 		result = prime * result + ((prog == null) ? 0 : prog.hashCode());
-		result = prime * result
-				+ ((progtype == null) ? 0 : progtype.hashCode());
+		result = prime * result + ((progtype == null) ? 0 : progtype.hashCode());
 		result = prime * result + ((results == null) ? 0 : results.hashCode());
 		result = prime * result + ((service == null) ? 0 : service.hashCode());
 		result = prime * result + ((stage == null) ? 0 : stage.hashCode());
@@ -305,6 +340,13 @@ public class FakeJob {
 				return false;
 			}
 		} else if (!authstrat.equals(other.authstrat)) {
+			return false;
+		}
+		if (canceledby == null) {
+			if (other.canceledby != null) {
+				return false;
+			}
+		} else if (!canceledby.equals(other.canceledby)) {
 			return false;
 		}
 		if (complete == null) {
@@ -347,6 +389,9 @@ public class FakeJob {
 				return false;
 			}
 		} else if (!id.equals(other.id)) {
+			return false;
+		}
+		if (isCanceled != other.isCanceled) {
 			return false;
 		}
 		if (maxprog == null) {

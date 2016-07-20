@@ -216,6 +216,25 @@ public class WorkspaceAuthorizationFactory {
 			}
 		}
 		
+		@Override
+		protected void externallyAuthorizeCancel(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			checkWSUser(user);
+			checkStrat(j.getAuthorizationStrategy());
+			if (user.equals(j.getUser())) {
+				return; // owner can always cancel job
+			}
+			final String p = getPerms(j.getAuthorizationParameter())
+					.get(0).get(username);
+			if (!CAN_WRITE.contains(p)) {
+				throw new UJSAuthorizationException(String.format(
+						"User %s cannot write to workspace %s",
+						username, j.getAuthorizationParameter()));
+			}
+		}
+		
 	}
 
 }

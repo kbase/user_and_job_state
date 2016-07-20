@@ -148,6 +148,13 @@ public class WorkspaceAuthTest {
 				String authParam) throws UJSAuthorizationException {
 			//I'll allow it
 		}
+
+		@Override
+		protected void externallyAuthorizeCancel(String user, Job j)
+				throws UJSAuthorizationException {
+			throw new UnimplementedException();
+			
+		}
 	};
 	
 	@Test
@@ -232,7 +239,7 @@ public class WorkspaceAuthTest {
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		
 		//test that deleting a workspace keeps the job visible to the owner
@@ -270,6 +277,67 @@ public class WorkspaceAuthTest {
 		
 	}
 	
+	@Test
+	public void testCancel() throws Exception {
+		WorkspaceAuthorizationFactory wafac =
+				new WorkspaceAuthorizationFactory(
+						new URL("http://localhost:" + WS.getServerPort()));
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
+		String user1 = U1.getUserId();
+		String user2 = U2.getUserId();
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+				.withWorkspace("foo"));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
+		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
+		
+		//test that deleting a workspace keeps the job visible to the owner
+		String id = JS.createJob(user1, wa1, strat, "1", mt);
+		Job j = JS.getJob(user1, id, wa1);
+		wa2.authorizeCancel(user2, j);
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		failCancel(wa2, user2, j, new UJSAuthorizationException(
+				"Error contacting the workspace service to get permissions: " +
+				"Workspace 1 is deleted"));
+		wa1.authorizeCancel(user1, j);
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		wa2.authorizeCancel(user2, j);
+		
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
+		failCancel(wa2, user2, j, new UJSAuthorizationException(
+				String.format("User %s cannot write to workspace 1", user2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
+		failCancel(wa2, user2, j, new UJSAuthorizationException(
+				String.format("User %s cannot write to workspace 1", user2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
+		wa2.authorizeRead(user2, j);
+		
+		failCancel(wa2, user1, j, new IllegalStateException(
+				"A programming error occured: the token username and the " +
+				"supplied username do not match"));
+		
+		// test bad auth strat
+		String id2 = JS.createJob(user1, LENIENT,
+				new AuthorizationStrategy("foo"), "foo", mt);
+		Job j2 = JS.getJob(user1, id2, LENIENT);
+		failCancel(wa1, user1, j2, new UJSAuthorizationException(
+				"Invalid authorization strategy: foo"));
+	}
+	
+	private void failCancel(
+			final UJSAuthorizer auth,
+			final String user,
+			final Job j,
+			final Exception exp) {
+		try {
+			auth.authorizeCancel(user, j);
+			fail("authorized bad cancel");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+	}
+
 	private void failSingleRead(UJSAuthorizer auth, String user, Job j,
 			Exception exp) {
 		try {

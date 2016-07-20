@@ -33,6 +33,10 @@ NEW FEATURES:
   get_job_info, and list_jobs are now deprecated.
 - User specified metadata can now be associated with a job via the create_job2
   method.
+- These is now a minimal documentation server at the /docs endpoint.
+- Jobs can now be canceled, which puts them in a canceled state. Canceled jobs
+  may not be altered further. The user that canceled the job is returned by
+  get_job_info2.
 
 UPDATED FEATURES / MAJOR BUG FIXES:
 

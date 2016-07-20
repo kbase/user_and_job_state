@@ -1,15 +1,20 @@
 package us.kbase.userandjobstate.test.authorization;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
+import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.bson.types.ObjectId;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -26,11 +31,8 @@ import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
-import us.kbase.userandjobstate.exceptions.CommunicationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
-import us.kbase.userandjobstate.jobstate.exceptions.NoSuchJobException;
-import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class AuthorizationTest {
 
@@ -114,6 +116,17 @@ public class AuthorizationTest {
 				throw new UJSAuthorizationException("param fail");
 			}
 		}
+
+		@Override
+		protected void externallyAuthorizeCancel(String user, Job j)
+				throws UJSAuthorizationException {
+			if (j.getAuthorizationStrategy().getStrat().equals("fail")) {
+				throw new UJSAuthorizationException("strat fail");
+			}
+			if (j.getAuthorizationParameter().equals("fail")) {
+				throw new UJSAuthorizationException("param fail");
+			}
+		}
 	}
 
 	@Test
@@ -164,7 +177,6 @@ public class AuthorizationTest {
 	public void testSingleRead() throws Exception {
 		String user1 = "foo";
 		String user2 = "bar";
-		WorkspaceUserMetadata wum = new WorkspaceUserMetadata();
 		Job j = js.getJob(user1, js.createJob(user1));
 		
 		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
@@ -187,37 +199,97 @@ public class AuthorizationTest {
 				"user cannot be null or empty"));
 		
 		LenientAuth la = new LenientAuth();
-		Job j2 = js.getJob(user1, js.createJob(user1, la,
-				new AuthorizationStrategy("foo"), "bar", wum), la);
+		Job j2 = createJob(user1, new AuthorizationStrategy("foo"), "bar");
 		//should work:
 		la.authorizeRead(user1, j2);
 		failSingleRead(dua, user1, j2, new UnimplementedException());
 		
-		final String id = js.createJob(user1, la,
-				new AuthorizationStrategy("fail"), "bar", wum);
-		failGetJob(id, user1, la);
+		Job j3 = createJob(user1, new AuthorizationStrategy("fail"), "bar");
+		failSingleRead(la, user1, j3,
+				new UJSAuthorizationException("strat fail"));
 		
-		final String id2 = js.createJob(user1, la,
-				new AuthorizationStrategy("whoo"), "fail", wum);
-		failGetJob(id2, user1, la);
-	}
-
-	/* the only way to test the single read authorizer is by failing to
-	 * get jobs, since the job constructor is private. Need to think about
-	 * a better way to test this.
-	 */
-	private void failGetJob(String id, String user, UJSAuthorizer auth)
-			throws CommunicationException {
-		try {
-			js.getJob(user, id, auth);
-			fail("got job with bad auth");
-		} catch (NoSuchJobException e) {
-			assertThat("incorrect exception message", e.getLocalizedMessage(),
-					is(String.format("There is no job %s viewable by user %s",
-							id, user)));
-		}
+		Job j4 = createJob(user1, new AuthorizationStrategy("whoo"), "fail");
+		failSingleRead(la, user1, j4,
+				new UJSAuthorizationException("param fail"));
 	}
 	
+	@Test
+	public void testCancel() throws Exception {
+		String user1 = "foo";
+		String user2 = "bar";
+		Job j = js.getJob(user1, js.createJob(user1));
+		
+		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
+		//should work
+		dua.authorizeCancel(user1, j);
+		
+		failCancel(user2, j, new UJSAuthorizationException(String.format(
+				"User %s may not cancel job %s", user2, j.getID())));
+		
+		// sharing jobs should not effect cancellation
+		js.shareJob(user1, j.getID(), Arrays.asList(user2));
+		j = js.getJob(user1, j.getID());
+		failCancel(user2, j, new UJSAuthorizationException(String.format(
+				"User %s may not cancel job %s", user2, j.getID())));
+		
+		failCancel(user2, null,
+				new NullPointerException("job cannot be null"));
+		
+		failCancel(null, j, new IllegalArgumentException(
+				"user cannot be null or empty"));
+		failCancel("", j, new IllegalArgumentException(
+				"user cannot be null or empty"));
+		
+		LenientAuth la = new LenientAuth();
+		Job j2 = createJob(user1, new AuthorizationStrategy("foo"), "bar");
+		//should work:
+		la.authorizeCancel(user1, j2);
+		failCancel(dua, user1, j2, new UnimplementedException());
+		
+		Job j3 = createJob(user1, new AuthorizationStrategy("fail"), "bar");
+		failCancel(la, user1, j3, new UJSAuthorizationException("strat fail"));
+		
+		Job j4 = createJob(user1, new AuthorizationStrategy("whoo"), "fail");
+		failCancel(la, user1, j4, new UJSAuthorizationException("param fail"));
+	}
+	
+	private Job createJob(
+			final String user,
+			final AuthorizationStrategy strat,
+			final String authParam)
+			throws Exception {
+		Constructor<Job> jc = Job.class.getDeclaredConstructor();
+		jc.setAccessible(true);
+		Job j = jc.newInstance();
+		
+		Field id = j.getClass().getDeclaredField("_id");
+		id.setAccessible(true);
+		id.set(j, new ObjectId());
+		
+		Field u = j.getClass().getDeclaredField("user");
+		u.setAccessible(true);
+		u.set(j, user);
+		
+		Field s = j.getClass().getDeclaredField("authstrat");
+		s.setAccessible(true);
+		s.set(j, strat.getStrat());
+		
+		Field p = j.getClass().getDeclaredField("authparam");
+		p.setAccessible(true);
+		p.set(j, authParam);
+		
+		final Date d = new Date();
+		Field up = j.getClass().getDeclaredField("updated");
+		up.setAccessible(true);
+		up.set(j, d);
+		
+		Field m = j.getClass().getDeclaredField("meta");
+		m.setAccessible(true);
+		m.set(j, new ArrayList<Map<String, String>>());
+		
+		return j;
+	}
+
 	private void failSingleRead(String user, Job j, Exception exp) {
 		failSingleRead(new DefaultUJSAuthorizer(), user, j, exp);
 	}
@@ -226,6 +298,20 @@ public class AuthorizationTest {
 			Exception exp) {
 		try {
 			auth.authorizeRead(user, j);
+			fail("authorized bad read");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+	}
+	
+	private void failCancel(String user, Job j, Exception exp) {
+		failCancel(new DefaultUJSAuthorizer(), user, j, exp);
+	}
+	
+	private void failCancel(UJSAuthorizer auth, String user, Job j,
+			Exception exp) {
+		try {
+			auth.authorizeCancel(user, j);
 			fail("authorized bad read");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
@@ -295,15 +381,4 @@ public class AuthorizationTest {
 		}
 		
 	}
-
-	private static void assertExceptionCorrect(
-			Exception got, Exception expected) {
-		assertThat("incorrect exception. trace:\n" +
-				ExceptionUtils.getStackTrace(got),
-				got.getLocalizedMessage(),
-				is(expected.getLocalizedMessage()));
-		assertThat("incorrect exception type", got, is(expected.getClass()));
-	}
-	
-	
 }

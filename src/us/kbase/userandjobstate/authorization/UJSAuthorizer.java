@@ -142,4 +142,38 @@ public abstract class UJSAuthorizer {
 			final List<String> authParams)
 			throws UJSAuthorizationException;
 
+	/** Authorize canceling a job.
+	 * @param user the user requesting authorization.
+	 * @param j the job requiring authorization.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
+	public void authorizeCancel(
+			final String user,
+			final Job j)
+			throws UJSAuthorizationException {
+		checkUser(user);
+		if (j == null) {
+			throw new NullPointerException("job cannot be null");
+		}
+		if (j.getAuthorizationStrategy().equals(DEFAULT_AUTH_STRAT)) {
+			if (!user.equals(j.getUser())) {
+				throw new UJSAuthorizationException(String.format(
+						"User %s may not cancel job %s", user, j.getID()));
+			}
+		} else {
+			externallyAuthorizeCancel(user, j);
+		}
+	}
+	
+	/** Authorize canceling a job using a non-default authorization source.
+	 * @param user the user requesting authorization.
+	 * @param j the job requiring authorization.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
+	protected abstract void externallyAuthorizeCancel(
+			final String user,
+			final Job j)
+			throws UJSAuthorizationException;
+
+	
 }
