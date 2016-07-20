@@ -1177,7 +1177,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.cancel_job", async=true)
     public void cancelJob(String job, String status, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN cancel_job
-		js.cancelJob(authPart.getUserName(), job, status);
+		js.cancelJob(authPart.getUserName(), job, status,
+				getAuthorizer(authPart));
         //END cancel_job
     }
 

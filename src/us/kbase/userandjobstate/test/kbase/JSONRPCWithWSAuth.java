@@ -21,6 +21,7 @@ import org.junit.Test;
 import us.kbase.auth.AuthService;
 import us.kbase.auth.AuthUser;
 import us.kbase.common.mongo.GetMongoDB;
+import us.kbase.common.service.ServerException;
 import us.kbase.common.service.UnauthorizedException;
 import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.TestException;
@@ -202,7 +203,7 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		List<String> mtl = new LinkedList<String>();
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams().withWorkspace("foo"));
-		setPermissions(WSC1, 1, "w", user2);
+		setPermissions(WSC1, 1, "r", user2);
 		
 		//test that deleting a workspace keeps the job visible to the owner
 		String id =  UJSC1.createJob2(new CreateJobParams()
@@ -250,6 +251,70 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
 		
+	}
+	
+	@Test
+	public void testCancelJob() throws Exception {
+		String user2 = U2.getUserId();
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+				.withWorkspace("foo"));
+		setPermissions(WSC1, 1, "w", user2);
+		
+		//test that deleting a workspace keeps the job visible to the owner
+		String id = createJobForCancel();
+		try {
+			UJSC2.cancelJob(id, "canceled1");
+		} catch (ServerException se) {
+			System.out.println(se.getData());
+			throw se;
+		}
+		checkJob(UJSC1, id, USER1, USER2, "canceled", "canceled1", USER2,
+				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
+				"1", MTMAP);
+		id = createJobForCancel();
+		String id2 = createJobForCancel();
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		String err = String.format(
+				"There is no job %s that may be canceled by user %s", id,
+				user2);
+		failCancelJob(UJSC2, id, "cancel", err);
+		checkJob(UJSC1, id, USER1, null, "started", "stat", USER2,
+				"desc", "none", null, null, null, 0L, 0L, null, null, KBWS,
+				"1", MTMAP);
+		UJSC1.cancelJob(id2, "cancel2");
+		checkJob(UJSC1, id2, USER1, USER1, "canceled", "cancel2", USER2,
+				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
+				"1", MTMAP);
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		UJSC2.cancelJob(id, "cancel3");
+		checkJob(UJSC1, id, USER1, USER2, "canceled", "cancel3", USER2,
+				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
+				"1", MTMAP);
+		
+		id = createJobForCancel();
+		err = String.format(
+				"There is no job %s that may be canceled by user %s", id,
+				user2);
+		setPermissions(WSC1, 1, "n", user2);
+		failCancelJob(UJSC2, id, "c", err);
+		
+		setPermissions(WSC1, 1, "r", user2);
+		failCancelJob(UJSC2, id, "c", err);
+		
+		setPermissions(WSC1, 1, "a", user2);
+		UJSC2.cancelJob(id, "cancel4");
+		checkJob(UJSC1, id, USER1, USER2, "canceled", "cancel4", USER2,
+				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
+				"1", MTMAP);
+	}
+
+	private String createJobForCancel() throws Exception {
+		InitProgress noprog = new InitProgress().withPtype("none");
+		String id = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
+				.withAuthparam("1"));
+		UJSC1.startJob(id, TOKEN2, "stat", "desc", noprog, null);
+		return id;
 	}
 
 	@Test

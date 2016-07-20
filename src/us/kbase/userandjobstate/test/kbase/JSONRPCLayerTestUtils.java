@@ -512,6 +512,19 @@ public class JSONRPCLayerTestUtils {
 				.withNewPermission(perm)
 				.withUsers(Arrays.asList(user)));
 	}
+	
+	
+	protected void failCancelJob(UserAndJobStateClient cli, String jobid,
+			String status, String exception)
+			throws Exception {
+		try {
+			cli.cancelJob(jobid, status);
+			fail("canceled with bad args");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getMessage(), is(exception));
+		}
+		
+	}
 
 	protected static void failCreateJob(UserAndJobStateClient cli,
 			String authstrat, String param, String exp)

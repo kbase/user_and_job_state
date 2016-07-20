@@ -594,17 +594,6 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				"There is no job %s that may be canceled by user %s",
 				jobid, USER1));
 	}
-	
-	private void failCancelJob(UserAndJobStateClient cli, String jobid, String status, String exception)
-			throws Exception {
-		try {
-			cli.cancelJob(jobid, status);
-			fail("canceled with bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getMessage(), is(exception));
-		}
-		
-	}
 
 	private void updateJobBadArgs(String jobid, String token, String status,
 			Long prog, String estCompl, String exception) throws Exception {
