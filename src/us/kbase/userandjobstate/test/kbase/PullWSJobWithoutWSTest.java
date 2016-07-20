@@ -116,10 +116,9 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		
 		//create a job associated with a ws
 		WSC.createWorkspace(new CreateWorkspaceParams().withWorkspace("foo"));
-		String id = cli.createJob2(new CreateJobParams().withAuthstrat(KBWS)
-				.withAuthparam("1"));
-		cli.startJob(id, USER.getTokenString(), "stat", "desc",
-				new InitProgress().withPtype("none"), null);
+		String id = createJobForTest(cli);
+		String cid1 = createJobForTest(cli);
+		String cid2 = createJobForTest(cli);
 		
 		//check job is accessible
 		checkJob(cli, id, USER.getUserId(), null, "started", "stat",
@@ -127,6 +126,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 				null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", cli.getJobOwner(id), is(USER.getUserId()));
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
+		cli.cancelJob(cid1, "can1");
 		
 		//start up ujs without a ws link
 		ujs.stopServer();
@@ -138,7 +138,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 				USER.getUserId(), PWD);
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
-		//fail to get jobs
+		//fail to get /cancel  jobs
 		failGetJob(cli, id, String.format(
 				"There is no job %s viewable by user %s",
 				id, USER.getUserId()));
@@ -148,6 +148,10 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		failGetJobShared(cli, id, String.format(
 				"There is no job %s viewable by user %s",
 				id, USER.getUserId()));
+		failCancelJob(cli, cid2, "can2", String.format(
+				"There is no job %s that may be canceled by user %s",
+				cid2, USER.getUserId()));
+		
 		
 		//set up UJS with a WS link again
 		ujs.stopServer();
@@ -161,15 +165,24 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 				USER.getUserId(), PWD);
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
-		//check jobs are acessible again
+		//check jobs are accessible again
 		checkJob(cli, id, USER.getUserId(), null, "started", "stat",
 				USER.getUserId(), "desc", "none", null, null, null, 0L, 0L,
 				null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", cli.getJobOwner(id), is(USER.getUserId()));
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
-		
+		cli.cancelJob(cid2, "stat");
 		//stop UJS
 		ujs.stopServer();
 		
+	}
+
+	private String createJobForTest(UserAndJobStateClient cli)
+			throws Exception {
+		String id = cli.createJob2(new CreateJobParams().withAuthstrat(KBWS)
+				.withAuthparam("1"));
+		cli.startJob(id, USER.getTokenString(), "stat", "desc",
+				new InitProgress().withPtype("none"), null);
+		return id;
 	}
 }
