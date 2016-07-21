@@ -237,7 +237,7 @@ public class WorkspaceAuthorizationFactory {
 		}
 		
 		@Override
-		protected void externallyAuthorizeDelete( //TODO NOW TEST
+		protected void externallyAuthorizeDelete(
 				final String user,
 				final Job j)
 				throws UJSAuthorizationException {
