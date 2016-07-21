@@ -719,9 +719,19 @@ public class JobStateTests {
 	public void cancelJob() throws Exception {
 		String user = "canceluser";
 		
-		//happy path test
-		String jobid = js.createAndStartJob(user, "serv1", "st1", "d1", null);
+		//happy path test created job
+		String jobid = js.createJob(user);
 		Job j = js.getJob(user, jobid);
+		checkJob(j, jobid, "created", null, user, null, null, null, null,
+				null, null, null, null, null, null, null);
+		js.cancelJob(user, jobid, "cancelcreated");
+		j = js.getJob(user, jobid);
+		checkJob(j, jobid, "canceled", null, user, user, "cancelcreated", null,
+				null, null, null, null, true, false, null, null);
+		
+		//happy path test started job
+		jobid = js.createAndStartJob(user, "serv1", "st1", "d1", null);
+		j = js.getJob(user, jobid);
 		checkJob(j, jobid, "started", null, user, null, "st1", "serv1", "d1",
 				"none", null, null, false, false, null, null);
 		js.cancelJob(user, jobid, "canceled1");
@@ -738,12 +748,6 @@ public class JobStateTests {
 		j = js.getJob(user, jobid);
 		checkJob(j, jobid, "canceled", null, user, user, null,
 				"serv2", "d2", "none", null, null, true, false, null, null);
-		
-		//test can't cancel an unstarted job
-		jobid = js.createJob(user);
-		failCancelJob(user, jobid, "cancel", new NoSuchJobException(
-				String.format("There is no job %s that may be canceled by user %s",
-						jobid, user)));
 		
 		//test can't cancel a complete job
 		jobid = js.createAndStartJob(user, "serv", "stat", "desc", null);
