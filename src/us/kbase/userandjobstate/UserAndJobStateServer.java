@@ -230,7 +230,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				final String user,
 				final Job j)
 				throws UJSAuthorizationException {
-			checkStrat(j.getAuthorizationStrategy()); //TODO NOW TEST
+			checkStrat(j.getAuthorizationStrategy());
 		}
 	};
 	
@@ -1441,7 +1441,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     @JsonServerMethod(rpc = "UserAndJobState.delete_job", async=true)
     public void deleteJob(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN delete_job
-		js.deleteJob(authPart.getUserName(), job, getAuthorizer(authPart)); // TODO NOW TEST
+		js.deleteJob(authPart.getUserName(), job, getAuthorizer(authPart));
         //END delete_job
     }
 
@@ -1460,7 +1460,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
     public void forceDeleteJob(String token, String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN force_delete_job
 		js.deleteJob(authPart.getUserName(), job, getServiceUserName(token),
-				getAuthorizer(authPart)); //TODO NOW TEST
+				getAuthorizer(authPart));
         //END force_delete_job
     }
     @JsonServerMethod(rpc = "UserAndJobState.status")
