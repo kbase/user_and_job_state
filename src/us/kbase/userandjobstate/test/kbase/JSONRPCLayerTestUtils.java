@@ -335,7 +335,7 @@ public class JSONRPCLayerTestUtils {
 		}
 	}
 
-	protected void failGetJob(UserAndJobStateClient cli, String jobid,
+	protected static void failGetJob(UserAndJobStateClient cli, String jobid,
 			String exception)
 			throws Exception {
 		try {
@@ -524,6 +524,74 @@ public class JSONRPCLayerTestUtils {
 			assertThat("correct exception", se.getMessage(), is(exception));
 		}
 		
+	}
+	
+	protected static void deleteJob(
+			final UserAndJobStateClient cli,
+			final String id)
+			throws Exception {
+		try {
+			cli.deleteJob(id);
+		} catch (ServerException se) {
+			System.out.println(se.getData());
+			throw se;
+		}
+		failGetJob(cli, id, String.format(
+				"There is no job %s viewable by user %s",
+				id, cli.getToken().getUserName()));
+	}
+	
+	protected static void deleteJob(
+			final UserAndJobStateClient cli,
+			final String id,
+			final String service)
+			throws Exception {
+		try {
+			cli.forceDeleteJob(service, id);
+		} catch (ServerException se) {
+			System.out.println(se.getData());
+			throw se;
+		}
+		failGetJob(cli, id, String.format(
+				"There is no job %s viewable by user %s",
+				id, cli.getToken().getUserName()));
+	}
+	
+	protected void failToDeleteJob(
+			final UserAndJobStateClient cli,
+			final String jobid,
+			final String exception)
+			throws Exception {
+		failToDeleteJob(cli, jobid, null, exception, false);
+	}
+	
+	protected void failToDeleteJob(
+			final UserAndJobStateClient cli,
+			final String jobid,
+			final String token,
+			final String exception)
+			throws Exception {
+		failToDeleteJob(cli, jobid, token, exception, false);
+	}
+	
+	protected void failToDeleteJob(
+			final UserAndJobStateClient cli, 
+			final String jobid,
+			final String token,
+			final String exception,
+			boolean usenulltoken)
+			throws Exception {
+		try {
+			if (!usenulltoken && token == null) {
+				cli.deleteJob(jobid);
+			} else {
+				cli.forceDeleteJob(token, jobid);
+			}
+			fail("deleted job with bad args");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getLocalizedMessage(),
+					is(exception));
+		}
 	}
 
 	protected static void failCreateJob(UserAndJobStateClient cli,

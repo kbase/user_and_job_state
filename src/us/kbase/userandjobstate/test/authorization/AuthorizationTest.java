@@ -127,6 +127,17 @@ public class AuthorizationTest {
 				throw new UJSAuthorizationException("param fail");
 			}
 		}
+		
+		@Override
+		protected void externallyAuthorizeDelete(String user, Job j)
+				throws UJSAuthorizationException {
+			if (j.getAuthorizationStrategy().getStrat().equals("fail")) {
+				throw new UJSAuthorizationException("strat fail");
+			}
+			if (j.getAuthorizationParameter().equals("fail")) {
+				throw new UJSAuthorizationException("param fail");
+			}
+		}
 	}
 
 	@Test
@@ -253,6 +264,46 @@ public class AuthorizationTest {
 		failCancel(la, user1, j4, new UJSAuthorizationException("param fail"));
 	}
 	
+	@Test
+	public void testDelete() throws Exception {
+		String user1 = "foo";
+		String user2 = "bar";
+		Job j = js.getJob(user1, js.createJob(user1));
+		
+		DefaultUJSAuthorizer dua = new DefaultUJSAuthorizer();
+		//should work
+		dua.authorizeDelete(user1, j);
+		
+		failDelete(user2, j, new UJSAuthorizationException(String.format(
+				"User %s may not delete job %s", user2, j.getID())));
+		
+		// sharing jobs should not effect deletion
+		js.shareJob(user1, j.getID(), Arrays.asList(user2));
+		j = js.getJob(user1, j.getID());
+		failDelete(user2, j, new UJSAuthorizationException(String.format(
+				"User %s may not delete job %s", user2, j.getID())));
+		
+		failDelete(user2, null,
+				new NullPointerException("job cannot be null"));
+		
+		failDelete(null, j, new IllegalArgumentException(
+				"user cannot be null or empty"));
+		failDelete("", j, new IllegalArgumentException(
+				"user cannot be null or empty"));
+		
+		LenientAuth la = new LenientAuth();
+		Job j2 = createJob(user1, new AuthorizationStrategy("foo"), "bar");
+		//should work:
+		la.authorizeDelete(user1, j2);
+		failDelete(dua, user1, j2, new UnimplementedException());
+		
+		Job j3 = createJob(user1, new AuthorizationStrategy("fail"), "bar");
+		failDelete(la, user1, j3, new UJSAuthorizationException("strat fail"));
+		
+		Job j4 = createJob(user1, new AuthorizationStrategy("whoo"), "fail");
+		failDelete(la, user1, j4, new UJSAuthorizationException("param fail"));
+	}
+	
 	private Job createJob(
 			final String user,
 			final AuthorizationStrategy strat,
@@ -312,7 +363,21 @@ public class AuthorizationTest {
 			Exception exp) {
 		try {
 			auth.authorizeCancel(user, j);
-			fail("authorized bad read");
+			fail("authorized bad cancel");
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
+		}
+	}
+	
+	private void failDelete(String user, Job j, Exception exp) {
+		failDelete(new DefaultUJSAuthorizer(), user, j, exp);
+	}
+	
+	private void failDelete(UJSAuthorizer auth, String user, Job j,
+			Exception exp) {
+		try {
+			auth.authorizeDelete(user, j);
+			fail("authorized bad delete");
 		} catch (Exception got) {
 			assertExceptionCorrect(got, exp);
 		}

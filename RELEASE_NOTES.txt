@@ -31,12 +31,16 @@ NEW FEATURES:
 - Added the create_job2, get_job_info2, and list_jobs2 methods which can
   accept or return an authorization strategy and parameter(s). create_job,
   get_job_info, and list_jobs are now deprecated.
+- Jobs can now be canceled, which puts them in a canceled state. Canceled jobs
+  may not be altered further other than deletion. The user that canceled the
+  job is returned by get_job_info2. Users with write access to a workspace can
+  cancel jobs associated with that workspace.
+- Users with administrative access to a workspace can delete jobs associated
+  with that workspace when those jobs are in the error, complete, or canceled
+  state.
 - User specified metadata can now be associated with a job via the create_job2
   method.
 - These is now a minimal documentation server at the /docs endpoint.
-- Jobs can now be canceled, which puts them in a canceled state. Canceled jobs
-  may not be altered further. The user that canceled the job is returned by
-  get_job_info2.
 
 UPDATED FEATURES / MAJOR BUG FIXES:
 

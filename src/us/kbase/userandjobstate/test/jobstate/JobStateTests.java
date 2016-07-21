@@ -247,6 +247,14 @@ public class JobStateTests {
 					throw new UJSAuthorizationException("fail cancel req");
 				}
 			}
+			
+			@Override
+			protected void externallyAuthorizeDelete(String user, Job j)
+				throws UJSAuthorizationException {
+				if ("fail delete".equals(j.getAuthorizationParameter())) {
+					throw new UJSAuthorizationException("fail delete req");
+				}
+			}
 		};
 		String user = "foo";
 		String user2 = "bar";
@@ -289,7 +297,16 @@ public class JobStateTests {
 				new NoSuchJobException(String.format(
 						"There is no job %s viewable by user %s", id2, user)));
 		
-		//test fail canceling jobs with alternate auth
+		//test  canceling jobs with alternate auth
+		String canok = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "cancel", mt);
+		js.cancelJob(user, canok, "foo", lenientauth);
+		Job j = js.getJob(user, canok, lenientauth);
+		checkJob(j, canok, "canceled", null, user, user, "foo", null, null,
+				null, null, null, true, false, null, null, null,
+				new AuthorizationStrategy("strat1"), "cancel",
+				mt.getMetadata());
+		
 		String id4 = js.createJob(user, lenientauth,
 				new AuthorizationStrategy("strat1"), "fail cancel", mt);
 		js.startJob(user, id4, "s", "stat", "desc", null);
@@ -298,6 +315,22 @@ public class JobStateTests {
 				new NoSuchJobException(String.format(
 						"There is no job %s that may be canceled by user %s",
 						id4, user)));
+		
+		//test deleting jobs with alternate auth
+		String delok = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "delete", mt);
+		js.startJob(user, delok, "s", "stat", "desc", null);
+		js.completeJob(user, delok, "s", "stat1", null, null);
+		succeedAtDeletingJob(user, delok, lenientauth);
+		
+		String id5 = js.createJob(user, lenientauth,
+				new AuthorizationStrategy("strat1"), "fail delete", mt);
+		js.startJob(user, id5, "s", "stat", "desc", null);
+		failToDeleteJob(user, id5, "s", new UnimplementedException());
+		failToDeleteJob(user, id5, "s", lenientauth,
+				new NoSuchJobException(String.format(
+						"There is no deletable job %s for user %s and service s",
+						id5, user)));
 		
 		//test listing jobs with alternate auth
 			// start & create some jobs
@@ -1142,46 +1175,71 @@ public class JobStateTests {
 	
 	@Test
 	public void deleteJob() throws Exception {
-		String jobid = js.createAndStartJob("delete", "serv1", "st", "dsc",
+		final String user = "delete";
+		String jobid = js.createAndStartJob(user, "serv1", "st", "dsc",
 				null);
-		js.completeJob("delete", jobid, "serv1", "st", null, null);
-		Job j = js.getJob("delete", jobid); //should work
-		checkJob(j, jobid, "complete", null, "delete", null, "st", "serv1",
+		js.completeJob(user, jobid, "serv1", "st", null, null);
+		Job j = js.getJob(user, jobid); //should work
+		checkJob(j, jobid, "complete", null, user, null, "st", "serv1",
 				"dsc", "none", null, null, true, false, null, null);
-		succeedAtDeletingJob("delete", jobid);
-		failToDeleteJob("delete", jobid, null);
+		succeedAtDeletingJob(user, jobid);
+		failToDeleteJob(user, jobid, null, new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s",
+						jobid, user)));
 		
-		jobid = js.createJob("delete");
-		failToDeleteJob("delete", jobid, null);
-		js.startJob("delete", jobid, "s", "s", "d", null);
-		failToDeleteJob("delete", jobid, null);
-		js.updateJob("delete", jobid, "s", "s", 1, null);
-		failToDeleteJob("delete", jobid, null);
-		failToDeleteJob("delete1", jobid, null);
-		failToDeleteJob("delete", "a" + jobid.substring(1), null);
+		jobid = js.createJob(user);
+		NoSuchJobException err = new NoSuchJobException(String.format(
+				"There is no deletable job %s for user %s", jobid, user));
+		failToDeleteJob(user, jobid, null, err);
+		js.startJob(user, jobid, "s", "s", "d", null);
+		failToDeleteJob(user, jobid, null, err);
+		js.updateJob(user, jobid, "s", "s", 1, null);
+		failToDeleteJob(user, jobid, null, err);
+		failToDeleteJob(user + "1", jobid, null, new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s",
+						jobid, user + "1")));
+		failToDeleteJob(user, "a" + jobid.substring(1), null,
+				new NoSuchJobException(String.format(
+						"There is no deletable job %s for user %s",
+						"a" + jobid.substring(1), user)));
 		
-		failToDeleteJob("delete1", jobid, "serv1");
-		failToDeleteJob("delete", "a" + jobid.substring(1), "serv1");
+		failToDeleteJob(user + "1", jobid, "serv1", new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s " +
+						"and service serv1", jobid, user + "1")));
+		failToDeleteJob(user, "a" + jobid.substring(1), "serv1",
+				new NoSuchJobException(String.format(
+						"There is no deletable job %s for user %s " +
+						"and service serv1", "a" + jobid.substring(1), user)));
 		
-		jobid = js.createJob("delete");
+		jobid = js.createJob(user);
 //		succeedAtDeletingJob("delete", jobid, "serv1");
-		failToDeleteJob("delete", jobid, "serv1");
-		jobid = js.createAndStartJob("delete", "serv1", "st", "dsc", null);
-		succeedAtDeletingJob("delete", jobid, "serv1");
-		failToDeleteJob("delete", jobid, "serv1");
-		jobid = js.createAndStartJob("delete", "serv1", "st", "dsc", null);
-		js.updateJob("delete", jobid, "serv1", "st", null, null);
-		succeedAtDeletingJob("delete", jobid, "serv1");
-		failToDeleteJob("delete", jobid, "serv1");
-		jobid = js.createAndStartJob("delete", "serv1", "st", "dsc", null);
-		js.completeJob("delete", jobid, "serv1", "st", null, null);
-		succeedAtDeletingJob("delete", jobid, "serv1");
-		failToDeleteJob("delete", jobid, "serv1");
+		failToDeleteJob(user, jobid, "serv1", new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s " +
+						"and service serv1", jobid, user)));
+		jobid = js.createAndStartJob(user, "serv1", "st", "dsc", null);
+		succeedAtDeletingJob(user, jobid, "serv1");
+		failToDeleteJob(user, jobid, "serv1", new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s " +
+						"and service serv1", jobid, user)));
+		jobid = js.createAndStartJob(user, "serv1", "st", "dsc", null);
+		js.updateJob(user, jobid, "serv1", "st", null, null);
+		succeedAtDeletingJob(user, jobid, "serv1");
+		failToDeleteJob(user, jobid, "serv1", new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s " +
+						"and service serv1", jobid, user)));
+		jobid = js.createAndStartJob(user, "serv1", "st", "dsc", null);
+		js.completeJob(user, jobid, "serv1", "st", null, null);
+		succeedAtDeletingJob(user, jobid, "serv1");
+		failToDeleteJob(user, jobid, "serv1", new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s " +
+						"and service serv1", jobid, user)));
 		
-		jobid = js.createAndStartJob("delete", "serv1", "st", "dsc", null);
-		js.cancelJob("delete", jobid, "cancel");
-		succeedAtDeletingJob("delete", jobid);
-		failToDeleteJob("delete", jobid, "serv1");
+		jobid = js.createAndStartJob(user, "serv1", "st", "dsc", null);
+		js.cancelJob(user, jobid, "cancel");
+		succeedAtDeletingJob(user, jobid);
+		failToDeleteJob(user, jobid, "serv1", new NoSuchJobException(
+				String.format("There is no deletable job %s for user %s " +
+						"and service serv1", jobid, user)));
 		
 	}
 	
@@ -1206,9 +1264,19 @@ public class JobStateTests {
 		}
 	}
 	
-	private void succeedAtDeletingJob(String user, String jobid)
+	private void succeedAtDeletingJob(
+			final String user,
+			final String jobid)
 			throws Exception {
-		js.deleteJob(user, jobid);
+		succeedAtDeletingJob(user, jobid, new DefaultUJSAuthorizer());
+	}
+	
+	private void succeedAtDeletingJob(
+			final String user,
+			final String jobid,
+			final UJSAuthorizer auth)
+			throws Exception {
+		js.deleteJob(user, jobid, auth);
 		try {
 			js.getJob(user, jobid);
 			fail("got deleted job");
@@ -1227,29 +1295,34 @@ public class JobStateTests {
 		}
 	}
 	
-	private void failToDeleteJob(String user, String jobid, String service)
-			throws Exception {
+	private void failToDeleteJob(
+			final String user,
+			final String jobid,
+			final String service,
+			final Exception exp) {
+		failToDeleteJob(user, jobid, service, new DefaultUJSAuthorizer(), exp);
+	}
+	
+	private void failToDeleteJob(
+			final String user,
+			final String jobid,
+			final String service,
+			final UJSAuthorizer auth,
+			final Exception exp) {
 		try {
-			js.deleteJob(user, jobid, service);
+			js.deleteJob(user, jobid, service, auth);
 			fail("deleted job when should've failed");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception msg", nsje.getLocalizedMessage(),
-					is(String.format(
-					"There is no %sjob %s for user %s",
-					service == null ? "completed " : "", jobid, user +
-					(service == null ? "" : " and service " + service))));
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
 		}
 		if (service != null) {
 			return;
 		}
 		try {
-			js.deleteJob(user, jobid);
+			js.deleteJob(user, jobid, auth);
 			fail("deleted job when should've failed");
-		} catch (NoSuchJobException nsje) {
-			assertThat("correct exception msg", nsje.getLocalizedMessage(),
-					is(String.format(
-					"There is no completed job %s for user %s",
-					jobid, user)));
+		} catch (Exception got) {
+			assertExceptionCorrect(got, exp);
 		}
 	}
 	

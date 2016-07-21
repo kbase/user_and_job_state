@@ -92,6 +92,7 @@ public class WorkspaceAuthorizationFactory {
 				Collections.unmodifiableList(Arrays.asList("r", "w", "a"));
 		private static final List<String> CAN_WRITE =
 				Collections.unmodifiableList(Arrays.asList("w", "a"));
+		private static final String ADMIN = "a";
 		private static final int MAX_WS_COUNT = 10;
 		
 		private WorkspaceClient client;
@@ -235,6 +236,25 @@ public class WorkspaceAuthorizationFactory {
 			}
 		}
 		
+		@Override
+		protected void externallyAuthorizeDelete(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			checkWSUser(user);
+			checkStrat(j.getAuthorizationStrategy());
+			if (user.equals(j.getUser())) {
+				return; // owner can always delete job
+			}
+			final String p = getPerms(j.getAuthorizationParameter())
+					.get(0).get(username);
+			if (!ADMIN.equals(p)) {
+				throw new UJSAuthorizationException(String.format(
+						"User %s does not have administration privileges " +
+						"for workspace %s",
+						username, j.getAuthorizationParameter()));
+			}
+		}
 	}
 
 }

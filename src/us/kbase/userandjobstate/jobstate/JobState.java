@@ -532,18 +532,54 @@ public class JobState {
 		}
 	}
 	
-	public void deleteJob(final String user, final String jobID)
+	public void deleteJob(
+			final String user,
+			final String jobID,
+			final UJSAuthorizer auth)
 			throws NoSuchJobException, CommunicationException {
-		deleteJob(user, jobID, null);
+		deleteJob(user, jobID, null, auth);
 	}
 	
 	public void deleteJob(final String user, final String jobID,
 			final String service)
 			throws NoSuchJobException, CommunicationException {
+		deleteJob(user, jobID, service, new DefaultUJSAuthorizer());
+	}
+	
+	public void deleteJob(final String user, final String jobID,
+			final String service, final UJSAuthorizer auth)
+			throws NoSuchJobException, CommunicationException {
 		checkString(user, "user", MAX_LEN_USER);
 		final ObjectId id = checkJobID(jobID);
-		final DBObject query = new BasicDBObject(USER, user);
-		query.put(MONGO_ID, id);
+		final NoSuchJobException err = new NoSuchJobException(String.format(
+				"There is no deletable job %s for user %s",
+				jobID, user +
+				(service == null ? "" : " and service " + service)));
+		
+		String querystr = String.format("{%s: #, ", MONGO_ID);
+		final Job j;
+		try {
+			if (service == null) {
+				querystr += String.format("%s: true}", COMPLETE);
+				j = jobjong.findOne(querystr, id).as(Job.class);
+			} else {
+				querystr += String.format("%s: #}", SERVICE);
+				j = jobjong.findOne(querystr, id, service).as(Job.class);
+			}
+		} catch (MongoException me) {
+			throw new CommunicationException(
+					"There was a problem communicating with the database", me);
+		}
+		if (j == null) {
+			throw err;
+		}
+		try {
+			auth.authorizeDelete(user, j);
+		} catch (UJSAuthorizationException e) {
+			throw err;
+		}
+		
+		final DBObject query = new BasicDBObject(MONGO_ID, id);
 		if (service == null) {
 			query.put(COMPLETE, true);
 		} else {
@@ -556,11 +592,9 @@ public class JobState {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
 		}
+		// this can only happen if the job was deleted between fetching and now
 		if (wr.getN() != 1) {
-			throw new NoSuchJobException(String.format(
-					"There is no %sjob %s for user %s",
-					service == null ? "completed " : "", jobID, user +
-					(service == null ? "" : " and service " + service)));
+			throw err;
 		}
 	}
 	
@@ -671,7 +705,7 @@ public class JobState {
 	private String completeQuery(
 			String queryPrefix,
 			final boolean running,
-			final boolean complete, //TODO NOW
+			final boolean complete,
 			final boolean canceled,
 			final boolean error) {
 		/* TODO ZZLATER should have a indexed state variable in the job db doc 

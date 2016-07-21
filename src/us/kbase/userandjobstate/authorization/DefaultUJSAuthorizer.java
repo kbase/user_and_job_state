@@ -36,9 +36,13 @@ public class DefaultUJSAuthorizer extends UJSAuthorizer {
 	}
 
 	@Override
-	protected void externallyAuthorizeCancel(
-			final String user,
-			final Job j)
+	protected void externallyAuthorizeCancel(final String user, final Job j)
+			throws UJSAuthorizationException {
+		throw new UnimplementedException();
+	}
+
+	@Override
+	protected void externallyAuthorizeDelete(final String user, final Job j)
 			throws UJSAuthorizationException {
 		throw new UnimplementedException();
 	}

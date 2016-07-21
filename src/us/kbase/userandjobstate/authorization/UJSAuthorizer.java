@@ -174,6 +174,38 @@ public abstract class UJSAuthorizer {
 			final String user,
 			final Job j)
 			throws UJSAuthorizationException;
-
 	
+	/** Authorize deleting a job.
+	 * @param user the user requesting authorization.
+	 * @param j the job requiring authorization.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
+	public void authorizeDelete(
+			final String user,
+			final Job j)
+			throws UJSAuthorizationException {
+		checkUser(user);
+		if (j == null) {
+			throw new NullPointerException("job cannot be null");
+		}
+		if (j.getAuthorizationStrategy().equals(DEFAULT_AUTH_STRAT)) {
+			if (!user.equals(j.getUser())) {
+				throw new UJSAuthorizationException(String.format(
+						"User %s may not delete job %s", user, j.getID()));
+			}
+		} else {
+			externallyAuthorizeDelete(user, j);
+		}
+	}
+	
+	/** Authorize deleting a job using a non-default authorization source.
+	 * @param user the user requesting authorization.
+	 * @param j the job requiring authorization.
+	 * @throws UJSAuthorizationException if authorization is denied.
+	 */
+	protected abstract void externallyAuthorizeDelete(
+			final String user,
+			final Job j)
+			throws UJSAuthorizationException;
+
 }

@@ -197,28 +197,26 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	
 	@Test
 	public void testGetJob() throws Exception {
-		String user1 = U1.getUserId();
-		String user2 = U2.getUserId();
 		InitProgress noprog = new InitProgress().withPtype("none");
 		List<String> mtl = new LinkedList<String>();
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams().withWorkspace("foo"));
-		setPermissions(WSC1, 1, "r", user2);
+		setPermissions(WSC1, 1, "r", USER2);
 		
 		//test that deleting a workspace keeps the job visible to the owner
 		String id =  UJSC1.createJob2(new CreateJobParams()
 			.withAuthstrat(KBWS).withAuthparam("1"));
 		checkJob(UJSC1, id, USER1, null, "created", null, null, null, null,
 				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
-		assertThat("owner ok", UJSC1.getJobOwner(id), is(user1));
+		assertThat("owner ok", UJSC1.getJobOwner(id), is(USER1));
 		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
 		checkJob(UJSC2, id, USER1, null, "created", null, null, null, null,
 				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
-		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
 		
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
 		final String err = String.format(
-				"There is no job %s viewable by user %s", id, user2);
+				"There is no job %s viewable by user %s", id, USER2);
 		failGetJob(UJSC2, id, err);
 		failGetJobOwner(UJSC2, id, err);
 		failGetJobShared(UJSC2, id, err);
@@ -226,43 +224,42 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		UJSC1.startJob(id, TOKEN2, "stat1", "desc1", noprog, null);
 		UJSC1.updateJob(id, TOKEN2, "up stat2", null);
 		UJSC1.completeJob(id, TOKEN2, "c stat2", null, null);
-		checkJob(UJSC1, id, USER1, null, "complete", "c stat2", user2, "desc1",
+		checkJob(UJSC1, id, USER1, null, "complete", "c stat2", USER2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
-		assertThat("owner ok", UJSC1.getJobOwner(id), is(user1));
+		assertThat("owner ok", UJSC1.getJobOwner(id), is(USER1));
 		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
 		
 		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", user2, "desc1",
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", USER2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
-		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
 		
-		setPermissions(WSC1, 1, "n", user2);
+		setPermissions(WSC1, 1, "n", USER2);
 		failGetJob(UJSC2, id, err);
 		failGetJobOwner(UJSC2, id, err);
 		failGetJobShared(UJSC2, id, err);
 		
-		setPermissions(WSC1, 1, "w", user2);
-		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", user2, "desc1",
+		setPermissions(WSC1, 1, "w", USER2);
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", USER2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
-		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
 		
-		setPermissions(WSC1, 1, "a", user2);
-		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", user2, "desc1",
+		setPermissions(WSC1, 1, "a", USER2);
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", USER2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
-		assertThat("owner ok", UJSC2.getJobOwner(id), is(user1));
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
 		
 	}
 	
 	@Test
 	public void testCancelJob() throws Exception {
-		String user2 = U2.getUserId();
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 				.withWorkspace("foo"));
-		setPermissions(WSC1, 1, "w", user2);
+		setPermissions(WSC1, 1, "w", USER2);
 		
 		//test that deleting a workspace keeps the job visible to the owner
-		String id = createJobForCancel();
+		String id = createStartedJob();
 		try {
 			UJSC2.cancelJob(id, "canceled1");
 		} catch (ServerException se) {
@@ -272,12 +269,12 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		checkJob(UJSC1, id, USER1, USER2, "canceled", "canceled1", USER2,
 				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
 				"1", MTMAP);
-		id = createJobForCancel();
-		String id2 = createJobForCancel();
+		id = createStartedJob();
+		String id2 = createStartedJob();
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
 		String err = String.format(
 				"There is no job %s that may be canceled by user %s", id,
-				user2);
+				USER2);
 		failCancelJob(UJSC2, id, "cancel", err);
 		checkJob(UJSC1, id, USER1, null, "started", "stat", USER2,
 				"desc", "none", null, null, null, 0L, 0L, null, null, KBWS,
@@ -292,28 +289,96 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
 				"1", MTMAP);
 		
-		id = createJobForCancel();
+		id = createStartedJob();
 		err = String.format(
 				"There is no job %s that may be canceled by user %s", id,
-				user2);
-		setPermissions(WSC1, 1, "n", user2);
+				USER2);
+		setPermissions(WSC1, 1, "n", USER2);
 		failCancelJob(UJSC2, id, "c", err);
 		
-		setPermissions(WSC1, 1, "r", user2);
+		setPermissions(WSC1, 1, "r", USER2);
 		failCancelJob(UJSC2, id, "c", err);
 		
-		setPermissions(WSC1, 1, "a", user2);
+		setPermissions(WSC1, 1, "a", USER2);
 		UJSC2.cancelJob(id, "cancel4");
 		checkJob(UJSC1, id, USER1, USER2, "canceled", "cancel4", USER2,
 				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
 				"1", MTMAP);
 	}
 
-	private String createJobForCancel() throws Exception {
+	@Test
+	public void testDeleteJob() throws Exception {
+		
+		WSC1.createWorkspace(new CreateWorkspaceParams()
+				.withWorkspace("foo"));
+		setPermissions(WSC1, 1, "a", USER2);
+		
+		//test that deleting a workspace keeps the job visible to the owner
+		String id = createCompletedJob();
+		deleteJob(UJSC2, id);
+		id = createStartedJob();
+		deleteJob(UJSC2, id, TOKEN2);
+		id = createCompletedJob();
+		String id2 = createStartedJob();
+		String id3 = createCompletedJob();
+		String id4 = createStartedJob();
+		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
+		failToDeleteJob(UJSC2, id, String.format(
+				"There is no deletable job %s for user %s", id,
+				USER2));
+		failToDeleteJob(UJSC2, id2, TOKEN2, String.format(
+				"There is no deletable job %s for user %s and service %s", id2,
+				USER2, USER2));
+
+		deleteJob(UJSC1, id3);
+		deleteJob(UJSC1, id4, TOKEN2);
+		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		failGetJob(UJSC1, id3, String.format(
+				"There is no job %s viewable by user %s",
+				id3, USER1));
+		failGetJob(UJSC1, id4, String.format(
+				"There is no job %s viewable by user %s",
+				id4, USER1));
+		deleteJob(UJSC2, id);
+		deleteJob(UJSC2, id2, TOKEN2);
+		
+		id = createCompletedJob();
+		id2 = createStartedJob();
+		String es = "There is no deletable job %s for user %s";
+		String err1 = String.format(es, id, USER2);
+		String err2 = String.format(es, id2, USER2) + " and service " + USER2;
+
+		setPermissions(WSC1, 1, "n", USER2);
+		failToDeleteJob(UJSC2, id, err1);
+		failToDeleteJob(UJSC2, id2, TOKEN2, err2);
+		
+		setPermissions(WSC1, 1, "r", USER2);
+		failToDeleteJob(UJSC2, id, err1);
+		failToDeleteJob(UJSC2, id2, TOKEN2, err2);
+		
+		setPermissions(WSC1, 1, "w", USER2);
+		failToDeleteJob(UJSC2, id, err1);
+		failToDeleteJob(UJSC2, id2, TOKEN2, err2);
+		
+		setPermissions(WSC1, 1, "a", USER2);
+		deleteJob(UJSC2, id);
+		deleteJob(UJSC2, id2, TOKEN2);
+	}
+	
+	private String createStartedJob() throws Exception {
 		InitProgress noprog = new InitProgress().withPtype("none");
 		String id = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
 		UJSC1.startJob(id, TOKEN2, "stat", "desc", noprog, null);
+		return id;
+	}
+	
+	private String createCompletedJob() throws Exception {
+		InitProgress noprog = new InitProgress().withPtype("none");
+		String id = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
+				.withAuthparam("1"));
+		UJSC1.startJob(id, TOKEN2, "stat", "desc", noprog, null);
+		UJSC1.completeJob(id, TOKEN2, "comp", null, null);
 		return id;
 	}
 
