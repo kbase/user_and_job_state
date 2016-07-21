@@ -525,6 +525,43 @@ public class JSONRPCLayerTestUtils {
 		}
 		
 	}
+	
+	protected void failToDeleteJob(
+			final UserAndJobStateClient cli,
+			final String jobid,
+			final String exception)
+			throws Exception {
+		failToDeleteJob(cli, jobid, null, exception, false);
+	}
+	
+	protected void failToDeleteJob(
+			final UserAndJobStateClient cli,
+			final String jobid,
+			final String token,
+			final String exception)
+			throws Exception {
+		failToDeleteJob(cli, jobid, token, exception, false);
+	}
+	
+	protected void failToDeleteJob(
+			final UserAndJobStateClient cli, 
+			final String jobid,
+			final String token,
+			final String exception,
+			boolean usenulltoken)
+			throws Exception {
+		try {
+			if (!usenulltoken && token == null) {
+				cli.deleteJob(jobid);
+			} else {
+				cli.forceDeleteJob(token, jobid);
+			}
+			fail("deleted job with bad args");
+		} catch (ServerException se) {
+			assertThat("correct exception", se.getLocalizedMessage(),
+					is(exception));
+		}
+	}
 
 	protected static void failCreateJob(UserAndJobStateClient cli,
 			String authstrat, String param, String exp)

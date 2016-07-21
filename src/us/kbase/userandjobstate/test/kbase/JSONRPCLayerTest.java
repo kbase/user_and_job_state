@@ -761,6 +761,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		InitProgress noprog = new InitProgress().withPtype("none");
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "d stat", "d desc", noprog, null);
 		CLIENT1.completeJob(jobid, TOKEN2, "d stat2", null, null);
+		failToDeleteJob(CLIENT2, jobid, String.format(
+				"There is no deletable job %s for user %s", jobid, USER2));
 		CLIENT1.deleteJob(jobid);
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
@@ -770,6 +772,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "d2 stat", "d2 desc", noprog, null);
+		failToDeleteJob(CLIENT2, jobid, TOKEN2, String.format(
+				"There is no deletable job %s for user %s and service %s",
+				jobid, USER2, USER2));
 		CLIENT1.forceDeleteJob(TOKEN2, jobid);
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
@@ -789,65 +794,39 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
 		jobid = CLIENT1.createJob2(new CreateJobParams());
-		failToDeleteJob(jobid, String.format(
+		failToDeleteJob(CLIENT1, jobid, String.format(
 				"There is no deletable job %s for user %s", jobid, USER1));
-		failToDeleteJob(jobid, TOKEN2, String.format(
+		failToDeleteJob(CLIENT1, jobid, TOKEN2, String.format(
 				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER2));
 		CLIENT1.startJob(jobid, TOKEN2, "d6 stat", "d6 desc", noprog, null);
-		failToDeleteJob(jobid, String.format(
+		failToDeleteJob(CLIENT1, jobid, String.format(
 				"There is no deletable job %s for user %s", jobid, USER1));
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "d6 stat2", 3L, null);
-		failToDeleteJob(jobid, String.format(
+		failToDeleteJob(CLIENT1, jobid, String.format(
 				"There is no deletable job %s for user %s", jobid, USER1));
 		
-		failToDeleteJob(null, "id cannot be null or the empty string");
-		failToDeleteJob("", "id cannot be null or the empty string");
-		failToDeleteJob("aaaaaaaaaaaaaaaaaaaa",
+		failToDeleteJob(CLIENT1, null, "id cannot be null or the empty string");
+		failToDeleteJob(CLIENT1, "", "id cannot be null or the empty string");
+		failToDeleteJob(CLIENT1, "aaaaaaaaaaaaaaaaaaaa",
 				"Job ID aaaaaaaaaaaaaaaaaaaa is not a legal ID");
 		
-		failToDeleteJob(null, TOKEN2,
+		failToDeleteJob(CLIENT1, null, TOKEN2,
 				"id cannot be null or the empty string");
-		failToDeleteJob("", TOKEN2,
+		failToDeleteJob(CLIENT1, "", TOKEN2,
 				"id cannot be null or the empty string");
-		failToDeleteJob("aaaaaaaaaaaaaaaaaaaa", TOKEN2,
+		failToDeleteJob(CLIENT1, "aaaaaaaaaaaaaaaaaaaa", TOKEN2,
 				"Job ID aaaaaaaaaaaaaaaaaaaa is not a legal ID");
 		
-		failToDeleteJob(jobid, null,
+		failToDeleteJob(CLIENT1, jobid, null,
 				"Service token cannot be null or the empty string", true);
-		failToDeleteJob(jobid, "foo",
+		failToDeleteJob(CLIENT1, jobid, "foo",
 				"Auth token is in the incorrect format, near 'foo'");
-		failToDeleteJob(jobid, TOKEN2 + 'w',
+		failToDeleteJob(CLIENT1, jobid, TOKEN2 + 'w',
 				"Service token is invalid");
-		failToDeleteJob(jobid, TOKEN1, String.format(
+		failToDeleteJob(CLIENT1, jobid, TOKEN1, String.format(
 				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER1));
-	}
-	
-	private void failToDeleteJob(String jobid, String exception)
-			throws Exception {
-		failToDeleteJob(jobid, null, exception, false);
-	}
-	
-	private void failToDeleteJob(String jobid, String token, String exception)
-			throws Exception {
-		failToDeleteJob(jobid, token, exception, false);
-	}
-	
-	private void failToDeleteJob(String jobid, String token, String exception,
-			boolean usenulltoken)
-			throws Exception {
-		try {
-			if (!usenulltoken && token == null) {
-				CLIENT1.deleteJob(jobid);
-			} else {
-				CLIENT1.forceDeleteJob(token, jobid);
-			}
-			fail("deleted job with bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
 	}
 	
 	@Test

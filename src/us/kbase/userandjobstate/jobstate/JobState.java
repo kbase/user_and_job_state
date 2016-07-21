@@ -556,15 +556,15 @@ public class JobState {
 				jobID, user +
 				(service == null ? "" : " and service " + service)));
 		
-		String querystr = String.format("{%s: #, %s: #, ", USER, MONGO_ID);
+		String querystr = String.format("{%s: #, ", MONGO_ID);
 		final Job j;
 		try {
 			if (service == null) {
 				querystr += String.format("%s: true}", COMPLETE);
-				j = jobjong.findOne(querystr, user, id).as(Job.class);
+				j = jobjong.findOne(querystr, id).as(Job.class);
 			} else {
 				querystr += String.format("%s: #}", SERVICE);
-				j = jobjong.findOne(querystr, user, id, service).as(Job.class);
+				j = jobjong.findOne(querystr, id, service).as(Job.class);
 			}
 		} catch (MongoException me) {
 			throw new CommunicationException(
@@ -579,8 +579,7 @@ public class JobState {
 			throw err;
 		}
 		
-		final DBObject query = new BasicDBObject(USER, user);
-		query.put(MONGO_ID, id);
+		final DBObject query = new BasicDBObject(MONGO_ID, id);
 		if (service == null) {
 			query.put(COMPLETE, true);
 		} else {
