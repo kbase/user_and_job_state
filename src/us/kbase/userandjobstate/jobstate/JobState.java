@@ -532,16 +532,53 @@ public class JobState {
 		}
 	}
 	
-	public void deleteJob(final String user, final String jobID)
+	public void deleteJob(
+			final String user,
+			final String jobID,
+			final UJSAuthorizer auth)
 			throws NoSuchJobException, CommunicationException {
-		deleteJob(user, jobID, null);
+		deleteJob(user, jobID, null, auth);
 	}
 	
 	public void deleteJob(final String user, final String jobID,
 			final String service)
 			throws NoSuchJobException, CommunicationException {
+		deleteJob(user, jobID, service, new DefaultUJSAuthorizer());
+	}
+	
+	public void deleteJob(final String user, final String jobID,
+			final String service, final UJSAuthorizer auth)
+			throws NoSuchJobException, CommunicationException {
 		checkString(user, "user", MAX_LEN_USER);
 		final ObjectId id = checkJobID(jobID);
+		final NoSuchJobException err = new NoSuchJobException(String.format(
+				"There is no deletable job %s for user %s",
+				jobID, user +
+				(service == null ? "" : " and service " + service)));
+		
+		String querystr = String.format("{%s: #, %s: #, ", USER, MONGO_ID);
+		final Job j;
+		try {
+			if (service == null) {
+				querystr += String.format("%s: true}", COMPLETE);
+				j = jobjong.findOne(querystr, user, id).as(Job.class);
+			} else {
+				querystr += String.format("%s: #}", SERVICE);
+				j = jobjong.findOne(querystr, user, id, service).as(Job.class);
+			}
+		} catch (MongoException me) {
+			throw new CommunicationException(
+					"There was a problem communicating with the database", me);
+		}
+		if (j == null) {
+			throw err;
+		}
+		try {
+			auth.authorizeDelete(user, j);
+		} catch (UJSAuthorizationException e) {
+			throw err;
+		}
+		
 		final DBObject query = new BasicDBObject(USER, user);
 		query.put(MONGO_ID, id);
 		if (service == null) {
@@ -556,11 +593,9 @@ public class JobState {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
 		}
+		// this can only happen if the job was deleted between fetching and now
 		if (wr.getN() != 1) {
-			throw new NoSuchJobException(String.format(
-					"There is no %sjob %s for user %s",
-					service == null ? "completed " : "", jobID, user +
-					(service == null ? "" : " and service " + service)));
+			throw err;
 		}
 	}
 	

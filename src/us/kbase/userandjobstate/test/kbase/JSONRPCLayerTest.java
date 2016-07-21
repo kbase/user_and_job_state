@@ -790,16 +790,16 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		
 		jobid = CLIENT1.createJob2(new CreateJobParams());
 		failToDeleteJob(jobid, String.format(
-				"There is no completed job %s for user %s", jobid, USER1));
+				"There is no deletable job %s for user %s", jobid, USER1));
 		failToDeleteJob(jobid, TOKEN2, String.format(
-				"There is no job %s for user %s and service %s",
+				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER2));
 		CLIENT1.startJob(jobid, TOKEN2, "d6 stat", "d6 desc", noprog, null);
 		failToDeleteJob(jobid, String.format(
-				"There is no completed job %s for user %s", jobid, USER1));
+				"There is no deletable job %s for user %s", jobid, USER1));
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "d6 stat2", 3L, null);
 		failToDeleteJob(jobid, String.format(
-				"There is no completed job %s for user %s", jobid, USER1));
+				"There is no deletable job %s for user %s", jobid, USER1));
 		
 		failToDeleteJob(null, "id cannot be null or the empty string");
 		failToDeleteJob("", "id cannot be null or the empty string");
@@ -820,7 +820,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failToDeleteJob(jobid, TOKEN2 + 'w',
 				"Service token is invalid");
 		failToDeleteJob(jobid, TOKEN1, String.format(
-				"There is no job %s for user %s and service %s",
+				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER1));
 	}
 	
