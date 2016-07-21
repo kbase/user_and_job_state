@@ -155,6 +155,14 @@ public class WorkspaceAuthTest {
 			throw new UnimplementedException();
 			
 		}
+		
+		//TODO NOW TEST
+		@Override
+		protected void externallyAuthorizeDelete(String user, Job j)
+				throws UJSAuthorizationException {
+			throw new UnimplementedException();
+			
+		}
 	};
 	
 	@Test

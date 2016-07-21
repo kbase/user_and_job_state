@@ -222,7 +222,15 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				final String user,
 				final Job j)
 				throws UJSAuthorizationException {
-			checkStrat(j.getAuthorizationStrategy()); //TODO NOW TEST 
+			checkStrat(j.getAuthorizationStrategy());
+		}
+
+		@Override
+		protected void externallyAuthorizeDelete(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			checkStrat(j.getAuthorizationStrategy()); //TODO NOW TEST
 		}
 	};
 	

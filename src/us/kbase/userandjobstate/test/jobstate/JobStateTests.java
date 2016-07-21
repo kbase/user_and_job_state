@@ -247,6 +247,15 @@ public class JobStateTests {
 					throw new UJSAuthorizationException("fail cancel req");
 				}
 			}
+			
+			//TODO NOW TEST
+			@Override
+			protected void externallyAuthorizeDelete(String user, Job j)
+				throws UJSAuthorizationException {
+				if ("fail delete".equals(j.getAuthorizationParameter())) {
+					throw new UJSAuthorizationException("fail delete req");
+				}
+			}
 		};
 		String user = "foo";
 		String user2 = "bar";

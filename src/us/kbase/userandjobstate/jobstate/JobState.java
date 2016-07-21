@@ -671,7 +671,7 @@ public class JobState {
 	private String completeQuery(
 			String queryPrefix,
 			final boolean running,
-			final boolean complete, //TODO NOW
+			final boolean complete,
 			final boolean canceled,
 			final boolean error) {
 		/* TODO ZZLATER should have a indexed state variable in the job db doc 
