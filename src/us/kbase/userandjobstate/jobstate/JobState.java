@@ -472,8 +472,8 @@ public class JobState {
 		return query;
 	}
 	
-	private static final String QRY_COMPLETE =  String.format(
-			"{%s: #, %s: #}", MONGO_ID, COMPLETE);
+	private static final String QRY_CANCELABLE =  String.format(
+			"{%s: #, %s: {$ne: true}}", MONGO_ID, COMPLETE);
 	
 	public void cancelJob(
 			final String user,
@@ -497,9 +497,7 @@ public class JobState {
 				jobID, user));
 		final Job j;
 		try {
-			// setting complete = false means that non-started jobs don't show
-			// up
-			j = jobjong.findOne(QRY_COMPLETE, oi, false).as(Job.class);
+			j = jobjong.findOne(QRY_CANCELABLE, oi).as(Job.class);
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
@@ -513,12 +511,13 @@ public class JobState {
 			throw nsje;
 		}
 		final DBObject query = new BasicDBObject(MONGO_ID, oi);
-		query.put(COMPLETE, false);
+		query.put(COMPLETE, new BasicDBObject("$ne", true));
 		
 		final DBObject set = new BasicDBObject(STATUS, status);
 		set.put(UPDATED, new Date());
 		set.put(CANCELEDBY, user);
 		set.put(COMPLETE, true);
+		set.put(ERROR, false);
 		final WriteResult wr;
 		try {
 			wr = jobcol.update(query, new BasicDBObject("$set", set));
