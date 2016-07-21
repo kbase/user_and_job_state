@@ -119,6 +119,10 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		String id = createJobForTest(cli);
 		String cid1 = createJobForTest(cli);
 		String cid2 = createJobForTest(cli);
+		String did1 = createJobForTest(cli, true);
+		String did2 = createJobForTest(cli);
+		String did3 = createJobForTest(cli, true);
+		String did4 = createJobForTest(cli);
 		
 		//check job is accessible
 		checkJob(cli, id, USER.getUserId(), null, "started", "stat",
@@ -127,6 +131,8 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		assertThat("owner ok", cli.getJobOwner(id), is(USER.getUserId()));
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
 		cli.cancelJob(cid1, "can1");
+		deleteJob(cli, did1);
+		deleteJob(cli, did2, cli.getToken().toString());
 		
 		//start up ujs without a ws link
 		ujs.stopServer();
@@ -138,7 +144,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 				USER.getUserId(), PWD);
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
-		//fail to get /cancel  jobs
+		//fail to get / cancel / delete jobs
 		failGetJob(cli, id, String.format(
 				"There is no job %s viewable by user %s",
 				id, USER.getUserId()));
@@ -151,7 +157,12 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		failCancelJob(cli, cid2, "can2", String.format(
 				"There is no job %s that may be canceled by user %s",
 				cid2, USER.getUserId()));
-		
+		failToDeleteJob(cli, did3, String.format(
+				"There is no deletable job %s for user %s",
+				did3, USER.getUserId()));
+		failToDeleteJob(cli, did4, cli.getToken().toString(), String.format(
+				"There is no deletable job %s for user %s and service %s",
+				did4, USER.getUserId(), USER.getUserId()));
 		
 		//set up UJS with a WS link again
 		ujs.stopServer();
@@ -172,17 +183,30 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		assertThat("owner ok", cli.getJobOwner(id), is(USER.getUserId()));
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
 		cli.cancelJob(cid2, "stat");
+		deleteJob(cli, did3);
+		deleteJob(cli, did4, cli.getToken().toString());
+		
 		//stop UJS
 		ujs.stopServer();
 		
 	}
 
-	private String createJobForTest(UserAndJobStateClient cli)
+	private String createJobForTest(final UserAndJobStateClient cli)
+			throws Exception {
+		return createJobForTest(cli, false);
+	}
+	
+	private String createJobForTest(
+			final UserAndJobStateClient cli,
+			final boolean complete)
 			throws Exception {
 		String id = cli.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
 		cli.startJob(id, USER.getTokenString(), "stat", "desc",
 				new InitProgress().withPtype("none"), null);
+		if (complete) {
+			cli.completeJob(id, cli.getToken().toString(), "stat", null, null);
+		}
 		return id;
 	}
 }

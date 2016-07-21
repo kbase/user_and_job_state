@@ -365,35 +365,6 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		deleteJob(UJSC2, id2, TOKEN2);
 	}
 	
-	private void deleteJob(final UserAndJobStateClient cli, final String id)
-			throws Exception {
-		try {
-			cli.deleteJob(id);
-		} catch (ServerException se) {
-			System.out.println(se.getData());
-			throw se;
-		}
-		failGetJob(cli, id, String.format(
-				"There is no job %s viewable by user %s",
-				id, cli.getToken().getUserName()));
-	}
-	
-	private void deleteJob(
-			final UserAndJobStateClient cli,
-			final String id,
-			final String service)
-			throws Exception {
-		try {
-			cli.forceDeleteJob(service, id);
-		} catch (ServerException se) {
-			System.out.println(se.getData());
-			throw se;
-		}
-		failGetJob(cli, id, String.format(
-				"There is no job %s viewable by user %s",
-				id, cli.getToken().getUserName()));
-	}
-	
 	private String createStartedJob() throws Exception {
 		InitProgress noprog = new InitProgress().withPtype("none");
 		String id = UJSC1.createJob2(new CreateJobParams().withAuthstrat(KBWS)
