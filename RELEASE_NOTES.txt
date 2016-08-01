@@ -41,6 +41,9 @@ NEW FEATURES:
 - User specified metadata can now be associated with a job via the create_job2
   method.
 - These is now a minimal documentation server at the /docs endpoint.
+- The authorization URLs used by the server may now be configured.
+- All configuration user id / password combinations may now be alternately
+  fulfilled with a token.
 
 UPDATED FEATURES / MAJOR BUG FIXES:
 
