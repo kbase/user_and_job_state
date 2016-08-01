@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import com.mongodb.DB;
 
+import us.kbase.auth.AuthToken;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.service.JsonClientException;
@@ -72,7 +73,7 @@ public class JSONRPCLayerTestUtils {
 	}
 	
 	public static UserAndJobStateServer startUpUJSServer(String mongohost,
-			String wsurl, String dbname, String user, String pwd)
+			String wsurl, String dbname, AuthToken t, String pwd)
 			throws Exception {
 		//write the server config file:
 		File iniFile = File.createTempFile("test", ".cfg",
@@ -86,8 +87,14 @@ public class JSONRPCLayerTestUtils {
 		ws.add("mongodb-database", dbname);
 		ws.add("mongodb-user", "foo");
 		ws.add("mongodb-pwd", "foo");
-		ws.add("kbase-admin-user", user);
-		ws.add("kbase-admin-pwd", pwd);
+		ws.add("auth-service-url", TestCommon.getAuthUrl());
+		ws.add("globus-url", TestCommon.getGlobusUrl());
+		if (pwd == null) {
+			ws.add("kbase-admin-token", t.getToken());
+		} else {
+			ws.add("kbase-admin-user", t.getUserName());
+			ws.add("kbase-admin-pwd", pwd);
+		}
 		if (wsurl != null) {
 			ws.add("workspace-url", wsurl);
 		}
@@ -127,8 +134,8 @@ public class JSONRPCLayerTestUtils {
 	
 	//TODO ZZLATER make the JSONRPCLayerTester method public & use
 	public static WorkspaceServer startupWorkspaceServer(String mongohost,
-			String dbname, String typedb, String user1, String user2,
-			String user1Password)
+			String dbname, String typedb, AuthToken t1, String pwd1,
+			String user2)
 			throws InvalidHostException, UnknownHostException, IOException,
 			NoSuchFieldException, IllegalAccessException, Exception,
 			InterruptedException {
@@ -148,9 +155,15 @@ public class JSONRPCLayerTestUtils {
 		ws.add("mongodb-host", mongohost);
 		ws.add("mongodb-database", db.getName());
 		ws.add("backend-secret", "foo");
+		ws.add("auth-service-url", TestCommon.getAuthUrl());
+		ws.add("globus-url", TestCommon.getGlobusUrl());
 		ws.add("ws-admin", user2);
-		ws.add("kbase-admin-user", user1);
-		ws.add("kbase-admin-pwd", user1Password);
+		if (pwd1 == null) {
+			ws.add("kbase-admin-token", t1.getToken());
+		} else {
+			ws.add("kbase-admin-user", t1.getUserName());
+			ws.add("kbase-admin-pwd", pwd1);
+		}
 		ws.add("temp-dir", Paths.get(TestCommon.getTempDir())
 				.resolve("tempForWorkspaceForUJSAuthTest"));
 		ws.add("ignore-handle-service", "true");

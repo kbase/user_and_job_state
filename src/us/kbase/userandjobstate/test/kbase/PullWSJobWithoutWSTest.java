@@ -17,12 +17,12 @@ import org.junit.Test;
 
 import com.mongodb.DB;
 
-import us.kbase.auth.AuthService;
+import us.kbase.auth.AuthConfig;
+import us.kbase.auth.AuthToken;
 import us.kbase.auth.AuthUser;
+import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.mongo.GetMongoDB;
-import us.kbase.common.service.UnauthorizedException;
 import us.kbase.common.test.TestCommon;
-import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
@@ -55,15 +55,13 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
-		String user1 = System.getProperty("test.user1");
-		PWD = System.getProperty("test.pwd1");
-		
-		try {
-			USER = AuthService.login(user1, PWD);
-		} catch (Exception e) {
-			throw new TestException("Could not log in test user test.user1: " +
-					user1, e);
-		}
+		final ConfigurableAuthService auth = new ConfigurableAuthService(
+				new AuthConfig().withKBaseAuthServerURL(
+						TestCommon.getAuthUrl()));
+		final AuthToken t1 = TestCommon.getToken(1, auth);
+		PWD = TestCommon.getPwdNullIfToken(1);
+		USER = auth.getUserFromToken(t1);
+
 		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
@@ -72,15 +70,9 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		System.out.println("mongo on " + mongohost);
 		
 		WS = startupWorkspaceServer(mongohost, WS_DB_NAME, "ws_types",
-				user1, user1, PWD);
+				t1, PWD, t1.getUserName());
 		final int wsport = WS.getServerPort();
-		try {
-			WSC = new WorkspaceClient(new URL("http://localhost:" + wsport),
-					user1, PWD);
-		} catch (UnauthorizedException ue) {
-			throw new TestException("Unable to login with test.user1: " + user1 +
-					"\nPlease check the credentials in the test configuration.", ue);
-		}
+		WSC = new WorkspaceClient(new URL("http://localhost:" + wsport), t1);
 		WSC.setIsInsecureHttpConnectionAllowed(true);
 	}
 	
@@ -108,10 +100,10 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		UserAndJobStateServer ujs = startUpUJSServer(
 				"localhost:" + MONGO.getServerPort(),
 				"http://localhost:" + WS.getServerPort(),
-				"ujs", USER.getUserId(), PWD);
+				"ujs", USER.getToken(), PWD);
 		UserAndJobStateClient cli = new UserAndJobStateClient(
 				new URL("http://localhost:" + ujs.getServerPort()),
-				USER.getUserId(), PWD);
+				USER.getToken());
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
 		//create a job associated with a ws
@@ -132,16 +124,16 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
 		cli.cancelJob(cid1, "can1");
 		deleteJob(cli, did1);
-		deleteJob(cli, did2, cli.getToken().toString());
+		deleteJob(cli, did2, cli.getToken().getToken());
 		
 		//start up ujs without a ws link
 		ujs.stopServer();
 		UserAndJobStateServer.clearConfigForTests();
 		ujs = startUpUJSServer("localhost:" + MONGO.getServerPort(),
-				null, "ujs", USER.getUserId(), PWD);
+				null, "ujs", USER.getToken(), PWD);
 		cli = new UserAndJobStateClient(
 				new URL("http://localhost:" + ujs.getServerPort()),
-				USER.getUserId(), PWD);
+				USER.getToken());
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
 		//fail to get / cancel / delete jobs
@@ -160,7 +152,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		failToDeleteJob(cli, did3, String.format(
 				"There is no deletable job %s for user %s",
 				did3, USER.getUserId()));
-		failToDeleteJob(cli, did4, cli.getToken().toString(), String.format(
+		failToDeleteJob(cli, did4, cli.getToken().getToken(), String.format(
 				"There is no deletable job %s for user %s and service %s",
 				did4, USER.getUserId(), USER.getUserId()));
 		
@@ -170,10 +162,10 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		ujs = startUpUJSServer(
 				"localhost:" + MONGO.getServerPort(),
 				"http://localhost:" + WS.getServerPort(),
-				"ujs", USER.getUserId(), PWD);
+				"ujs", USER.getToken(), PWD);
 		cli = new UserAndJobStateClient(
 				new URL("http://localhost:" + ujs.getServerPort()),
-				USER.getUserId(), PWD);
+				USER.getToken());
 		cli.setIsInsecureHttpConnectionAllowed(true);
 		
 		//check jobs are accessible again
@@ -184,7 +176,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		assertThat("shared list ok", cli.getJobShared(id), is(mtl));
 		cli.cancelJob(cid2, "stat");
 		deleteJob(cli, did3);
-		deleteJob(cli, did4, cli.getToken().toString());
+		deleteJob(cli, did4, cli.getToken().getToken());
 		
 		//stop UJS
 		ujs.stopServer();
@@ -205,7 +197,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		cli.startJob(id, USER.getTokenString(), "stat", "desc",
 				new InitProgress().withPtype("none"), null);
 		if (complete) {
-			cli.completeJob(id, cli.getToken().toString(), "stat", null, null);
+			cli.completeJob(id, USER.getTokenString(), "stat", null, null);
 		}
 		return id;
 	}

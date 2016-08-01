@@ -25,6 +25,8 @@ import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_ID;
 import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_URL;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -48,8 +50,6 @@ import ch.qos.logback.classic.Logger;
 import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.auth.TokenExpiredException;
-import us.kbase.auth.TokenFormatException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.mongo.exceptions.MongoAuthException;
@@ -159,6 +159,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	//credentials to use for user queries
 	private static final String KBASE_ADMIN_USER = "kbase-admin-user";
 	private static final String KBASE_ADMIN_PWD = "kbase-admin-pwd";
+	private static final String KBASE_ADMIN_TOKEN = "kbase-admin-token";
+	
+	//auth servers
+	private static final String KBASE_AUTH_URL = "auth-service-url";
+	private static final String GLOBUS_AUTH_URL = "globus-url";
 	
 	private static final String WORKSPACE_URL = "workspace-url";
 			
@@ -334,16 +339,17 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	private String getServiceUserName(String serviceToken)
-			throws TokenFormatException, TokenExpiredException, IOException {
+			throws IOException, AuthException {
 		if (serviceToken == null || serviceToken.isEmpty()) {
 			throw new IllegalArgumentException(
 					"Service token cannot be null or the empty string");
 		}
-		final AuthToken t = new AuthToken(serviceToken);
-		if (!auth.validateToken(t)) {
-			throw new IllegalArgumentException("Service token is invalid");
+		try {
+			return auth.validateToken(serviceToken).getUserName();
+		} catch (AuthException e) {
+			throw new AuthException("Couldn't validate the server token. " +
+					"The authentication server said: " + e.getMessage(), e);
 		}
-		return t.getUserName();
 	}
 	
 	private Tuple14<String, String, String, String, String, String, Long,
@@ -530,7 +536,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	public void setUpLogger() {
-		Logger l = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+		Logger l = (Logger) LoggerFactory.getLogger(
+				org.slf4j.Logger.ROOT_LOGGER_NAME);
 		l.setLevel(Level.OFF);
 		l.detachAndStopAllAppenders();
 	}
@@ -556,21 +563,51 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return recint;
 	}
 	
-
+	/* assumes param is in map */
+	private URL getURL(final Map<String, String> config, final String param) {
+		try {
+			return new URL(config.get(param));
+		} catch (MalformedURLException e) {
+			fail(String.format("URL %s provided for param %s is not valid",
+					config.get(param), param));
+		}
+		return null;
+	}
+	
+	/* assumes params are already in map and empty strings were set to null*/
+	@SuppressWarnings("deprecation")
 	private ConfigurableAuthService setUpAuthClient(
-			final String kbaseAdminUser,
-			final String kbaseAdminPwd) {
-		AuthConfig c = new AuthConfig();
-		ConfigurableAuthService auth;
+			final Map<String, String> config) {
+		final URL authURL = getURL(config, KBASE_AUTH_URL);
+		final URL globusURL = getURL(config, GLOBUS_AUTH_URL);
+		if (authURL == null || globusURL == null) { // a url was invalid
+			return null;
+		}
+		final AuthConfig c;
+		try {
+			c = new AuthConfig().withGlobusAuthURL(globusURL)
+				.withKBaseAuthServerURL(authURL);
+		} catch (URISyntaxException e) {
+			throw new RuntimeException("Neat. I'm suprised this happened", e);
+		}
+		final boolean token = config.get(KBASE_ADMIN_TOKEN) != null;
+		final ConfigurableAuthService auth;
 		try {
 			auth = new ConfigurableAuthService(c);
-			c.withRefreshingToken(auth.getRefreshingToken(
-					kbaseAdminUser, kbaseAdminPwd,
-					TOKEN_REFRESH_INTERVAL_SEC));
+			if (token) {
+				c.withToken(auth.validateToken(config.get(KBASE_ADMIN_TOKEN)));
+			} else {
+				//TODO AUTH LATER remove refreshing token
+				c.withRefreshingToken(auth.getRefreshingToken(
+						config.get(KBASE_ADMIN_USER),
+						config.get(KBASE_ADMIN_PWD),
+						TOKEN_REFRESH_INTERVAL_SEC));
+			}
 			return auth;
 		} catch (AuthException e) {
 			fail("Couldn't log in the KBase administrative user " +
-					kbaseAdminUser + " : " + e.getLocalizedMessage());
+					(token ? "with a token" : config.get(KBASE_ADMIN_USER)) +
+					": " + e.getMessage());
 		} catch (IOException e) {
 			fail("Couldn't connect to authorization service at " +
 					c.getAuthServerURL() + " : " + e.getLocalizedMessage());
@@ -611,6 +648,13 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 	}
 	
+	private boolean hasParam(
+			final Map<String, String> config,
+			final String param) {
+		final String p = config.get(param);
+		return p != null && !p.isEmpty();
+	}
+	
 	public static void clearConfigForTests() {
 		ujConfig = null;
 	}
@@ -628,33 +672,52 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		setUpLogger();
 		boolean failed = false;
-		if (!ujConfig.containsKey(HOST)) {
+		
+		if (!hasParam(ujConfig, HOST)) {
 			fail("Must provide param " + HOST + " in config file");
 			failed = true;
 		}
 		final String host = ujConfig.get(HOST);
-		if (!ujConfig.containsKey(DB)) {
+		
+		if (!hasParam(ujConfig, DB)) {
 			fail("Must provide param " + DB + " in config file");
 			failed = true;
 		}
 		final String dbs = ujConfig.get(DB);
-		if (ujConfig.containsKey(USER) ^ ujConfig.containsKey(PWD)) {
+		
+		if (!hasParam(ujConfig, KBASE_AUTH_URL)) {
+			fail("Must provide param " + KBASE_AUTH_URL + " in config file");
+			failed = true;
+		}
+		
+		if (!hasParam(ujConfig, GLOBUS_AUTH_URL)) {
+			fail("Must provide param " + GLOBUS_AUTH_URL + " in config file");
+			failed = true;
+		}
+		
+		if (!hasParam(ujConfig, USER) ^ !hasParam(ujConfig, PWD)) {
 			fail(String.format("Must provide both %s and %s ",
 					USER, PWD) + "params in config file if authentication " + 
 					"is to be used");
 			failed = true;
 		}
-		
-		if (!ujConfig.containsKey(KBASE_ADMIN_USER)) {
-			fail("Must provide param " + KBASE_ADMIN_USER + " in config file");
-			failed = true;
+		if (!hasParam(ujConfig, KBASE_ADMIN_TOKEN)) {
+			ujConfig.put(KBASE_ADMIN_TOKEN, null);
+			if (!hasParam(ujConfig, KBASE_ADMIN_USER)) {
+				fail(String.format(
+						"Must provide param %s or %s in config file",
+						KBASE_ADMIN_USER, KBASE_ADMIN_TOKEN));
+				failed = true;
+			}
+			if (!hasParam(ujConfig, KBASE_ADMIN_PWD)) {
+				fail("Must provide param " + KBASE_ADMIN_PWD +
+						" in config file");
+				failed = true;
+			}
+		} else {
+			ujConfig.put(KBASE_ADMIN_USER, null);
+			ujConfig.put(KBASE_ADMIN_PWD, null);
 		}
-		final String adminUser = ujConfig.get(KBASE_ADMIN_USER);
-		if (!ujConfig.containsKey(KBASE_ADMIN_PWD)) {
-			fail("Must provide param " + KBASE_ADMIN_PWD + " in config file");
-			failed = true;
-		}
-		final String adminPwd = ujConfig.get(KBASE_ADMIN_PWD);
 		
 		if (failed) {
 			fail("Server startup failed - all calls will error out.");
@@ -666,7 +729,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			final String user = ujConfig.get(USER);
 			final String pwd = ujConfig.get(PWD);
 			String params = "";
-			for (String s: Arrays.asList(HOST, DB, USER)) {
+			for (String s: Arrays.asList(HOST, DB, USER, KBASE_AUTH_URL,
+					GLOBUS_AUTH_URL)) {
 				if (ujConfig.containsKey(s)) {
 					params += s + "=" + ujConfig.get(s) + "\n";
 				}
@@ -678,9 +742,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					+ params);
 			logInfo("Starting server using connection parameters:\n" + params);
 			final int mongoConnectRetry = getReconnectCount();
-			final DB ujsDB = getMongoDB(host, dbs, user, pwd, mongoConnectRetry);
+			final DB ujsDB = getMongoDB(
+					host, dbs, user, pwd, mongoConnectRetry);
 			final SchemaManager sm = getSchemaManager(ujsDB, host);
-			if (ujsDB == null || sm == null) {
+			final ConfigurableAuthService cauth = setUpAuthClient(ujConfig);
+			if (ujsDB == null || sm == null || cauth == null) {
 				us = null;
 				js = null;
 				auth = null;
@@ -690,7 +756,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 				us = getUserState(ujsDB, sm, host);
 				js = getJobState(ujsDB, sm, host);
 				authfac = setUpWorkspaceAuth();
-				auth = setUpAuthClient(adminUser, adminPwd);
+				auth = cauth;
 			}
 		}
         //END_CONSTRUCTOR
