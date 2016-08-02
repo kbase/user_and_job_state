@@ -14,10 +14,12 @@ CFG_SECTION = 'UserJobTest'
 
 CONFIG_OPTS = ['test.user1',
                'test.pwd1',
+               'test.token1',
                'test.user2',
                'test.pwd2',
-               'test.user3',
-               'test.pwd3',
+               'test.token2',
+               'test.auth.url',
+               'test.globus.url',
                'test.mongo.exe',
                'test.temp.dir',
                'test.temp.dir.keep'
@@ -41,21 +43,12 @@ if __name__ == '__main__':
         print 'Test config file ' + fn + ' is missing section ' +\
             CFG_SECTION + '. Halting.'
         sys.exit(1)
-    if testcfg['test.user1'] == testcfg['test.user2']:
-        print "Test users 1 & 2 are identical. Halting."
-        sys.exit(1)
-    if testcfg['test.user1'] == testcfg['test.user3']:
-        print "Test users 1 & 3 are identical. Halting."
-        sys.exit(1)
-    if testcfg['test.user2'] == testcfg['test.user3']:
-        print "Test users 2 & 3 are identical. Halting."
-        sys.exit(1)
     with open(out, 'w') as run:
         run.write('# Generated file - do not check into git\n')
 #        run.write('cd ..\n')
         run.write(ANT + ' test')
         for o in CONFIG_OPTS:
             if o in testcfg:
-                run.write(' -D' + o + '=' + testcfg[o])
+                run.write(' -D' + o + '="' + testcfg[o] + '"')
         run.write('\n')
     os.chmod(out, 0755)

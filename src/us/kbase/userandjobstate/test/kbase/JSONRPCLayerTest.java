@@ -25,11 +25,15 @@ import org.junit.Test;
 
 import com.mongodb.DB;
 
+import us.kbase.auth.AuthConfig;
+import us.kbase.auth.AuthToken;
+import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
+import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
@@ -50,6 +54,13 @@ import us.kbase.userandjobstate.test.FakeJob;
  */
 public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
+	private static final String ERR_AUTH_INVALID = "Couldn't validate the " +
+			"server token. The authentication server said: Login failed! " +
+			"Invalid token";
+	private static final String ERR_AUTH_LOGIN = "Couldn't validate the " +
+			"server token. The authentication server said: " +
+			"Login failed! Server responded with code 401 UNAUTHORIZED";
+	
 	private static UserAndJobStateServer SERVER = null;
 	private static UserAndJobStateClient CLIENT1 = null;
 	private static String USER1 = null;
@@ -67,10 +78,17 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
-		USER1 = System.getProperty("test.user1");
-		USER2 = System.getProperty("test.user2");
-		String p1 = System.getProperty("test.pwd1");
-		String p2 = System.getProperty("test.pwd2");
+		final ConfigurableAuthService auth = new ConfigurableAuthService(
+				new AuthConfig().withKBaseAuthServerURL(
+						TestCommon.getAuthUrl()));
+		final AuthToken t1 = TestCommon.getToken(1, auth);
+		final AuthToken t2 = TestCommon.getToken(2, auth);
+		USER1 = t1.getUserName();
+		USER2 = t2.getUserName();
+		if (USER1.equals(USER2)) {
+			throw new TestException("user1 cannot equal user2: " + USER1);
+		}
+		String p1 = TestCommon.getPwdNullIfToken(1);
 
 		mongo = new MongoController(
 				TestCommon.getMongoExe(),
@@ -78,16 +96,16 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		SERVER = startUpUJSServer("localhost:" + mongo.getServerPort(),
-				null, DB_NAME, USER1, p1);
+				null, DB_NAME, t1, p1);
 		int port = SERVER.getServerPort();
 		System.out.println("Started test server on port " + port);
 		System.out.println("Starting tests");
-		CLIENT1 = new UserAndJobStateClient(new URL("http://localhost:" + port), USER1, p1);
-		CLIENT2 = new UserAndJobStateClient(new URL("http://localhost:" + port), USER2, p2);
+		CLIENT1 = new UserAndJobStateClient(new URL("http://localhost:" + port), t1);
+		CLIENT2 = new UserAndJobStateClient(new URL("http://localhost:" + port), t2);
 		CLIENT1.setIsInsecureHttpConnectionAllowed(true);
 		CLIENT2.setIsInsecureHttpConnectionAllowed(true);
-		TOKEN1 = CLIENT1.getToken().toString();
-		TOKEN2 = CLIENT2.getToken().toString();
+		TOKEN1 = CLIENT1.getToken().getToken();
+		TOKEN2 = CLIENT2.getToken().getToken();
 	}
 
 	@AfterClass
@@ -111,7 +129,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@Test
 	public void ver() throws Exception {
-		assertThat("got correct version", CLIENT1.ver(), is("0.2.0-dev"));
+		assertThat("got correct version", CLIENT1.ver(), is("0.2.0-dev2"));
 	}
 	
 	
@@ -223,14 +241,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Auth token is in the incorrect format, near 'boogabooga'"));
+					is(ERR_AUTH_INVALID));
 		}
 		try {
 			CLIENT1.setStateAuth(TOKEN2 + "a", "key", new UObject("foo"));
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Service token is invalid"));
+					is(ERR_AUTH_LOGIN));
 		}
 		try {
 			CLIENT1.removeStateAuth(null, "key");
@@ -251,14 +269,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Auth token is in the incorrect format, near 'boogabooga'"));
+					is(ERR_AUTH_INVALID));
 		}
 		try {
 			CLIENT1.removeStateAuth(TOKEN2 + "a", "key");
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Service token is invalid"));
+					is(ERR_AUTH_LOGIN));
 		}
 	}
 	
@@ -318,9 +336,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		startJobBadArgs(jobid, null, "s", "d", new InitProgress().withPtype("none"),
 				null, "Service token cannot be null or the empty string");
 		startJobBadArgs(jobid, "foo", "s", "d", new InitProgress().withPtype("none"),
-				null, "Auth token is in the incorrect format, near 'foo'");
+				null, ERR_AUTH_INVALID);
 		startJobBadArgs(jobid, TOKEN2 + "a", "s", "d", new InitProgress().withPtype("none"),
-				null, "Service token is invalid");
+				null, ERR_AUTH_LOGIN);
 		
 		startJobBadArgs(jobid, TOKEN2, "s", "d",
 				new InitProgress().withPtype("none"),
@@ -552,12 +570,12 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		updateJobBadArgs(jobid, null, "s", null,
 				"Service token cannot be null or the empty string");
 		updateJobBadArgs(jobid, "foo", "s", null,
-				"Auth token is in the incorrect format, near 'foo'");
+				ERR_AUTH_INVALID);
 		updateJobBadArgs(jobid, TOKEN1, "s", null, String.format(
 				"There is no uncompleted job %s for user %s started by service %s",
 				jobid, USER1, USER1));
 		updateJobBadArgs(jobid, TOKEN2 + "a", "s", null,
-				"Service token is invalid");
+				ERR_AUTH_LOGIN);
 	}
 	
 	@Test
@@ -670,9 +688,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failCompleteJob(jobid, null, "s", null, null,
 				"Service token cannot be null or the empty string");
 		failCompleteJob(jobid, "foo", "s", null, null,
-				"Auth token is in the incorrect format, near 'foo'");
+				ERR_AUTH_INVALID);
 		failCompleteJob(jobid, TOKEN2 + "w", "s", null, null,
-				"Service token is invalid");
+				ERR_AUTH_LOGIN);
 		failCompleteJob(jobid, TOKEN1, "s", null, null, String.format(
 				"There is no uncompleted job %s for user %s started by service %s",
 				jobid, USER1, USER1));
@@ -821,9 +839,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failToDeleteJob(CLIENT1, jobid, null,
 				"Service token cannot be null or the empty string", true);
 		failToDeleteJob(CLIENT1, jobid, "foo",
-				"Auth token is in the incorrect format, near 'foo'");
+				ERR_AUTH_INVALID);
 		failToDeleteJob(CLIENT1, jobid, TOKEN2 + 'w',
-				"Service token is invalid");
+				ERR_AUTH_LOGIN);
 		failToDeleteJob(CLIENT1, jobid, TOKEN1, String.format(
 				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER1));

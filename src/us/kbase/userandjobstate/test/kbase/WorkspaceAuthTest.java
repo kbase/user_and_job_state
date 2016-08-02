@@ -18,12 +18,13 @@ import org.junit.Test;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 
-import us.kbase.auth.AuthService;
+import us.kbase.auth.AuthConfig;
+import us.kbase.auth.AuthToken;
 import us.kbase.auth.AuthUser;
+import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
-import us.kbase.common.service.UnauthorizedException;
 import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
@@ -59,23 +60,19 @@ public class WorkspaceAuthTest {
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
-		String user1 = System.getProperty("test.user1");
-		String user2 = System.getProperty("test.user2");
-		String p1 = System.getProperty("test.pwd1");
-		String p2 = System.getProperty("test.pwd2");
+		final ConfigurableAuthService auth = new ConfigurableAuthService(
+				new AuthConfig().withKBaseAuthServerURL(
+						TestCommon.getAuthUrl()));
+		final AuthToken t1 = TestCommon.getToken(1, auth);
+		final AuthToken t2 = TestCommon.getToken(2, auth);
+		if (t1.getUserName().equals(t2.getUserName())) {
+			throw new TestException("user1 cannot equal user2: " +
+					t1.getUserName());
+		}
+		final String p1 = TestCommon.getPwdNullIfToken(1); 
 		
-		try {
-			U1 = AuthService.login(user1, p1);
-		} catch (Exception e) {
-			throw new TestException("Could not log in test user test.user1: " +
-					user1, e);
-		}
-		try {
-			U2 = AuthService.login(user2, p2);
-		} catch (Exception e) {
-			throw new TestException("Could not log in test user test.user2: " +
-					user2, e);
-		}
+		U1 = auth.getUserFromToken(t1);
+		U2 = auth.getUserFromToken(t2);
 		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
@@ -84,21 +81,10 @@ public class WorkspaceAuthTest {
 		System.out.println("mongo on " + mongohost);
 		
 		WS = JSONRPCLayerTestUtils.startupWorkspaceServer(
-				mongohost, WS_DB_NAME, "ws_types", user1, user2, p1);
+				mongohost, WS_DB_NAME, "ws_types", t1, p1, t2.getUserName());
 		final int port = WS.getServerPort();
-		try {
-			WSC1 = new WorkspaceClient(new URL("http://localhost:" + port),
-					user1, p1);
-		} catch (UnauthorizedException ue) {
-			throw new TestException("Unable to login with test.user1: " + user1 +
-					"\nPlease check the credentials in the test configuration.", ue);
-		}
-		try {
-			WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), user2, p2);
-		} catch (UnauthorizedException ue) {
-			throw new TestException("Unable to login with test.user2: " + user2 +
-					"\nPlease check the credentials in the test configuration.", ue);
-		}
+		WSC1 = new WorkspaceClient(new URL("http://localhost:" + port), t1);
+		WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), t2);
 		WSC1.setIsInsecureHttpConnectionAllowed(true);
 		WSC2.setIsInsecureHttpConnectionAllowed(true);
 		final DB db = GetMongoDB.getDB(
