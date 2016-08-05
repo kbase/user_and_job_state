@@ -33,7 +33,7 @@
   <property name="test.token2" value="" />
 
   <fileset dir="${jardir}" id="sourceslib">
-    <include name="kbase/common/kbase-common-0.0.19.jar"/>
+    <include name="kbase/common/kbase-common-0.0.20.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="serverlib">
