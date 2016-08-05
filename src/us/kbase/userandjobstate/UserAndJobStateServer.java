@@ -146,7 +146,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private static final String GIT =
 			"https://github.com/kbase/user_and_job_state";
 	
-	private static final String VER = "0.2.0-dev2";
+	private static final String VER = "0.2.0-dev3";
 
 	//required deploy parameters:
 	public static final String HOST = "mongodb-host";
