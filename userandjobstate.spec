@@ -1,4 +1,6 @@
 /* 
+User and Job State service (UJS)
+
 Service for storing arbitrary key/object pairs on a per user per service basis
 and storing job status so that a) long JSON RPC calls can report status and
 UI elements can receive updates, and b) there's a centralized location for 
@@ -27,12 +29,6 @@ pairs or jobs, require service authentication.
 The service assumes other services are capable of simple math and does not
 throw errors if a progress bar overflows.
 
-Jobs are automatically deleted after 30 days.
-
-Where string limits are noted, these apply only to *incoming* strings. Other
-services that the UJS wraps (currently AWE) may provide longer strings for
-these fields and the UJS passes them on unchanged.
-
 Potential job process flows:
 
 Asysnc:
@@ -53,6 +49,27 @@ meanwhile, the UI periodically polls the job status server to get progress
 	updates
 service call finishes, completes job, returns results
 UI thread joins
+
+Authorization:
+Currently two modes of authorization are supported:
+
+DEFAULT:
+DEFAULT authorization uses the UJS access control lists (ACLs) stored in the
+UJS database. All methods work normally for this authorization strategy. To
+use the default authorization strategy, simply do not specify an authorization
+strategy when creating a job.
+
+kbaseworkspace:
+kbaseworkspace authorization (kbwsa) associates each job with an integer
+Workspace Service (WSS) workspace ID (the authorization parameter). In order to
+create a job with kbwsa, a user must have write access to the workspace in
+question. That user can then read and update (but not necessarily list) the job
+for the remainder of the job lifetime, regardless of the workspace permission.
+
+Other users must have read permissions to the workspace in order to view the
+job.
+
+Share and unshare commands do not work with kbwsa.
 
 */
 
@@ -131,7 +148,7 @@ module UserAndJobState {
 	typedef string job_id;
 	
 	/* A string that describes the stage of processing of the job.
-		One of 'created', 'started', 'completed', or 'error'.
+		One of 'created', 'started', 'completed', 'canceled' or 'error'.
 	*/
 	typedef string job_stage;
 	
@@ -217,8 +234,52 @@ module UserAndJobState {
 		string workspaceurl;
 		list<Result> results;
 	} Results;
+	
+	/*
+		An authorization strategy to use for jobs. Other than the
+		DEFAULT strategy (ACLs local to the UJS and managed by the UJS
+		sharing functions), currently the only other strategy is the
+		'kbaseworkspace' strategy, which consults the workspace service for
+		authorization information.
+	*/
+	typedef string auth_strategy;
+	
+	/*
+		An authorization parameter. The contents of this parameter differ by
+		auth_strategy, but for the workspace strategy it is the workspace id
+		(an integer) as a string.
+	*/
+	typedef string auth_param;
+	
+	/*
+		User provided metadata about a job.
+		Arbitrary key-value pairs provided by the user.
+	*/
+	typedef mapping<string, string> usermeta;
+	
+	/*
+		Parameters for the create_job2 method.
 		
+		Optional parameters:
+		auth_strategy authstrat - the authorization strategy to use for the
+			job. Omit to use the standard UJS authorization. If an
+			authorization strategy is supplied, in most cases an authparam must
+			be supplied as well.
+		auth_param - a parameter for the authorization strategy.
+		usermeta meta - metadata for the job.
+	*/
+	typedef structure {
+		auth_strategy authstrat;
+		auth_param authparam;
+		usermeta meta;
+	} CreateJobParams;
+	
 	/* Create a new job status report. */
+	funcdef create_job2(CreateJobParams params) returns (job_id job);
+	
+	/* Create a new job status report.
+		@deprecated create_job2
+	 */
 	funcdef create_job() returns(job_id job);
 	
 	/* Start a job and specify the job parameters. */
@@ -255,6 +316,9 @@ module UserAndJobState {
 	*/
 	funcdef complete_job(job_id job, service_token token, job_status status,
 		detailed_err error, Results res) returns();
+	
+	/* Cancel a job. */
+	funcdef cancel_job(job_id job, job_status status) returns();
 		
 	/* Get the job results. */
 	funcdef get_results(job_id job) returns(Results res);
@@ -262,7 +326,30 @@ module UserAndJobState {
 	/* Get the detailed error message, if any */
 	funcdef get_detailed_error(job_id job) returns(detailed_err error);
 	
+	/* Who owns a job and who canceled a job (null if not canceled). */
+	typedef tuple<username owner, username canceledby> user_info;
+	
+	/* Job timing information. */
+	typedef tuple<timestamp started, timestamp last_update,
+		timestamp est_complete> time_info;
+		
+	/* Job authorization strategy information. */
+	typedef tuple<auth_strategy strat, auth_param param> auth_info;
+	
+	/* Job progress information. */
+	typedef tuple<total_progress prog, max_progress max, progress_type ptype>
+		progress_info;
+		
 	/* Information about a job. */
+	typedef tuple<job_id job, user_info users, service_name service,
+		job_stage stage, job_status status, time_info times,
+		progress_info progress, boolean complete, boolean error,
+		auth_info auth, usermeta meta, job_description desc, Results res>
+		job_info2;
+	
+	/* Information about a job.
+		@deprecated job_info2
+	 */
 	typedef tuple<job_id job, service_name service, job_stage stage,
 		timestamp started, job_status status, timestamp last_update,
 		total_progress prog, max_progress max, progress_type ptype,
@@ -270,71 +357,100 @@ module UserAndJobState {
 		job_description desc, Results res> job_info;
 	
 	/* Get information about a job. */
+	funcdef get_job_info2(job_id job) returns(job_info2 info);
+	
+	/* Get information about a job.
+		@deprecated get_job_info2
+	 */
 	funcdef get_job_info(job_id job) returns(job_info info);
 
 	/* A string-based filter for listing jobs.
 	
 		If the string contains:
-			'Q' - created / queued jobs are returned (but see below).
 			'R' - running jobs are returned.
 			'C' - completed jobs are returned.
+			'N' - canceled jobs are returned.
 			'E' - jobs that errored out are returned.
 			'S' - shared jobs are returned.
 		The string can contain any combination of these codes in any order.
 		If the string contains none of the codes or is null, all self-owned 
-		jobs are returned. If only the S filter is
-		present, all jobs are returned.
-		
-		The Q filter has no meaning in the context of UJS based jobs (e.g. jobs
-		that are not pulled by the UJS from an external job runner) and is
-		ignored. A UJS job in the 'created' state is not yet 'owned', per se,
-		by a job runner, and so UJS jobs in the 'created' state are never
-		returned.
-		
-		In contrast, for a job runner like AWE, jobs may be in the submitted
-		or queued state, and the Q filter will cause these jobs to be returned.
-		
-		Note that the S filter currently does not work with AWE. All AWE jobs
-		visible to the user are always returned.
+		jobs are returned. If only the S filter is present, all jobs are
+		returned. The S filter is ignored for jobs not using the default
+		authorization strategy.
 	*/
 	typedef string job_filter;
 	
+	/*
+		Input parameters for the list_jobs2 method.
+		
+		Optional parameters:
+		list<service_name> services - the services from which to list jobs.
+			Omit to list jobs from all services.
+		job_filter filter - the filter to apply to the set of jobs.
+		auth_strategy authstrat - return jobs with the specified
+			authorization strategy. If this parameter is omitted, jobs
+			with the default strategy will be returned.
+		list<auth_params> authparams - only return jobs with one of the
+			specified authorization parameters. An authorization strategy must
+			be provided if authparams is specified. In most cases, at least one
+			authorization parameter must be supplied and there is an upper
+			limit to the number of paramters allowed. In the case of the
+			kbaseworkspace strategy, these limits are 1 and 10, respectively.
+	*/
+	typedef structure {
+		list<service_name> services;
+		job_filter filter;
+		auth_strategy authstrat;
+		list<auth_param> authparams;
+	} ListJobsParams;
+	
+	/* List jobs. */
+	funcdef list_jobs2(ListJobsParams params) returns(list<job_info2> jobs);
+	
 	/* List jobs. Leave 'services' empty or null to list jobs from all
 		services.
+		
+		@deprecated list_jobs2
 	*/
 	funcdef list_jobs(list<service_name> services, job_filter filter)
 		returns(list<job_info> jobs);
 	
-	/* List all job services. Does not currently list AWE services. */
+	/* List all job services. Note that only services with jobs owned by the
+		user or shared with the user via the default auth strategy will be
+		listed.
+	*/
 	funcdef list_job_services() returns(list<service_name> services);
 	
 	/* Share a job. Sharing a job to the same user twice or with the job owner
-		has no effect.
+		has no effect. Attempting to share a job not using the default auth
+		strategy will fail.
 	*/
 	funcdef share_job(job_id job, list<username> users) returns();
 	
 	/* Stop sharing a job. Removing sharing from a user that the job is not
-		shared with or the job owner has no effect.
+		shared with or the job owner has no effect. Attemping to unshare a job
+		not using the default auth strategy will fail.
 	*/
 	funcdef unshare_job(job_id job, list<username> users) returns();
 	
-	/* Get the owner of a job. Does not currently work with AWE jobs. */
+	/* Get the owner of a job. */
 	funcdef get_job_owner(job_id job) returns(username owner);
 	
 	/* Get the list of users with which a job is shared. Only the job owner
-		may access this method. Does not currently work with AWE jobs.
+		may access this method. Returns an empty list for jobs not using the
+		default auth strategy.
 	*/
 	funcdef get_job_shared(job_id job) returns(list<username> users);
 	
-	/* Delete a job. Will fail if the job is not complete.
-		Does not currently work with AWE jobs.
+	/* Delete a job. Will fail if the job is not complete. Only the job owner
+		can delete a job.
 	*/
 	funcdef delete_job(job_id job) returns();
 	
 	/* Force delete a job - will succeed unless the job has not been started.
 		In that case, the service must start the job and then delete it, since
-		a job is not "owned" by any service until it is started.
-		Does not currently work with AWE jobs.
+		a job is not "owned" by any service until it is started. Only the job
+		owner can delete a job.
 	*/
 	funcdef force_delete_job(service_token token, job_id job) returns();
 };
