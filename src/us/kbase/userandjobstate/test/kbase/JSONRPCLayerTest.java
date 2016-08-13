@@ -4,13 +4,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-import java.io.File;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,16 +18,24 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 
-import org.ini4j.Ini;
-import org.ini4j.Profile.Section;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.mongodb.DB;
+
+import us.kbase.auth.AuthConfig;
+import us.kbase.auth.AuthToken;
+import us.kbase.auth.ConfigurableAuthService;
+import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
+import us.kbase.common.test.TestCommon;
+import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.Result;
 import us.kbase.userandjobstate.Results;
@@ -35,7 +43,6 @@ import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.jobstate.JobResults;
 import us.kbase.userandjobstate.test.FakeJob;
-import us.kbase.userandjobstate.test.UserJobStateTestCommon;
 
 /*
  * These tests are specifically for testing the JSON-RPC communications between
@@ -47,6 +54,13 @@ import us.kbase.userandjobstate.test.UserJobStateTestCommon;
  */
 public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
+	private static final String ERR_AUTH_INVALID = "Couldn't validate the " +
+			"server token. The authentication server said: Login failed! " +
+			"Invalid token";
+	private static final String ERR_AUTH_LOGIN = "Couldn't validate the " +
+			"server token. The authentication server said: " +
+			"Login failed! Server responded with code 401 UNAUTHORIZED";
+	
 	private static UserAndJobStateServer SERVER = null;
 	private static UserAndJobStateClient CLIENT1 = null;
 	private static String USER1 = null;
@@ -55,56 +69,45 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	private static String TOKEN1;
 	private static String TOKEN2;
 	
+	private static String DEF = "DEFAULT";
+	private static Map<String, String> MTMAP = new HashMap<String, String>();
+	
+	private final static String DB_NAME = "JSONRPCLayerTest_DB";
+	
 	private static MongoController mongo;
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
-		USER1 = System.getProperty("test.user1");
-		USER2 = System.getProperty("test.user2");
-		String p1 = System.getProperty("test.pwd1");
-		String p2 = System.getProperty("test.pwd2");
+		final ConfigurableAuthService auth = new ConfigurableAuthService(
+				new AuthConfig().withKBaseAuthServerURL(
+						TestCommon.getAuthUrl()));
+		final AuthToken t1 = TestCommon.getToken(1, auth);
+		final AuthToken t2 = TestCommon.getToken(2, auth);
+		USER1 = t1.getUserName();
+		USER2 = t2.getUserName();
+		if (USER1.equals(USER2)) {
+			throw new TestException("user1 cannot equal user2: " + USER1);
+		}
+		String p1 = TestCommon.getPwdNullIfToken(1);
 
 		mongo = new MongoController(
-				UserJobStateTestCommon.getMongoExe(),
-				Paths.get(UserJobStateTestCommon.getTempDir()));
+				TestCommon.getMongoExe(),
+				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		//write the server config file:
-		File iniFile = File.createTempFile("test", ".cfg", new File("./"));
-		iniFile.deleteOnExit();
-		System.out.println("Created temporary config file: " + iniFile.getAbsolutePath());
-		Ini ini = new Ini();
-		Section ws = ini.add("UserAndJobState");
-		ws.add("mongodb-host", "localhost:" + mongo.getServerPort());
-		ws.add("mongodb-database", "JSONRPCLayerTest_DB");
-		ws.add("mongodb-user", "foo");
-		ws.add("mongodb-pwd", "foo");
-		ws.add("kbase-admin-user", USER1);
-		ws.add("kbase-admin-pwd", p1);
-		ini.store(iniFile);
-		
-		//set up env
-		Map<String, String> env = getenv();
-		env.put("KB_DEPLOYMENT_CONFIG", iniFile.getAbsolutePath());
-		env.put("KB_SERVICE_NAME", "UserAndJobState");
-
-		SERVER = new UserAndJobStateServer();
-		new ServerThread(SERVER).start();
-		System.out.println("Main thread waiting for server to start up");
-		while(SERVER.getServerPort() == null) {
-			Thread.sleep(1000);
-		}
+		SERVER = startUpUJSServer("localhost:" + mongo.getServerPort(),
+				null, DB_NAME, t1, p1);
 		int port = SERVER.getServerPort();
 		System.out.println("Started test server on port " + port);
 		System.out.println("Starting tests");
-		CLIENT1 = new UserAndJobStateClient(new URL("http://localhost:" + port), USER1, p1);
-		CLIENT2 = new UserAndJobStateClient(new URL("http://localhost:" + port), USER2, p2);
+		CLIENT1 = new UserAndJobStateClient(new URL("http://localhost:" + port), t1);
+		CLIENT2 = new UserAndJobStateClient(new URL("http://localhost:" + port), t2);
 		CLIENT1.setIsInsecureHttpConnectionAllowed(true);
 		CLIENT2.setIsInsecureHttpConnectionAllowed(true);
-		TOKEN1 = CLIENT1.getToken().toString();
-		TOKEN2 = CLIENT2.getToken().toString();
+		TOKEN1 = CLIENT1.getToken().getToken();
+		TOKEN2 = CLIENT2.getToken().getToken();
 	}
-	
+
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		if (SERVER != null) {
@@ -113,13 +116,20 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			System.out.println("Done");
 		}
 		if (mongo != null) {
-			mongo.destroy(UserJobStateTestCommon.getDeleteTempFiles());
+			mongo.destroy(TestCommon.getDeleteTempFiles());
 		}
+	}
+	
+	@Before
+	public void clearDB() throws Exception {
+		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
+				DB_NAME);
+		TestCommon.destroyDB(db);
 	}
 	
 	@Test
 	public void ver() throws Exception {
-		assertThat("got correct version", CLIENT1.ver(), is("0.1.2"));
+		assertThat("got correct version", CLIENT1.ver(), is("0.2.0"));
 	}
 	
 	
@@ -231,14 +241,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Auth token is in the incorrect format, near 'boogabooga'"));
+					is(ERR_AUTH_INVALID));
 		}
 		try {
 			CLIENT1.setStateAuth(TOKEN2 + "a", "key", new UObject("foo"));
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Service token is invalid"));
+					is(ERR_AUTH_LOGIN));
 		}
 		try {
 			CLIENT1.removeStateAuth(null, "key");
@@ -259,14 +269,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Auth token is in the incorrect format, near 'boogabooga'"));
+					is(ERR_AUTH_INVALID));
 		}
 		try {
 			CLIENT1.removeStateAuth(TOKEN2 + "a", "key");
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is("Service token is invalid"));
+					is(ERR_AUTH_LOGIN));
 		}
 	}
 	
@@ -289,26 +299,29 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	public void createAndStartJob() throws Exception {
 		String[] nearfuture = getNearbyTimes();
 		
+		@SuppressWarnings("deprecation")
 		String jobid = CLIENT1.createJob();
-		checkJob(CLIENT1, jobid, "created",null, null, null, null,
-				null, null, null, null, null, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "created",null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
 		CLIENT1.startJob(jobid, TOKEN2, "new stat", "ne desc",
 				new InitProgress().withPtype("none"), null);
-		checkJob(CLIENT1, jobid, "started", "new stat", USER2,
-				"ne desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "new stat", USER2,
+				"ne desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams().withAuthstrat(null));
 		CLIENT1.startJob(jobid, TOKEN2, "new stat2", "ne desc2",
 				new InitProgress().withPtype("percent"), nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "new stat2", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "new stat2", USER2,
 				"ne desc2", "percent", 0L, 100L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams().withAuthstrat(""));
 		CLIENT1.startJob(jobid, TOKEN2, "new stat3", "ne desc3",
 				new InitProgress().withPtype("task").withMax(5L), null);
-		checkJob(CLIENT1, jobid, "started", "new stat3", USER2,
-				"ne desc3", "task", 0L, 5L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "new stat3", USER2,
+				"ne desc3", "task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
 		
 		startJobBadArgs(null, TOKEN2, "s", "d", new InitProgress().withPtype("none"),
 				null, "id cannot be null or the empty string", true);
@@ -318,13 +331,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				new InitProgress().withPtype("none"),
 				null, "Job ID aaaaaaaaaaaaaaaaaaaa is not a legal ID", true);
 		
-		jobid = CLIENT1.createJob();
+		jobid = CLIENT1.createJob2(new CreateJobParams()
+				.withAuthstrat("DEFAULT"));
 		startJobBadArgs(jobid, null, "s", "d", new InitProgress().withPtype("none"),
 				null, "Service token cannot be null or the empty string");
 		startJobBadArgs(jobid, "foo", "s", "d", new InitProgress().withPtype("none"),
-				null, "Auth token is in the incorrect format, near 'foo'");
+				null, ERR_AUTH_INVALID);
 		startJobBadArgs(jobid, TOKEN2 + "a", "s", "d", new InitProgress().withPtype("none"),
-				null, "Service token is invalid");
+				null, ERR_AUTH_LOGIN);
 		
 		startJobBadArgs(jobid, TOKEN2, "s", "d",
 				new InitProgress().withPtype("none"),
@@ -361,19 +375,69 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat", "cs desc",
 				new InitProgress().withPtype("none"), nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "cs stat", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "cs stat", USER2,
 				"cs desc", "none", null, null, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat2", "cs desc2",
 				new InitProgress().withPtype("percent"), null);
-		checkJob(CLIENT1, jobid, "started", "cs stat2", USER2,
-				"cs desc2", "percent", 0L, 100L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "cs stat2", USER2,
+				"cs desc2", "percent", 0L, 100L, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "cs stat3", "cs desc3",
 				new InitProgress().withPtype("task").withMax(5L), null);
-		checkJob(CLIENT1, jobid, "started", "cs stat3", USER2,
-				"cs desc3", "task", 0L, 5L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "cs stat3", USER2,
+				"cs desc3", "task", 0L, 5L, null, 0L, 0L, null, null, DEF, DEF,
+				MTMAP);
+		
+		failCreateJob(CLIENT1, "kbaseworkspace", "1", "The UJS is not configured to " +
+				"delegate authorization to the workspace service");
+		failCreateJob(CLIENT1, "foo", "1", "Invalid authorization strategy: foo");
+	}
+	
+	@Test
+	public void metadata() throws Exception {
+		Map<String, String> m = new HashMap<String, String>();
+		InitProgress noprog = new InitProgress().withPtype("none");
+		m.put("bar", "baz");
+		m.put("whoo", "wee");
+		String id1 = CLIENT1.createJob2(new CreateJobParams().withMeta(null));
+		String id2 = CLIENT1.createJob2(new CreateJobParams().withMeta(
+				new HashMap<String, String>()));
+		String id3 = CLIENT1.createJob2(new CreateJobParams().withMeta(m));
+		
+		checkJob(CLIENT1, id1, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id2, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "created", null, null, null, null,
+				null, null, null, null, null, null, null, DEF, DEF, m);
+		
+		CLIENT1.startJob(id1, TOKEN2, "stat1", "desc1", noprog, null);
+		CLIENT1.startJob(id3, TOKEN2, "stat3", "desc2", noprog, null);
+		checkJob(CLIENT1, id1, USER1, null, "started", "stat1", USER2, "desc1",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "started", "stat3", USER2, "desc2",
+				"none", null, null, null, 0L, 0L, null, null, DEF, DEF, m);
+		
+		CLIENT1.updateJob(id1, TOKEN2, "stat1-2", null);
+		CLIENT1.updateJob(id3, TOKEN2, "stat3-2", null);
+		checkJob(CLIENT1, id1, USER1, null, "started", "stat1-2", USER2,
+				"desc1", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "started", "stat3-2", USER2,
+				"desc2", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, m);
+
+		CLIENT1.completeJob(id1, TOKEN2, "stat1-3", null, null);
+		CLIENT1.completeJob(id3, TOKEN2, "stat3-3", null, null);
+		checkJob(CLIENT1, id1, USER1, null, "complete", "stat1-3", USER2,
+				"desc1", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		checkJob(CLIENT1, id3, USER1, null, "complete", "stat3-3", USER2,
+				"desc2", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, m);
 	}
 	
 	private void startJobBadArgs(String jobid, String token, String stat, String desc,
@@ -409,7 +473,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failGetJob(CLIENT1, "", "id cannot be null or the empty string");
 		failGetJob(CLIENT1, "foo", "Job ID foo is not a legal ID");
 		
-		String jobid = CLIENT1.createJob();
+		String jobid = CLIENT1.createJob2(new CreateJobParams());
 		if (jobid.charAt(0) == 'a') {
 			jobid = "b" + jobid.substring(1);
 		} else {
@@ -425,43 +489,47 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "up stat", "up desc",
 				new InitProgress().withPtype("none"), null);
 		CLIENT1.updateJob(jobid, TOKEN2, "up stat2", null);
-		checkJob(CLIENT1, jobid, "started", "up stat2", USER2,
-				"up desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up stat2", USER2,
+				"up desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up stat3", 40L, null);
-		checkJob(CLIENT1, jobid, "started", "up stat3", USER2,
-				"up desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up stat3", USER2,
+				"up desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up stat3", null, nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up stat3", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up stat3", USER2,
 				"up desc", "none", null, null, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up2 stat", "up2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up2 stat2", 40L, null);
-		checkJob(CLIENT1, jobid, "started", "up2 stat2", USER2,
-				"up2 desc", "percent", 40L, 100L, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up2 stat2", USER2,
+				"up2 desc", "percent", 40L, 100L, null, 0L, 0L, null, null,
+				DEF, DEF, MTMAP);
 		CLIENT1.updateJob(jobid, TOKEN2, "up2 stat3", nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up2 stat3", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up2 stat3", USER2,
 				"up2 desc", "percent", 40L, 100L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up2 stat4", 70L, null);
-		checkJob(CLIENT1, jobid, "started", "up2 stat4", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up2 stat4", USER2,
 				"up2 desc", "percent", 100L, 100L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up3 stat", "up3 desc",
 				new InitProgress().withPtype("task").withMax(42L), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up3 stat2", 30L, nearfuture[0]);
-		checkJob(CLIENT1, jobid, "started", "up3 stat2", USER2,
-				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null, null);
-		CLIENT1.updateJob(jobid, TOKEN2, "up3 stat3", null);
-		checkJob(CLIENT1, jobid, "started", "up3 stat3", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up3 stat2", USER2,
 				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
+		CLIENT1.updateJob(jobid, TOKEN2, "up3 stat3", null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up3 stat3", USER2,
+				"up3 desc", "task", 30L, 42L, nearfuture[1], 0L, 0L, null,
+				null, DEF, DEF, MTMAP);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "up3 stat4", 15L, null);
-		checkJob(CLIENT1, jobid, "started", "up3 stat4", USER2,
+		checkJob(CLIENT1, jobid, USER1, null, "started", "up3 stat4", USER2,
 				"up3 desc", "task", 42L, 42L, nearfuture[1], 0L, 0L, null,
-				null);
+				null, DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "up4 stat", "up4 desc",
 				new InitProgress().withPtype("none"), null);
@@ -502,18 +570,54 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		updateJobBadArgs(jobid, null, "s", null,
 				"Service token cannot be null or the empty string");
 		updateJobBadArgs(jobid, "foo", "s", null,
-				"Auth token is in the incorrect format, near 'foo'");
+				ERR_AUTH_INVALID);
 		updateJobBadArgs(jobid, TOKEN1, "s", null, String.format(
 				"There is no uncompleted job %s for user %s started by service %s",
 				jobid, USER1, USER1));
 		updateJobBadArgs(jobid, TOKEN2 + "a", "s", null,
-				"Service token is invalid");
+				ERR_AUTH_LOGIN);
 	}
 	
+	@Test
+	public void cancelJob() throws Exception {
+		// there's really not much to test here, it's one frigging line in the
+		// server code and the rest is tested at the lib level
+		// can't test alternate auth here because can't create a job with
+		// alternate auth (as expected)
+		String jobid = CLIENT1.createJob2(new CreateJobParams());
+		CLIENT1.startJob(jobid, TOKEN2, "can1", "cand1",
+				new InitProgress().withPtype("none"), null);
+		checkJob(CLIENT1, jobid, USER1, null, "started", "can1", USER2,
+				"cand1", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		
+		//check another user can't cancel
+		CLIENT1.shareJob(jobid, Arrays.asList(USER2));
+		failCancelJob(CLIENT2, jobid, "foo", String.format(
+				"There is no job %s that may be canceled by user %s",
+				jobid, USER2));
+		//check same as before
+		checkJob(CLIENT1, jobid, USER1, null, "started", "can1", USER2,
+				"cand1", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		
+		// happy path
+		CLIENT1.cancelJob(jobid, "cancel1");
+		checkJob(CLIENT1, jobid, USER1, USER1, "canceled", "cancel1", USER2,
+				"cand1", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, MTMAP);
+		
+		//can't cancel an already canceled job
+		failCancelJob(CLIENT1, jobid, "stat", String.format(
+				"There is no job %s that may be canceled by user %s",
+				jobid, USER1));
+	}
+
 	private void updateJobBadArgs(String jobid, String token, String status,
 			Long prog, String estCompl, String exception) throws Exception {
 		try {
 			CLIENT1.updateJobProgress(jobid, token, status, prog, estCompl);
+			fail("updated with bad args");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
@@ -524,12 +628,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			String estCompl, String exception) throws Exception {
 		try {
 			CLIENT1.updateJob(jobid, token, status, estCompl);
+			fail("updated with bad args");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
 		}
 		try {
 			CLIENT1.updateJobProgress(jobid, token, status, 1L, estCompl);
+			fail("updated with bad args");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
 					is(exception));
@@ -542,16 +648,18 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "c stat", "c desc",
 				new InitProgress().withPtype("none"), null);
 		CLIENT1.completeJob(jobid, TOKEN2, "c stat2", null, null);
-		checkJob(CLIENT1, jobid, "complete", "c stat2", USER2, "c desc", "none", null,
-				null, null, 1L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER1, null, "complete", "c stat2", USER2,
+				"c desc", "none", null, null, null, 1L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "c2 stat", "c2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "c2 stat2", 40L, null);
 		CLIENT1.completeJob(jobid, TOKEN2, "c2 stat3", "omg err",
 				new Results());
-		checkJob(CLIENT1, jobid, "error", "c2 stat3", USER2, "c2 desc", "percent",
-				100L, 100L, null, 1L, 1L, "omg err", new Results());
+		checkJob(CLIENT1, jobid, USER1, null, "error", "c2 stat3", USER2,
+				"c2 desc", "percent", 100L, 100L, null, 1L, 1L, "omg err",
+				new Results(), DEF, DEF, MTMAP);
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "c3 stat", "c3 desc",
 				new InitProgress().withPtype("task").withMax(37L), null);
@@ -566,8 +674,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 						.withWorkspaceurl("wurl")
 						.withResults(r);
 		CLIENT1.completeJob(jobid, TOKEN2, "c3 stat3", null, res);
-		checkJob(CLIENT1, jobid, "complete", "c3 stat3", USER2, "c3 desc", "task",
-				37L, 37L, nearfuture[1], 1L, 0L, null, res);
+		checkJob(CLIENT1, jobid, USER1, null, "complete", "c3 stat3", USER2,
+				"c3 desc", "task", 37L, 37L, nearfuture[1], 1L, 0L, null, res,
+				DEF, DEF, MTMAP);
 		
 		failCompleteJob(null, TOKEN2, "s", null, null,
 				"id cannot be null or the empty string");
@@ -579,9 +688,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failCompleteJob(jobid, null, "s", null, null,
 				"Service token cannot be null or the empty string");
 		failCompleteJob(jobid, "foo", "s", null, null,
-				"Auth token is in the incorrect format, near 'foo'");
+				ERR_AUTH_INVALID);
 		failCompleteJob(jobid, TOKEN2 + "w", "s", null, null,
-				"Service token is invalid");
+				ERR_AUTH_LOGIN);
 		failCompleteJob(jobid, TOKEN1, "s", null, null, String.format(
 				"There is no uncompleted job %s for user %s started by service %s",
 				jobid, USER1, USER1));
@@ -670,6 +779,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		InitProgress noprog = new InitProgress().withPtype("none");
 		String jobid = CLIENT1.createAndStartJob(TOKEN2, "d stat", "d desc", noprog, null);
 		CLIENT1.completeJob(jobid, TOKEN2, "d stat2", null, null);
+		failToDeleteJob(CLIENT2, jobid, String.format(
+				"There is no deletable job %s for user %s", jobid, USER2));
 		CLIENT1.deleteJob(jobid);
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
@@ -679,6 +790,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
 		jobid = CLIENT1.createAndStartJob(TOKEN2, "d2 stat", "d2 desc", noprog, null);
+		failToDeleteJob(CLIENT2, jobid, TOKEN2, String.format(
+				"There is no deletable job %s for user %s and service %s",
+				jobid, USER2, USER2));
 		CLIENT1.forceDeleteJob(TOKEN2, jobid);
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
@@ -697,66 +811,40 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		CLIENT1.forceDeleteJob(TOKEN2, jobid);
 		failGetJob(CLIENT1, jobid, String.format(nojob, jobid, USER1));
 		
-		jobid = CLIENT1.createJob();
-		failToDeleteJob(jobid, String.format(
-				"There is no completed job %s for user %s", jobid, USER1));
-		failToDeleteJob(jobid, TOKEN2, String.format(
-				"There is no job %s for user %s and service %s",
+		jobid = CLIENT1.createJob2(new CreateJobParams());
+		failToDeleteJob(CLIENT1, jobid, String.format(
+				"There is no deletable job %s for user %s", jobid, USER1));
+		failToDeleteJob(CLIENT1, jobid, TOKEN2, String.format(
+				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER2));
 		CLIENT1.startJob(jobid, TOKEN2, "d6 stat", "d6 desc", noprog, null);
-		failToDeleteJob(jobid, String.format(
-				"There is no completed job %s for user %s", jobid, USER1));
+		failToDeleteJob(CLIENT1, jobid, String.format(
+				"There is no deletable job %s for user %s", jobid, USER1));
 		CLIENT1.updateJobProgress(jobid, TOKEN2, "d6 stat2", 3L, null);
-		failToDeleteJob(jobid, String.format(
-				"There is no completed job %s for user %s", jobid, USER1));
+		failToDeleteJob(CLIENT1, jobid, String.format(
+				"There is no deletable job %s for user %s", jobid, USER1));
 		
-		failToDeleteJob(null, "id cannot be null or the empty string");
-		failToDeleteJob("", "id cannot be null or the empty string");
-		failToDeleteJob("aaaaaaaaaaaaaaaaaaaa",
+		failToDeleteJob(CLIENT1, null, "id cannot be null or the empty string");
+		failToDeleteJob(CLIENT1, "", "id cannot be null or the empty string");
+		failToDeleteJob(CLIENT1, "aaaaaaaaaaaaaaaaaaaa",
 				"Job ID aaaaaaaaaaaaaaaaaaaa is not a legal ID");
 		
-		failToDeleteJob(null, TOKEN2,
+		failToDeleteJob(CLIENT1, null, TOKEN2,
 				"id cannot be null or the empty string");
-		failToDeleteJob("", TOKEN2,
+		failToDeleteJob(CLIENT1, "", TOKEN2,
 				"id cannot be null or the empty string");
-		failToDeleteJob("aaaaaaaaaaaaaaaaaaaa", TOKEN2,
+		failToDeleteJob(CLIENT1, "aaaaaaaaaaaaaaaaaaaa", TOKEN2,
 				"Job ID aaaaaaaaaaaaaaaaaaaa is not a legal ID");
 		
-		failToDeleteJob(jobid, null,
+		failToDeleteJob(CLIENT1, jobid, null,
 				"Service token cannot be null or the empty string", true);
-		failToDeleteJob(jobid, "foo",
-				"Auth token is in the incorrect format, near 'foo'");
-		failToDeleteJob(jobid, TOKEN2 + 'w',
-				"Service token is invalid");
-		failToDeleteJob(jobid, TOKEN1, String.format(
-				"There is no job %s for user %s and service %s",
+		failToDeleteJob(CLIENT1, jobid, "foo",
+				ERR_AUTH_INVALID);
+		failToDeleteJob(CLIENT1, jobid, TOKEN2 + 'w',
+				ERR_AUTH_LOGIN);
+		failToDeleteJob(CLIENT1, jobid, TOKEN1, String.format(
+				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER1));
-	}
-	
-	private void failToDeleteJob(String jobid, String exception)
-			throws Exception {
-		failToDeleteJob(jobid, null, exception, false);
-	}
-	
-	private void failToDeleteJob(String jobid, String token, String exception)
-			throws Exception {
-		failToDeleteJob(jobid, token, exception, false);
-	}
-	
-	private void failToDeleteJob(String jobid, String token, String exception,
-			boolean usenulltoken)
-			throws Exception {
-		try {
-			if (!usenulltoken && token == null) {
-				CLIENT1.deleteJob(jobid);
-			} else {
-				CLIENT1.forceDeleteJob(token, jobid);
-			}
-			fail("deleted job with bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
 	}
 	
 	@Test
@@ -789,7 +877,6 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@Test
 	public void listJobs() throws Exception {
-		//NOTE: all jobs must be deleted from CLIENT2 or other tests may fail
 		InitProgress noprog = new InitProgress().withPtype("none");
 		Set<FakeJob> empty = new HashSet<FakeJob>();
 		
@@ -800,6 +887,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RS", empty);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "CS", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", empty);
@@ -813,11 +902,14 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RCEX", empty);
 		checkListJobs(CLIENT2, USER1, "RCEXS", empty);
 		
-		String jobid = CLIENT1.createAndStartJob(TOKEN1, "ljs stat", "ljs desc", noprog, null);
-		FakeJob shared = new FakeJob(jobid, null, USER1, "started", null, "ljs desc",
-				"none", null, null, "ljs stat", false, false, null, null);
+		String jobid = CLIENT1.createAndStartJob(TOKEN1, "ljs stat",
+				"ljs desc", noprog, null);
+		FakeJob shared = new FakeJob(jobid, USER1, null, USER1, "started", null,
+				"ljs desc", "none", null, null, "ljs stat", false, false, null,
+				null);
 		CLIENT1.shareJob(jobid, Arrays.asList(USER2));
-		Set<FakeJob> setsharedonly = new HashSet<FakeJob>(Arrays.asList(shared)); 
+		Set<FakeJob> setsharedonly = new HashSet<FakeJob>(
+				Arrays.asList(shared)); 
 		
 		checkListJobs(CLIENT2, USER1, null, empty);
 		checkListJobs(CLIENT2, USER1, "", empty);
@@ -826,10 +918,13 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RS", setsharedonly);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "CS", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", empty);
 		checkListJobs(CLIENT2, USER1, "RCS", setsharedonly);
+		checkListJobs(CLIENT2, USER1, "RCNS", setsharedonly);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
 		checkListJobs(CLIENT2, USER1, "CES", empty);
 		checkListJobs(CLIENT2, USER1, "RE", empty);
@@ -839,21 +934,24 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RCEX", empty);
 		checkListJobs(CLIENT2, USER1, "RCEXS", setsharedonly);
 		
-		jobid = CLIENT2.createJob();
+		jobid = CLIENT2.createJob2(new CreateJobParams());
 		checkListJobs(CLIENT2, USER1, null, empty);
 		checkListJobs(CLIENT2, USER1, "", empty);
 		checkListJobs(CLIENT2, USER1, "R", empty);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
 		checkListJobs(CLIENT2, USER1, "RC", empty);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
 		checkListJobs(CLIENT2, USER1, "RE", empty);
+		checkListJobs(CLIENT2, USER1, "RCN", empty);
 		checkListJobs(CLIENT2, USER1, "RCE", empty);
 		checkListJobs(CLIENT2, USER1, "RXCE", empty);
 		
 		CLIENT2.startJob(jobid, TOKEN1, "lj stat", "lj desc", noprog, null);
-		FakeJob started = new FakeJob(jobid, null, USER1, "started", null, "lj desc",
-				"none", null, null, "lj stat", false, false, null, null);
+		FakeJob started = new FakeJob(jobid, USER2, null, USER1, "started",
+				null, "lj desc", "none", null, null, "lj stat", false, false,
+				null, null);
 		Set<FakeJob> setstarted = new HashSet<FakeJob>(Arrays.asList(started));
 		Set<FakeJob> setstartshare = new HashSet<FakeJob>(setstarted);
 		setstartshare.add(shared);
@@ -864,12 +962,18 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RS", setstartshare);
 		checkListJobs(CLIENT2, USER1, "C", empty);
 		checkListJobs(CLIENT2, USER1, "CS", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", setstarted);
 		checkListJobs(CLIENT2, USER1, "RCS", setstartshare);
+		checkListJobs(CLIENT2, USER1, "RN", setstarted);
+		checkListJobs(CLIENT2, USER1, "RNS", setstartshare);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
 		checkListJobs(CLIENT2, USER1, "CES", empty);
+		checkListJobs(CLIENT2, USER1, "CN", empty);
+		checkListJobs(CLIENT2, USER1, "CNS", empty);
 		checkListJobs(CLIENT2, USER1, "RE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RES", setstartshare);
 		checkListJobs(CLIENT2, USER1, "RCE", setstarted);
@@ -880,17 +984,20 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj2 stat", "lj2 desc",
 				new InitProgress().withPtype("percent"), null);
 		CLIENT2.updateJobProgress(jobid, TOKEN1, "lj2 stat2", 42L, null);
-		FakeJob started2 = new FakeJob(jobid, null, USER1, "started", null,
-				"lj2 desc", "percent", 42, 100, "lj2 stat2", false, false, null,
-				null);
+		FakeJob started2 = new FakeJob(jobid, USER2, null, USER1, "started",
+				null, "lj2 desc", "percent", 42, 100, "lj2 stat2", false,
+				false, null, null);
 		setstarted.add(started2);
 		checkListJobs(CLIENT2, USER1, null, setstarted);
 		checkListJobs(CLIENT2, USER1, "", setstarted);
 		checkListJobs(CLIENT2, USER1, "R", setstarted);
 		checkListJobs(CLIENT2, USER1, "C", empty);
+		checkListJobs(CLIENT2, USER1, "N", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "RC", setstarted);
+		checkListJobs(CLIENT2, USER1, "RN", setstarted);
 		checkListJobs(CLIENT2, USER1, "CE", empty);
+		checkListJobs(CLIENT2, USER1, "CEN", empty);
 		checkListJobs(CLIENT2, USER1, "RE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RCE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RCwE", setstarted);
@@ -901,9 +1008,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		started2 = null;
 		JobResults res = new JobResults(null, null, null, null,
 				Arrays.asList("node1", "node2"));
-		FakeJob complete = new FakeJob(jobid, null, USER1, "complete", null,
-				"lj2 desc", "percent", 100, 100, "lj2 stat3", true, false,
-				null, res);
+		FakeJob complete = new FakeJob(jobid, USER2, null, USER1, "complete",
+				null, "lj2 desc", "percent", 100, 100, "lj2 stat3", true,
+				false, null, res);
 		Set<FakeJob> setcomplete = new HashSet<FakeJob>(Arrays.asList(complete));
 		Set<FakeJob> setstartcomp = new HashSet<FakeJob>();
 		setstartcomp.addAll(setstarted);
@@ -919,27 +1026,68 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "CS", setcomplete);
 		checkListJobs(CLIENT2, USER1, "C0", setcomplete);
 		checkListJobs(CLIENT2, USER1, "C0S", setcomplete);
+		checkListJobs(CLIENT2, USER1, "N", empty);
+		checkListJobs(CLIENT2, USER1, "NS", empty);
 		checkListJobs(CLIENT2, USER1, "E", empty);
 		checkListJobs(CLIENT2, USER1, "ES", empty);
 		checkListJobs(CLIENT2, USER1, "RC", setstartcomp);
 		checkListJobs(CLIENT2, USER1, "RCS", setstartcompshare);
+		checkListJobs(CLIENT2, USER1, "RN", setstarted);
+		checkListJobs(CLIENT2, USER1, "RNS", setstartshare);
+		checkListJobs(CLIENT2, USER1, "RCN", setstartcomp);
+		checkListJobs(CLIENT2, USER1, "RCNS", setstartcompshare);
 		checkListJobs(CLIENT2, USER1, "CE", setcomplete);
 		checkListJobs(CLIENT2, USER1, "CES", setcomplete);
+		checkListJobs(CLIENT2, USER1, "NE", empty);
+		checkListJobs(CLIENT2, USER1, "NES", empty);
 		checkListJobs(CLIENT2, USER1, "RE", setstarted);
 		checkListJobs(CLIENT2, USER1, "RES", setstartshare);
 		checkListJobs(CLIENT2, USER1, "RCE", setstartcomp);
 		checkListJobs(CLIENT2, USER1, "RCES", setstartcompshare);
 		
+		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj-can stat", "lj-can desc",
+				noprog, null);
+		CLIENT2.cancelJob(jobid, "lj-canceled");
+		FakeJob canceled = new FakeJob(jobid, USER2, USER2, USER1, "canceled",
+				null, "lj-can desc", "none", null, null, "lj-canceled", true,
+				false, null, null);
+		
+		// these tests are frigging crazy, not going to do everything in the
+		// other batches here.
+		Set<FakeJob> setcanceled = new HashSet<FakeJob>(
+				Arrays.asList(canceled));
+		HashSet<FakeJob> setstartcancel = new HashSet<FakeJob>(setstarted);
+		setstartcancel.add(canceled);
+		HashSet<FakeJob> setstartcompcancel = new HashSet<FakeJob>(
+				setstartcomp);
+		setstartcompcancel.add(canceled);
+		
+		checkListJobs(CLIENT2, USER1, null, setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "", setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "R", setstarted);
+		checkListJobs(CLIENT2, USER1, "C", setcomplete);
+		checkListJobs(CLIENT2, USER1, "N", setcanceled);
+		checkListJobs(CLIENT2, USER1, "E", empty);
+		checkListJobs(CLIENT2, USER1, "RC", setstartcomp);
+		checkListJobs(CLIENT2, USER1, "RCN", setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "CE", setcomplete);
+		checkListJobs(CLIENT2, USER1, "C#E", setcomplete);
+		checkListJobs(CLIENT2, USER1, "RE", setstarted);
+		checkListJobs(CLIENT2, USER1, "REN", setstartcancel);
+		checkListJobs(CLIENT2, USER1, "RCE", setstartcomp);
+		checkListJobs(CLIENT2, USER1, "RCEN", setstartcompcancel);
+		
 		jobid = CLIENT2.createAndStartJob(TOKEN1, "lj3 stat", "lj3 desc",
 				new InitProgress().withPtype("task").withMax(55L), null);
 		CLIENT2.updateJobProgress(jobid, TOKEN1, "lj3 stat2", 40L, null);
-		started2 = new FakeJob(jobid, null, USER1, "started", null,
+		started2 = new FakeJob(jobid, USER2, null, USER1, "started", null,
 				"lj3 desc", "task", 40, 55, "lj3 stat2", false, false, null,
 				null);
 		setstarted.add(started2);
 		setstartcomp.add(started2);
-		checkListJobs(CLIENT2, USER1, null, setstartcomp);
-		checkListJobs(CLIENT2, USER1, "", setstartcomp);
+		setstartcompcancel.add(started2);
+		checkListJobs(CLIENT2, USER1, null, setstartcompcancel);
+		checkListJobs(CLIENT2, USER1, "", setstartcompcancel);
 		checkListJobs(CLIENT2, USER1, "R", setstarted);
 		checkListJobs(CLIENT2, USER1, "C", setcomplete);
 		checkListJobs(CLIENT2, USER1, "E", empty);
@@ -956,12 +1104,15 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		started2 = null;
 		JobResults res2 = new JobResults(null, null,
 				Arrays.asList("wss1", "wss2"), null, null);
-		FakeJob error = new FakeJob(jobid, null, USER1, "error", null,
+		FakeJob error = new FakeJob(jobid, USER2, null, USER1, "error", null,
 				"lj3 desc", "task", 55, 55, "lj3 stat3", true, true, null,
 				res2);
 		Set<FakeJob> seterr = new HashSet<FakeJob>(Arrays.asList(error));
 		Set<FakeJob> all = new HashSet<FakeJob>(
+				Arrays.asList(started, complete, error, canceled));
+		Set<FakeJob> setstartcmperr = new HashSet<FakeJob>(
 				Arrays.asList(started, complete, error));
+		
 		checkListJobs(CLIENT2, USER1, null, all);
 		checkListJobs(CLIENT2, USER1, "", all);
 		checkListJobs(CLIENT2, USER1, "x", all);
@@ -973,10 +1124,12 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				Arrays.asList(complete, error)));
 		checkListJobs(CLIENT2, USER1, "RE", new HashSet<FakeJob>(
 				Arrays.asList(started, error)));
-		checkListJobs(CLIENT2, USER1, "RCE", all);
+		checkListJobs(CLIENT2, USER1, "RCE", setstartcmperr);
 		
+		CLIENT2.deleteJob(canceled.getID());
 		CLIENT2.forceDeleteJob(TOKEN1, started.getID());
 		all.remove(started);
+		all.remove(canceled);
 		checkListJobs(CLIENT2, USER1, null, all);
 		checkListJobs(CLIENT2, USER1, "", all);
 		checkListJobs(CLIENT2, USER1, "goodness this is odd input", all);
@@ -1013,14 +1166,19 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		checkListJobs(CLIENT2, USER1, "RE", empty);
 		checkListJobs(CLIENT2, USER1, "RCE", empty);
 		
-		testListJobsWithBadArgs(CLIENT2, null,
+		failListJobs(CLIENT2, null,
 				"service cannot be null or the empty string");
-		testListJobsWithBadArgs(CLIENT2, "",
+		failListJobs(CLIENT2, "",
 				"service cannot be null or the empty string");
-		testListJobsWithBadArgs(CLIENT2, "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst"
+		failListJobs(CLIENT2, "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst"
 				+ "abcdefghijklmnopqrst" + "abcdefghijklmnopqrst" +
 				"abcdefghijklmnopqrst" + "a",
 				"service exceeds the maximum length of 100");
+		failListJobs2(CLIENT2, USER1, "kbaseworkspace", Arrays.asList("1"),
+				"The UJS is not configured to delegate authorization to the " +
+				"workspace service");
+		failListJobs2(CLIENT2, USER1, "foo", Arrays.asList("1"),
+				"Invalid authorization strategy: foo");
 	}
 	
 	@Test
@@ -1029,17 +1187,23 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		String jobid = CLIENT2.createAndStartJob(TOKEN1, "sh stat", "sh desc", noprog, null);
 		CLIENT2.shareJob(jobid, Arrays.asList(USER1));
 		//next line ensures that all job read functions are accessible to client 1
-		checkJob(CLIENT1, jobid, "started", "sh stat", USER1, "sh desc", "none", null, null, null, 0L, 0L, null, null);
+		checkJob(CLIENT1, jobid, USER2, null, "started", "sh stat", USER1,
+				"sh desc", "none", null, null, null, 0L, 0L, null, null, DEF,
+				DEF, MTMAP);
 		failShareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
-				"There is no job %s owned by user %s", jobid, USER1));
+				"There is no job %s with default authorization owned by user %s",
+				jobid, USER1));
 		assertThat("shared list ok", CLIENT2.getJobShared(jobid), is(Arrays.asList(USER1)));
-		failGetJobShared(jobid, String.format("User %s may not access the sharing list of job %s", USER1, jobid));
+		failGetJobShared(CLIENT1, jobid, String.format(
+				"User %s may not access the sharing list of job %s", USER1, jobid));
 		assertThat("owner ok", CLIENT1.getJobOwner(jobid), is(USER2));
 		assertThat("owner ok", CLIENT2.getJobOwner(jobid), is(USER2));
 		CLIENT2.unshareJob(jobid, Arrays.asList(USER1));
 		failGetJob(CLIENT1, jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
-		failGetJobOwner(jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
-		failGetJobShared(jobid, String.format("There is no job %s viewable by user %s", jobid, USER1));
+		failGetJobOwner(CLIENT1, jobid, String.format(
+				"There is no job %s viewable by user %s", jobid, USER1));
+		failGetJobShared(CLIENT1, jobid, String.format(
+				"There is no job %s viewable by user %s", jobid, USER1));
 		
 		CLIENT2.shareJob(jobid, Arrays.asList(USER1));
 		failUnshareJob(CLIENT1, jobid, Arrays.asList(USER2), String.format(
@@ -1052,25 +1216,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 				"User thishadbetterbeafakeuserorthistestwillfail is not a valid user");
 		failShareUnshareJob(CLIENT1, jobid2, null, "The user list may not be null or empty");
 		failShareUnshareJob(CLIENT1, jobid2, new ArrayList<String>(), "The user list may not be null or empty");
-	}
-	
-	private void failGetJobOwner(String id, String exception) throws Exception {
-		try {
-			CLIENT1.getJobOwner(id);
-			fail("got job owner w/ bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
-	}
-	
-	private void failGetJobShared(String id, String exception) throws Exception {
-		try {
-			CLIENT1.getJobShared(id);
-			fail("got job shared list w/ bad args");
-		} catch (ServerException se) {
-			assertThat("correct exception", se.getLocalizedMessage(),
-					is(exception));
-		}
+		failShareUnshareJob(CLIENT1, jobid2, Arrays.asList(USER2, null),
+				"A user name cannot be null or the empty string");
+		failShareUnshareJob(CLIENT1, jobid2, Arrays.asList(USER2, ""),
+				"A user name cannot be null or the empty string");
 	}
 }

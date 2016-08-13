@@ -1,12 +1,18 @@
 package us.kbase.userandjobstate;
 
+import java.io.File;
+import java.util.LinkedHashMap;
 import java.util.List;
-
+import java.util.Map;
 import us.kbase.auth.AuthToken;
 import us.kbase.common.service.JsonServerMethod;
 import us.kbase.common.service.JsonServerServlet;
+import us.kbase.common.service.JsonServerSyslog;
+import us.kbase.common.service.RpcContext;
+import us.kbase.common.service.Tuple13;
 import us.kbase.common.service.Tuple14;
 import us.kbase.common.service.Tuple2;
+import us.kbase.common.service.Tuple3;
 import us.kbase.common.service.Tuple5;
 import us.kbase.common.service.Tuple7;
 import us.kbase.common.service.UObject;
@@ -20,6 +26,7 @@ import static us.kbase.userandjobstate.jobstate.JobResults.MAX_LEN_URL;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -27,7 +34,6 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.Map;
 
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
@@ -35,33 +41,41 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.DateTimeFormatterBuilder;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.DB;
+import com.mongodb.MongoException;
+import com.mongodb.MongoTimeoutException;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.AppenderBase;
 import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.auth.TokenExpiredException;
-import us.kbase.auth.TokenFormatException;
+import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.mongo.exceptions.InvalidHostException;
 import us.kbase.common.mongo.exceptions.MongoAuthException;
-import us.kbase.userandjobstate.awe.AweJobState;
-import us.kbase.userandjobstate.awe.client.AweJobId;
-import us.kbase.userandjobstate.awe.client.exceptions.AweHttpException;
-import us.kbase.userandjobstate.awe.client.exceptions.InvalidAweUrlException;
+import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
+import us.kbase.common.schemamanager.exceptions.SchemaException;
+import us.kbase.common.service.JsonClientException;
+import us.kbase.common.service.UnauthorizedException;
+import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
+import us.kbase.userandjobstate.authorization.DefaultUJSAuthorizer;
+import us.kbase.userandjobstate.authorization.UJSAuthorizer;
+import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobResult;
 import us.kbase.userandjobstate.jobstate.JobResults;
-import us.kbase.userandjobstate.jobstate.UJSJobState;
 import us.kbase.userandjobstate.jobstate.JobState;
+import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
 import us.kbase.userandjobstate.userstate.UserState;
 import us.kbase.userandjobstate.userstate.UserState.KeyState;
+import us.kbase.workspace.database.WorkspaceUserMetadata;
 //END_HEADER
 
 /**
  * <p>Original spec-file module name: UserAndJobState</p>
  * <pre>
+ * User and Job State service (UJS)
  * Service for storing arbitrary key/object pairs on a per user per service basis
  * and storing job status so that a) long JSON RPC calls can report status and
  * UI elements can receive updates, and b) there's a centralized location for 
@@ -85,10 +99,6 @@ import us.kbase.userandjobstate.userstate.UserState.KeyState;
  * pairs or jobs, require service authentication.
  * The service assumes other services are capable of simple math and does not
  * throw errors if a progress bar overflows.
- * Jobs are automatically deleted after 30 days.
- * Where string limits are noted, these apply only to *incoming* strings. Other
- * services that the UJS wraps (currently AWE) may provide longer strings for
- * these fields and the UJS passes them on unchanged.
  * Potential job process flows:
  * Asysnc:
  * UI calls service function which returns with job id
@@ -107,46 +117,127 @@ import us.kbase.userandjobstate.userstate.UserState.KeyState;
  *         updates
  * service call finishes, completes job, returns results
  * UI thread joins
+ * Authorization:
+ * Currently two modes of authorization are supported:
+ * DEFAULT:
+ * DEFAULT authorization uses the UJS access control lists (ACLs) stored in the
+ * UJS database. All methods work normally for this authorization strategy. To
+ * use the default authorization strategy, simply do not specify an authorization
+ * strategy when creating a job.
+ * kbaseworkspace:
+ * kbaseworkspace authorization (kbwsa) associates each job with an integer
+ * Workspace Service (WSS) workspace ID (the authorization parameter). In order to
+ * create a job with kbwsa, a user must have write access to the workspace in
+ * question. That user can then read and update (but not necessarily list) the job
+ * for the remainder of the job lifetime, regardless of the workspace permission.
+ * Other users must have read permissions to the workspace in order to view the
+ * job.
+ * Share and unshare commands do not work with kbwsa.
  * </pre>
  */
 public class UserAndJobStateServer extends JsonServerServlet {
     private static final long serialVersionUID = 1L;
+    private static final String version = "0.0.1";
+    private static final String gitUrl = "https://github.com/mrcreosote/user_and_job_state";
+    private static final String gitCommitHash = "93680bcb719f62602b33b958a6577512b4ed3cba";
 
     //BEGIN_CLASS_HEADER
 	
-    //TODO needs to look through the AWE code and look for cruft, this was written in haste
-    //TODO 1 a full suite of tests for AWE integration
-
-	private static final String VER = "0.1.2";
+	private static final String GIT =
+			"https://github.com/kbase/user_and_job_state";
+	
+	private static final String VER = "0.2.0";
 
 	//required deploy parameters:
-	private static final String HOST = "mongodb-host";
-	private static final String DB = "mongodb-database";
+	public static final String HOST = "mongodb-host";
+	public static final String DB = "mongodb-database";
 	//auth params:
-	private static final String USER = "mongodb-user";
-	private static final String PWD = "mongodb-pwd";
+	public static final String USER = "mongodb-user";
+	public static final String PWD = "mongodb-pwd";
 	//mongo connection attempt limit
 	private static final String MONGO_RECONNECT = "mongodb-retry";
-	//awe url
-	private static final String AWE_URL = "awe-url";
 	//credentials to use for user queries
 	private static final String KBASE_ADMIN_USER = "kbase-admin-user";
 	private static final String KBASE_ADMIN_PWD = "kbase-admin-pwd";
+	private static final String KBASE_ADMIN_TOKEN = "kbase-admin-token";
+	
+	//auth servers
+	private static final String KBASE_AUTH_URL = "auth-service-url";
+	private static final String GLOBUS_AUTH_URL = "globus-url";
+	
+	private static final String WORKSPACE_URL = "workspace-url";
 			
 	private static Map<String, String> ujConfig = null;
 	
-	private static final String USER_COLLECTION = "userstate";
-	private static final String JOB_COLLECTION = "jobstate";
+	public static final String USER_COLLECTION = "userstate";
+	public static final String JOB_COLLECTION = "jobstate";
+	public static final String SCHEMA_VERS_COLLECTION = "schemavers";
 	
-	public final static int MAX_LEN_SERVTYPE = 100;
-	public final static int MAX_LEN_DESC = 1000;
+	private static final int MONGO_RETRY_LOG_INTERVAL = 10;
+	
+	private final static int MAX_LEN_SERVTYPE = 100;
+	private final static int MAX_LEN_DESC = 1000;
 	
 	private final static int TOKEN_REFRESH_INTERVAL_SEC = 24 * 60 * 60;
 	
 	private final UserState us;
 	private final JobState js;
-	private final URL aweUrl;
 	private final ConfigurableAuthService auth;
+	private final WorkspaceAuthorizationFactory authfac;
+	
+	private final UJSAuthorizer nows = new UJSAuthorizer() {
+		
+		@Override
+		protected void externallyAuthorizeRead(
+				final AuthorizationStrategy strat,
+				final String user,
+				final List<String> authParams)
+				throws UJSAuthorizationException {
+			checkStrat(strat);
+		}
+
+		private void checkStrat(final AuthorizationStrategy strat)
+				throws UJSAuthorizationException {
+			if (strat.equals(WorkspaceAuthorizationFactory.WS_AUTH)) {
+				throw new UJSAuthorizationException(
+						"The UJS is not configured to delegate " +
+						"authorization to the workspace service");
+			} else {
+				throw new UJSAuthorizationException(
+						"Invalid authorization strategy: " + strat.getStrat());
+			}
+		}
+		
+		@Override
+		protected void externallyAuthorizeRead(final String user, final Job j)
+				throws UJSAuthorizationException {
+			checkStrat(j.getAuthorizationStrategy());
+		}
+		
+		@Override
+		protected void externallyAuthorizeCreate(
+				final AuthorizationStrategy strat,
+				final String authParam)
+				throws UJSAuthorizationException {
+			checkStrat(strat);
+		}
+
+		@Override
+		protected void externallyAuthorizeCancel(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			checkStrat(j.getAuthorizationStrategy());
+		}
+
+		@Override
+		protected void externallyAuthorizeDelete(
+				final String user,
+				final Job j)
+				throws UJSAuthorizationException {
+			checkStrat(j.getAuthorizationStrategy());
+		}
+	};
 	
 	private final static DateTimeFormatter DATE_PARSER =
 			new DateTimeFormatterBuilder()
@@ -158,25 +249,31 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private final static DateTimeFormatter DATE_FORMATTER =
 			DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ssZ").withZoneUTC();
 	
-	private UserState getUserState(final String host, final String dbs,
-			final String user, final String pwd,
+	private DB getMongoDB(
+			final String host,
+			final String dbs,
+			final String user,
+			final String pwd,
 			final int mongoReconnectRetry) {
 		try {
 			if (user != null) {
-				return new UserState(host, dbs, USER_COLLECTION, user, pwd,
-						mongoReconnectRetry);
+				return GetMongoDB.getDB(host, dbs, user, pwd,
+						mongoReconnectRetry, MONGO_RETRY_LOG_INTERVAL);
 			} else {
-				return new UserState(host, dbs, USER_COLLECTION,
-						mongoReconnectRetry);
+				return GetMongoDB.getDB(host, dbs, mongoReconnectRetry,
+						MONGO_RETRY_LOG_INTERVAL);
 			}
 		} catch (UnknownHostException uhe) {
 			fail("Couldn't find mongo host " + host + ": " +
 					uhe.getLocalizedMessage());
-		} catch (IOException io) {
+		} catch (IOException | MongoTimeoutException e) {
 			fail("Couldn't connect to mongo host " + host + ": " +
-					io.getLocalizedMessage());
+					e.getLocalizedMessage());
 		} catch (MongoAuthException ae) {
 			fail("Not authorized: " + ae.getLocalizedMessage());
+		} catch (MongoException e) {
+			fail("There was an error connecting to the mongo database: " +
+					e.getLocalizedMessage());
 		} catch (InvalidHostException ihe) {
 			fail(host + " is an invalid database host: "  +
 					ihe.getLocalizedMessage());
@@ -188,91 +285,52 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return null;
 	}
 	
-	private JobState getUJSJobState(final String host, final String dbs,
-			final String user, final String pwd,
-			final int mongoReconnectRetry) {
-		try {
-			if (user != null) {
-				return new UJSJobState(host, dbs, JOB_COLLECTION, user, pwd,
-						mongoReconnectRetry);
-			} else {
-				return new UJSJobState(host, dbs, JOB_COLLECTION,
-						mongoReconnectRetry);
-			}
-		} catch (UnknownHostException uhe) {
-			fail("Couldn't find mongo host " + host + ": " +
-					uhe.getLocalizedMessage());
-		} catch (IOException io) {
-			fail("Couldn't connect to mongo host " + host + ": " +
-					io.getLocalizedMessage());
-		} catch (MongoAuthException ae) {
-			fail("Not authorized: " + ae.getLocalizedMessage());
-		} catch (InvalidHostException ihe) {
-			fail(host + " is an invalid database host: "  +
-					ihe.getLocalizedMessage());
-		} catch (InterruptedException ie) {
-			fail("Connection to MongoDB was interrupted. This should never " +
-					"happen and indicates a programming problem. Error: " +
-					ie.getLocalizedMessage());
-		}
-		return null;
-	}
-	
-	private URL checkAweUrl(final String host) {
-		if (host == null || host.isEmpty()) {
-			System.out.println("No Awe URL found in config, running without Awe server");
-			logInfo("No Awe URL found in config, running without Awe server");
+	private SchemaManager getSchemaManager(final DB db, final String host) {
+		if (db == null) {
 			return null;
 		}
 		try {
-			final URL url = new URL(host);
-			AweJobState.testURL(url);
-			System.out.println("Connected to Awe server at " +
-					url.toExternalForm());
-			logInfo("Connected to Awe server at " + url.toExternalForm());
-			return url;
-		} catch (MalformedURLException mue) {
-			fail("Invalid Awe url: " + mue.getLocalizedMessage());
-		} catch (InvalidAweUrlException e) {
-			fail("Invalid Awe url: " + e.getLocalizedMessage());
-		} catch (IOException io) {
-			fail("Couldn't connect to awe server at " + host + ": " +
-					io.getLocalizedMessage());
+			 return new SchemaManager(
+						db.getCollection(SCHEMA_VERS_COLLECTION));
+		} catch (MongoTimeoutException e) {
+			fail("Couldn't connect to mongo host " + host + ": " +
+					e.getLocalizedMessage());
+		} catch (InvalidSchemaRecordException e) {
+			fail("The schema version records are corrupt: " +
+					e.getLocalizedMessage());
 		}
 		return null;
 	}
 	
-	private JobState getJobState(final String jobid, final AuthToken token)
-			throws IOException, TokenExpiredException {
-		// this is a filthy hack, but it'll do for now. Adding other job
-		// runners will be problematic unless they all use globally unique
-		//job ids
-		if (aweUrl == null) {
-			return js;
-		}
+	private UserState getUserState(final DB db, final SchemaManager sm,
+			final String host) {
 		try {
-			new AweJobId(jobid);
-		} catch (IllegalArgumentException iae) {
-			return js;
+			return new UserState(db.getCollection(USER_COLLECTION), sm);
+		} catch (MongoTimeoutException e) {
+			fail("Couldn't connect to mongo host " + host + ": " +
+					e.getLocalizedMessage());
+		} catch (SchemaException e) {
+			fail("An error occured while checking the database schema: " +
+					e.getLocalizedMessage());
 		}
-		return getAweJobState(token);
+		return null;
 	}
 	
-	private JobState getAweJobState(final AuthToken token)
-			throws IOException, TokenExpiredException {
+	private JobState getJobState(final DB db, final SchemaManager sm,
+			final String host) {
 		try {
-			return new AweJobState(aweUrl, token);
-		} catch (InvalidAweUrlException e) {
-			throw new IOException("Couldn't connect to awe server at " +
-					aweUrl, e);
-		} catch (AweHttpException e) {
-			throw new IOException("Couldn't connect to awe server at " +
-					aweUrl, e);
-		} catch (IOException io) {
-			throw new IOException("Couldn't connect to awe server at " +
-					aweUrl, io);
+			return new JobState(db.getCollection(JOB_COLLECTION), sm);
+		} catch (MongoTimeoutException e) {
+			fail("Couldn't connect to mongo host " + host + ": " +
+					e.getLocalizedMessage());
+		} catch (SchemaException e) {
+			fail("An error occured while checking the database schema: " +
+					e.getLocalizedMessage());
 		}
+		return null;
 	}
+	//TODO ZLATER write manual
+	//TODO ZZLATER admin methods
 	
 	private void fail(final String error) {
 		logErr(error);
@@ -280,17 +338,18 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		startupFailed();
 	}
 	
-	private String getServiceName(String serviceToken)
-			throws TokenFormatException, TokenExpiredException, IOException {
+	private String getServiceUserName(String serviceToken)
+			throws IOException, AuthException {
 		if (serviceToken == null || serviceToken.isEmpty()) {
 			throw new IllegalArgumentException(
 					"Service token cannot be null or the empty string");
 		}
-		final AuthToken t = new AuthToken(serviceToken);
-		if (!auth.validateToken(t)) {
-			throw new IllegalArgumentException("Service token is invalid");
+		try {
+			return auth.validateToken(serviceToken).getUserName();
+		} catch (AuthException e) {
+			throw new AuthException("Couldn't validate the server token. " +
+					"The authentication server said: " + e.getMessage(), e);
 		}
-		return t.getUserName();
 	}
 	
 	private Tuple14<String, String, String, String, String, String, Long,
@@ -299,22 +358,61 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return new Tuple14<String, String, String, String, String, String,
 				Long, Long, String, String, Long, Long, String,
 				Results>()
-				.withE1(j.getID())
-				.withE2(j.getService())
-				.withE3(j.getStage())
-				.withE4(formatDate(j.getStarted()))
-				.withE5(j.getStatus())
-				.withE6(formatDate(j.getLastUpdated()))
-				.withE7(j.getProgress() == null ? null :
-					new Long(j.getProgress()))
-				.withE8(j.getMaxProgress() == null ? null :
-					new Long(j.getMaxProgress()))
-				.withE9(j.getProgType())
-				.withE10(formatDate(j.getEstimatedCompletion()))
-				.withE11(boolToLong(j.isComplete()))
-				.withE12(boolToLong(j.hasError()))
-				.withE13(j.getDescription())
-				.withE14(makeResults(j.getResults()));
+			.withE1(j.getID())
+			.withE2(j.getService())
+			.withE3(j.getStage())
+			.withE4(formatDate(j.getStarted()))
+			.withE5(j.getStatus())
+			.withE6(formatDate(j.getLastUpdated()))
+			.withE7(j.getProgress() == null ? null :
+				new Long(j.getProgress()))
+			.withE8(j.getMaxProgress() == null ? null :
+				new Long(j.getMaxProgress()))
+			.withE9(j.getProgType())
+			.withE10(formatDate(j.getEstimatedCompletion()))
+			.withE11(boolToLong(j.isComplete()))
+			.withE12(boolToLong(j.hasError()))
+			.withE13(j.getDescription())
+			.withE14(makeResults(j.getResults()));
+	}
+
+	private Tuple13<String, Tuple2<String, String>, String, String, String,
+			Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long,
+			Long, Tuple2<String, String>, Map<String, String>, String, Results>
+			jobToJobInfo2(final Job j) {
+		return new Tuple13<String, Tuple2<String, String>, String, String,
+				String, Tuple3<String, String, String>,
+				Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>,
+				Map<String, String>, String, Results>()
+			.withE1(j.getID())
+			.withE2(new Tuple2<String, String>()
+					.withE1(j.getUser())
+					.withE2(j.getCanceledBy())
+			)
+			.withE3(j.getService())
+			.withE4(j.getStage())
+			.withE5(j.getStatus())
+			.withE6(new Tuple3<String, String, String>()
+					.withE1(formatDate(j.getStarted()))
+					.withE2(formatDate(j.getLastUpdated()))
+					.withE3(formatDate(j.getEstimatedCompletion()))
+			)
+			.withE7(new Tuple3<Long, Long, String>()
+					.withE1(j.getProgress() == null ? null :
+						new Long(j.getProgress()))
+					.withE2(j.getMaxProgress() == null ? null :
+						new Long(j.getMaxProgress()))
+					.withE3(j.getProgType())
+			)
+			.withE8(boolToLong(j.isComplete()))
+			.withE9(boolToLong(j.hasError()))
+			.withE10(new Tuple2<String, String>()
+					.withE1(j.getAuthorizationStrategy().getStrat())
+					.withE2(j.getAuthorizationParameter())
+			)
+			.withE11(j.getMetadata())
+			.withE12(j.getDescription())
+			.withE13(makeResults(j.getResults()));
 	}
 	
 	private static Long boolToLong(final Boolean b) {
@@ -388,6 +486,28 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 	}
 	
+	private boolean[] parseFilter(final String filter) {
+		final boolean[] ret = new boolean[5];
+		if (filter != null) {
+			if (filter.indexOf("R") > -1) {
+				ret[0] = true;
+			}
+			if (filter.indexOf("C") > -1) {
+				ret[1] = true;
+			}
+			if (filter.indexOf("N") > -1) {
+				ret[2] = true;
+			}
+			if (filter.indexOf("E") > -1) {
+				ret[3] = true;
+			}
+			if (filter.indexOf("S") > -1) {
+				ret[4] = true;
+			}
+		}
+		return ret;
+	}
+	
 	private String formatDate(final Date date) {
 		return date == null ? null : DATE_FORMATTER.print(new DateTime(date));
 	}
@@ -416,33 +536,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	public void setUpLogger() {
-		((Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME))
-				.setLevel(Level.OFF);
-		final Logger kbaseRootLogger = (Logger) LoggerFactory.getLogger(
-				"us.kbase");
-		//would be better to also set the level here on calls to the server
-		//setLogLevel, but meh for now
-		kbaseRootLogger.setLevel(Level.ALL);
-		final AppenderBase<ILoggingEvent> kbaseAppender =
-				new AppenderBase<ILoggingEvent>() {
-
-			@Override
-			protected void append(final ILoggingEvent event) {
-				//for now only INFO is tested; test others as they're needed
-				final Level l = event.getLevel();
-				if (l.equals(Level.TRACE)) {
-					logDebug(event.getFormattedMessage(), 3);
-				} else if (l.equals(Level.DEBUG)) {
-					logDebug(event.getFormattedMessage());
-				} else if (l.equals(Level.INFO) || l.equals(Level.WARN)) {
-					logInfo(event.getFormattedMessage());
-				} else if (l.equals(Level.ERROR)) {
-					logErr(event.getFormattedMessage());
-				}
-			}
-		};
-		kbaseAppender.start();
-		kbaseRootLogger.addAppender(kbaseAppender);
+		Logger l = (Logger) LoggerFactory.getLogger(
+				org.slf4j.Logger.ROOT_LOGGER_NAME);
+		l.setLevel(Level.OFF);
+		l.detachAndStopAllAppenders();
 	}
 	
 	private int getReconnectCount() {
@@ -466,26 +563,96 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return recint;
 	}
 	
-
+	/* assumes param is in map */
+	private URL getURL(final Map<String, String> config, final String param) {
+		try {
+			return new URL(config.get(param));
+		} catch (MalformedURLException e) {
+			fail(String.format("URL %s provided for param %s is not valid",
+					config.get(param), param));
+		}
+		return null;
+	}
+	
+	/* assumes params are already in map and empty strings were set to null*/
+	@SuppressWarnings("deprecation")
 	private ConfigurableAuthService setUpAuthClient(
-			final String kbaseAdminUser,
-			final String kbaseAdminPwd) {
-		AuthConfig c = new AuthConfig();
-		ConfigurableAuthService auth;
+			final Map<String, String> config) {
+		final URL authURL = getURL(config, KBASE_AUTH_URL);
+		final URL globusURL = getURL(config, GLOBUS_AUTH_URL);
+		if (authURL == null || globusURL == null) { // a url was invalid
+			return null;
+		}
+		final AuthConfig c;
+		try {
+			c = new AuthConfig().withGlobusAuthURL(globusURL)
+				.withKBaseAuthServerURL(authURL);
+		} catch (URISyntaxException e) {
+			throw new RuntimeException("Neat. I'm suprised this happened", e);
+		}
+		final boolean token = config.get(KBASE_ADMIN_TOKEN) != null;
+		final ConfigurableAuthService auth;
 		try {
 			auth = new ConfigurableAuthService(c);
-			c.withRefreshingToken(auth.getRefreshingToken(
-					kbaseAdminUser, kbaseAdminPwd,
-					TOKEN_REFRESH_INTERVAL_SEC));
+			if (token) {
+				c.withToken(auth.validateToken(config.get(KBASE_ADMIN_TOKEN)));
+			} else {
+				//TODO AUTH LATER remove refreshing token
+				c.withRefreshingToken(auth.getRefreshingToken(
+						config.get(KBASE_ADMIN_USER),
+						config.get(KBASE_ADMIN_PWD),
+						TOKEN_REFRESH_INTERVAL_SEC));
+			}
 			return auth;
 		} catch (AuthException e) {
 			fail("Couldn't log in the KBase administrative user " +
-					kbaseAdminUser + " : " + e.getLocalizedMessage());
+					(token ? "with a token" : config.get(KBASE_ADMIN_USER)) +
+					": " + e.getMessage());
 		} catch (IOException e) {
 			fail("Couldn't connect to authorization service at " +
 					c.getAuthServerURL() + " : " + e.getLocalizedMessage());
 		}
 		return null;
+	}
+	
+
+	private WorkspaceAuthorizationFactory setUpWorkspaceAuth() {
+		WorkspaceAuthorizationFactory authfac;
+		final String wsStr = ujConfig.get(WORKSPACE_URL);
+		if (wsStr != null && !wsStr.isEmpty()) {
+			final URL wsURL;
+			try {
+				wsURL = new URL(wsStr);
+				authfac = new WorkspaceAuthorizationFactory(wsURL);
+			} catch (JsonClientException | IOException e) {
+				authfac = null;
+				fail("Error attempting to set up Workspace service " +
+						"based authorization with URL " + wsStr + ": " +
+						e.getLocalizedMessage());
+			} 
+		} else {
+			LoggerFactory.getLogger(getClass()).info(
+					"No workspace url detected in the configuration. " +
+					"Any calls requiring workspace authorization will fail.");
+			authfac = null;
+		}
+		return authfac;
+	}
+	
+	private UJSAuthorizer getAuthorizer(final AuthToken token)
+			throws UnauthorizedException, IOException {
+		if (authfac == null) {
+			return nows;
+		} else {
+			return authfac.buildAuthorizer(token);
+		}
+	}
+	
+	private boolean hasParam(
+			final Map<String, String> config,
+			final String param) {
+		final String p = config.get(param);
+		return p != null && !p.isEmpty();
 	}
 	
 	public static void clearConfigForTests() {
@@ -505,45 +672,65 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		setUpLogger();
 		boolean failed = false;
-		if (!ujConfig.containsKey(HOST)) {
+		
+		if (!hasParam(ujConfig, HOST)) {
 			fail("Must provide param " + HOST + " in config file");
 			failed = true;
 		}
 		final String host = ujConfig.get(HOST);
-		if (!ujConfig.containsKey(DB)) {
+		
+		if (!hasParam(ujConfig, DB)) {
 			fail("Must provide param " + DB + " in config file");
 			failed = true;
 		}
 		final String dbs = ujConfig.get(DB);
-		if (ujConfig.containsKey(USER) ^ ujConfig.containsKey(PWD)) {
+		
+		if (!hasParam(ujConfig, KBASE_AUTH_URL)) {
+			fail("Must provide param " + KBASE_AUTH_URL + " in config file");
+			failed = true;
+		}
+		
+		if (!hasParam(ujConfig, GLOBUS_AUTH_URL)) {
+			fail("Must provide param " + GLOBUS_AUTH_URL + " in config file");
+			failed = true;
+		}
+		
+		if (!hasParam(ujConfig, USER) ^ !hasParam(ujConfig, PWD)) {
 			fail(String.format("Must provide both %s and %s ",
 					USER, PWD) + "params in config file if authentication " + 
 					"is to be used");
 			failed = true;
 		}
-		
-		if (!ujConfig.containsKey(KBASE_ADMIN_USER)) {
-			fail("Must provide param " + KBASE_ADMIN_USER + " in config file");
-			failed = true;
+		if (!hasParam(ujConfig, KBASE_ADMIN_TOKEN)) {
+			ujConfig.put(KBASE_ADMIN_TOKEN, null);
+			if (!hasParam(ujConfig, KBASE_ADMIN_USER)) {
+				fail(String.format(
+						"Must provide param %s or %s in config file",
+						KBASE_ADMIN_USER, KBASE_ADMIN_TOKEN));
+				failed = true;
+			}
+			if (!hasParam(ujConfig, KBASE_ADMIN_PWD)) {
+				fail("Must provide param " + KBASE_ADMIN_PWD +
+						" in config file");
+				failed = true;
+			}
+		} else {
+			ujConfig.put(KBASE_ADMIN_USER, null);
+			ujConfig.put(KBASE_ADMIN_PWD, null);
 		}
-		final String adminUser = ujConfig.get(KBASE_ADMIN_USER);
-		if (!ujConfig.containsKey(KBASE_ADMIN_PWD)) {
-			fail("Must provide param " + KBASE_ADMIN_PWD + " in config file");
-			failed = true;
-		}
-		final String adminPwd = ujConfig.get(KBASE_ADMIN_PWD);
 		
 		if (failed) {
 			fail("Server startup failed - all calls will error out.");
 			us = null;
 			js = null;
-			aweUrl = null;
 			auth = null;
+			authfac = null;
 		} else {
 			final String user = ujConfig.get(USER);
 			final String pwd = ujConfig.get(PWD);
 			String params = "";
-			for (String s: Arrays.asList(HOST, DB, USER)) {
+			for (String s: Arrays.asList(HOST, DB, USER, KBASE_AUTH_URL,
+					GLOBUS_AUTH_URL)) {
 				if (ujConfig.containsKey(s)) {
 					params += s + "=" + ujConfig.get(s) + "\n";
 				}
@@ -555,11 +742,22 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					+ params);
 			logInfo("Starting server using connection parameters:\n" + params);
 			final int mongoConnectRetry = getReconnectCount();
-			us = getUserState(host, dbs, user, pwd, mongoConnectRetry);
-			js = getUJSJobState(host, dbs, user, pwd, mongoConnectRetry);
-			final String aweUrlString = ujConfig.get(AWE_URL);
-			aweUrl = checkAweUrl(aweUrlString);
-			auth = setUpAuthClient(adminUser, adminPwd);
+			final DB ujsDB = getMongoDB(
+					host, dbs, user, pwd, mongoConnectRetry);
+			final SchemaManager sm = getSchemaManager(ujsDB, host);
+			final ConfigurableAuthService cauth = setUpAuthClient(ujConfig);
+			if (ujsDB == null || sm == null || cauth == null) {
+				us = null;
+				js = null;
+				auth = null;
+				authfac = null;
+			} else {
+				//TODO ZZLATER TEST add server startup tests.
+				us = getUserState(ujsDB, sm, host);
+				js = getJobState(ujsDB, sm, host);
+				authfac = setUpWorkspaceAuth();
+				auth = cauth;
+			}
 		}
         //END_CONSTRUCTOR
     }
@@ -571,8 +769,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * </pre>
      * @return   parameter "ver" of String
      */
-    @JsonServerMethod(rpc = "UserAndJobState.ver")
-    public String ver() throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.ver", async=true)
+    public String ver(RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN ver
 		returnVal = VER;
@@ -589,8 +787,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   key   instance of String
      * @param   value   instance of unspecified object
      */
-    @JsonServerMethod(rpc = "UserAndJobState.set_state")
-    public void setState(String service, String key, UObject value, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.set_state", async=true)
+    public void setState(String service, String key, UObject value, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN set_state
 		us.setState(authPart.getUserName(), service, false, key,
 				value == null ? null : value.asClassInstance(Object.class));
@@ -606,10 +804,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   key   instance of String
      * @param   value   instance of unspecified object
      */
-    @JsonServerMethod(rpc = "UserAndJobState.set_state_auth")
-    public void setStateAuth(String token, String key, UObject value, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.set_state_auth", async=true)
+    public void setStateAuth(String token, String key, UObject value, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN set_state_auth
-		us.setState(authPart.getUserName(), getServiceName(token), true, key,
+		us.setState(authPart.getUserName(), getServiceUserName(token), true, key,
 				value == null ? null : value.asClassInstance(Object.class));
         //END set_state_auth
     }
@@ -624,8 +822,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   auth   instance of original type "authed" (Specifies whether results returned should be from key/value pairs set with service authentication (true) or without (false).) &rarr; original type "boolean" (A boolean. 0 = false, other = true.)
      * @return   parameter "value" of unspecified object
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_state")
-    public UObject getState(String service, String key, Long auth, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_state", async=true)
+    public UObject getState(String service, String key, Long auth, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         UObject returnVal = null;
         //BEGIN get_state
 		returnVal = new UObject(us.getState(authPart.getUserName(), service,
@@ -644,8 +842,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   auth   instance of original type "authed" (Specifies whether results returned should be from key/value pairs set with service authentication (true) or without (false).) &rarr; original type "boolean" (A boolean. 0 = false, other = true.)
      * @return   parameter "has_key" of original type "boolean" (A boolean. 0 = false, other = true.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.has_state")
-    public Long hasState(String service, String key, Long auth, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.has_state", async=true)
+    public Long hasState(String service, String key, Long auth, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Long returnVal = null;
         //BEGIN has_state
 		returnVal = boolToLong(us.hasState(authPart.getUserName(), service,
@@ -666,8 +864,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   auth   instance of original type "authed" (Specifies whether results returned should be from key/value pairs set with service authentication (true) or without (false).) &rarr; original type "boolean" (A boolean. 0 = false, other = true.)
      * @return   multiple set: (1) parameter "has_key" of original type "boolean" (A boolean. 0 = false, other = true.), (2) parameter "value" of unspecified object
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_has_state", tuple = true)
-    public Tuple2<Long, UObject> getHasState(String service, String key, Long auth, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_has_state", tuple = true, async=true)
+    public Tuple2<Long, UObject> getHasState(String service, String key, Long auth, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Long return1 = null;
         UObject return2 = null;
         //BEGIN get_has_state
@@ -690,8 +888,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   service   instance of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
      * @param   key   instance of String
      */
-    @JsonServerMethod(rpc = "UserAndJobState.remove_state")
-    public void removeState(String service, String key, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.remove_state", async=true)
+    public void removeState(String service, String key, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN remove_state
 		us.removeState(authPart.getUserName(), service, false, key);
         //END remove_state
@@ -705,10 +903,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   token   instance of original type "service_token" (A globus ID token that validates that the service really is said service.)
      * @param   key   instance of String
      */
-    @JsonServerMethod(rpc = "UserAndJobState.remove_state_auth")
-    public void removeStateAuth(String token, String key, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.remove_state_auth", async=true)
+    public void removeStateAuth(String token, String key, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN remove_state_auth
-		us.removeState(authPart.getUserName(), getServiceName(token), true,
+		us.removeState(authPart.getUserName(), getServiceUserName(token), true,
 				key);	
         //END remove_state_auth
     }
@@ -722,8 +920,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   auth   instance of original type "authed" (Specifies whether results returned should be from key/value pairs set with service authentication (true) or without (false).) &rarr; original type "boolean" (A boolean. 0 = false, other = true.)
      * @return   parameter "keys" of list of String
      */
-    @JsonServerMethod(rpc = "UserAndJobState.list_state")
-    public List<String> listState(String service, Long auth, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.list_state", async=true)
+    public List<String> listState(String service, Long auth, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<String> returnVal = null;
         //BEGIN list_state
 		returnVal = new LinkedList<String>(us.listState(authPart.getUserName(),
@@ -740,8 +938,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   auth   instance of original type "authed" (Specifies whether results returned should be from key/value pairs set with service authentication (true) or without (false).) &rarr; original type "boolean" (A boolean. 0 = false, other = true.)
      * @return   parameter "services" of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.list_state_services")
-    public List<String> listStateServices(Long auth, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.list_state_services", async=true)
+    public List<String> listStateServices(Long auth, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<String> returnVal = null;
         //BEGIN list_state_services
 		returnVal = new LinkedList<String>(us.listServices(
@@ -751,14 +949,45 @@ public class UserAndJobStateServer extends JsonServerServlet {
     }
 
     /**
-     * <p>Original spec-file function name: create_job</p>
+     * <p>Original spec-file function name: create_job2</p>
      * <pre>
      * Create a new job status report.
      * </pre>
+     * @param   params   instance of type {@link us.kbase.userandjobstate.CreateJobParams CreateJobParams}
      * @return   parameter "job" of original type "job_id" (A job id.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.create_job")
-    public String createJob(AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.create_job2", async=true)
+    public String createJob2(CreateJobParams params, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
+        String returnVal = null;
+        //BEGIN create_job2
+		final WorkspaceUserMetadata meta =
+				new WorkspaceUserMetadata(params.getMeta());
+		final String user = authPart.getUserName();
+		final String as = params.getAuthstrat();
+		if (as == null || as.isEmpty() ||
+				as.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat())) {
+			returnVal = js.createJob(user, new DefaultUJSAuthorizer(),
+					UJSAuthorizer.DEFAULT_AUTH_STRAT,
+					UJSAuthorizer.DEFAULT_AUTH_PARAM, meta);
+		} else {
+			returnVal = js.createJob(user, getAuthorizer(authPart),
+					new AuthorizationStrategy(params.getAuthstrat()),
+					params.getAuthparam(), meta);
+		}
+        //END create_job2
+        return returnVal;
+    }
+
+    /**
+     * <p>Original spec-file function name: create_job</p>
+     * <pre>
+     * Create a new job status report.
+     * @deprecated create_job2
+     * </pre>
+     * @return   parameter "job" of original type "job_id" (A job id.)
+     */
+    @JsonServerMethod(rpc = "UserAndJobState.create_job", async=true)
+    public String createJob(AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN create_job
 		returnVal = js.createJob(authPart.getUserName());
@@ -778,8 +1007,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   progress   instance of type {@link us.kbase.userandjobstate.InitProgress InitProgress}
      * @param   estComplete   instance of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time))
      */
-    @JsonServerMethod(rpc = "UserAndJobState.start_job")
-    public void startJob(String job, String token, String status, String desc, InitProgress progress, String estComplete, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.start_job", async=true)
+    public void startJob(String job, String token, String status, String desc, InitProgress progress, String estComplete, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN start_job
 		if (progress == null) {
 			throw new IllegalArgumentException("InitProgress cannot be null");
@@ -789,12 +1018,12 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			throw new IllegalArgumentException("Progress type cannot be null");
 		}
 		if (progress.getPtype().equals(JobState.PROG_NONE)) {
-			getJobState(job, authPart).startJob(authPart.getUserName(), job,
-					getServiceName(token), status, desc,
+			js.startJob(authPart.getUserName(), job,
+					getServiceUserName(token), status, desc,
 					parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
-			getJobState(job, authPart).startJobWithPercentProg(
-					authPart.getUserName(), job, getServiceName(token), status,
+			js.startJobWithPercentProg(
+					authPart.getUserName(), job, getServiceUserName(token), status,
 					desc, parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
 			if (progress.getMax() == null) {
@@ -806,8 +1035,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						"Max progress can be no greater than "
 						+ Integer.MAX_VALUE);
 			}
-			getJobState(job, authPart).startJob(authPart.getUserName(), job,
-					getServiceName(token), status, desc,
+			js.startJob(authPart.getUserName(), job,
+					getServiceUserName(token), status, desc,
 					(int) progress.getMax().longValue(),
 					parseDate(estComplete));
 		} else {
@@ -829,8 +1058,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   estComplete   instance of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time))
      * @return   parameter "job" of original type "job_id" (A job id.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.create_and_start_job")
-    public String createAndStartJob(String token, String status, String desc, InitProgress progress, String estComplete, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.create_and_start_job", async=true)
+    public String createAndStartJob(String token, String status, String desc, InitProgress progress, String estComplete, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN create_and_start_job
 		//could combine with above, but it'd be a huge mess
@@ -843,10 +1072,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		}
 		if (progress.getPtype().equals(JobState.PROG_NONE)) {
 			returnVal = js.createAndStartJob(authPart.getUserName(),
-					getServiceName(token), status, desc, parseDate(estComplete));
+					getServiceUserName(token), status, desc, parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_PERC)) {
 			returnVal = js.createAndStartJobWithPercentProg(
-					authPart.getUserName(), getServiceName(token), status, desc,
+					authPart.getUserName(), getServiceUserName(token), status, desc,
 					parseDate(estComplete));
 		} else if (progress.getPtype().equals(JobState.PROG_TASK)) {
 			if (progress.getMax() == null) {
@@ -859,7 +1088,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						+ Integer.MAX_VALUE);
 			}
 			returnVal = js.createAndStartJob(authPart.getUserName(),
-					getServiceName(token), status, desc,
+					getServiceUserName(token), status, desc,
 					(int) progress.getMax().longValue(),
 					parseDate(estComplete));
 		} else {
@@ -881,8 +1110,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   prog   instance of original type "progress" (The amount of progress the job has made since the last update. This will be summed to the total progress so far.)
      * @param   estComplete   instance of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time))
      */
-    @JsonServerMethod(rpc = "UserAndJobState.update_job_progress")
-    public void updateJobProgress(String job, String token, String status, Long prog, String estComplete, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.update_job_progress", async=true)
+    public void updateJobProgress(String job, String token, String status, Long prog, String estComplete, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN update_job_progress
 		Integer progval = null;
 		if (prog != null) {
@@ -893,8 +1122,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			}
 			progval = (int) prog.longValue();
 		}
-		getJobState(job, authPart).updateJob(authPart.getUserName(), job,
-				getServiceName(token), status, progval,
+		js.updateJob(authPart.getUserName(), job,
+				getServiceUserName(token), status, progval,
 				parseDate(estComplete));
         //END update_job_progress
     }
@@ -909,11 +1138,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   status   instance of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.)
      * @param   estComplete   instance of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time))
      */
-    @JsonServerMethod(rpc = "UserAndJobState.update_job")
-    public void updateJob(String job, String token, String status, String estComplete, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.update_job", async=true)
+    public void updateJob(String job, String token, String status, String estComplete, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN update_job
-		getJobState(job, authPart).updateJob(authPart.getUserName(), job,
-				getServiceName(token), status, null, parseDate(estComplete));
+		js.updateJob(authPart.getUserName(), job,
+				getServiceUserName(token), status, null, parseDate(estComplete));
         //END update_job
     }
 
@@ -925,16 +1154,16 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   job   instance of original type "job_id" (A job id.)
      * @return   multiple set: (1) parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), (2) parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), (3) parameter "max" of original type "max_progress" (The maximum possible progress of a job.), (4) parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), (5) parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time))
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_job_description", tuple = true)
-    public Tuple5<String, String, Long, String, String> getJobDescription(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_job_description", tuple = true, async=true)
+    public Tuple5<String, String, Long, String, String> getJobDescription(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String return1 = null;
         String return2 = null;
         Long return3 = null;
         String return4 = null;
         String return5 = null;
         //BEGIN get_job_description
-		final Job j = getJobState(job, authPart).getJob(
-				authPart.getUserName(), job);
+		final Job j = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart));
 		return1 = j.getService();
 		return2 = j.getProgType();
 		return3 = j.getMaxProgress() == null ? null :
@@ -957,10 +1186,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * Get the status of a job.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
-     * @return   multiple set: (1) parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), (2) parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), (3) parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), (4) parameter "progress" of original type "total_progress" (The total progress of a job.), (5) parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), (6) parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), (7) parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.)
+     * @return   multiple set: (1) parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), (2) parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', 'canceled' or 'error'.), (3) parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), (4) parameter "progress" of original type "total_progress" (The total progress of a job.), (5) parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), (6) parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), (7) parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_job_status", tuple = true)
-    public Tuple7<String, String, String, Long, String, Long, Long> getJobStatus(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_job_status", tuple = true, async=true)
+    public Tuple7<String, String, String, Long, String, Long, Long> getJobStatus(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String return1 = null;
         String return2 = null;
         String return3 = null;
@@ -969,8 +1198,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
         Long return6 = null;
         Long return7 = null;
         //BEGIN get_job_status
-		final Job j = getJobState(job, authPart).getJob(
-				authPart.getUserName(), job);
+		final Job j = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart));
 		return1 = formatDate(j.getLastUpdated());
 		return2 = j.getStage();
 		return3 = j.getStatus();
@@ -1003,12 +1232,28 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   error   instance of original type "detailed_err" (Detailed information about a job error, such as a stacktrace, that will not fit in the job_status. No more than 100K characters.)
      * @param   res   instance of type {@link us.kbase.userandjobstate.Results Results}
      */
-    @JsonServerMethod(rpc = "UserAndJobState.complete_job")
-    public void completeJob(String job, String token, String status, String error, Results res, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.complete_job", async=true)
+    public void completeJob(String job, String token, String status, String error, Results res, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN complete_job
-		getJobState(job, authPart).completeJob(authPart.getUserName(), job,
-				getServiceName(token), status, error, unmakeResults(res));
+		js.completeJob(authPart.getUserName(), job,
+				getServiceUserName(token), status, error, unmakeResults(res));
         //END complete_job
+    }
+
+    /**
+     * <p>Original spec-file function name: cancel_job</p>
+     * <pre>
+     * Cancel a job.
+     * </pre>
+     * @param   job   instance of original type "job_id" (A job id.)
+     * @param   status   instance of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.)
+     */
+    @JsonServerMethod(rpc = "UserAndJobState.cancel_job", async=true)
+    public void cancelJob(String job, String status, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
+        //BEGIN cancel_job
+		js.cancelJob(authPart.getUserName(), job, status,
+				getAuthorizer(authPart));
+        //END cancel_job
     }
 
     /**
@@ -1019,12 +1264,12 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   job   instance of original type "job_id" (A job id.)
      * @return   parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_results")
-    public Results getResults(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_results", async=true)
+    public Results getResults(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Results returnVal = null;
         //BEGIN get_results
-		returnVal = makeResults(getJobState(job, authPart).getJob(
-				authPart.getUserName(), job).getResults());
+		returnVal = makeResults(js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)).getResults());
         //END get_results
         return returnVal;
     }
@@ -1037,13 +1282,31 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * @param   job   instance of original type "job_id" (A job id.)
      * @return   parameter "error" of original type "detailed_err" (Detailed information about a job error, such as a stacktrace, that will not fit in the job_status. No more than 100K characters.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_detailed_error")
-    public String getDetailedError(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_detailed_error", async=true)
+    public String getDetailedError(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN get_detailed_error
-		returnVal =  getJobState(job, authPart).getJob(
-				authPart.getUserName(), job).getErrorMsg();
+		returnVal =  js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)).getErrorMsg();
         //END get_detailed_error
+        return returnVal;
+    }
+
+    /**
+     * <p>Original spec-file function name: get_job_info2</p>
+     * <pre>
+     * Get information about a job.
+     * </pre>
+     * @param   job   instance of original type "job_id" (A job id.)
+     * @return   parameter "info" of original type "job_info2" (Information about a job.) &rarr; tuple of size 13: parameter "job" of original type "job_id" (A job id.), parameter "users" of original type "user_info" (Who owns a job and who canceled a job (null if not canceled).) &rarr; tuple of size 2: parameter "owner" of original type "username" (Login name of a KBase user account.), parameter "canceledby" of original type "username" (Login name of a KBase user account.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', 'canceled' or 'error'.), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "times" of original type "time_info" (Job timing information.) &rarr; tuple of size 3: parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "progress" of original type "progress_info" (Job progress information.) &rarr; tuple of size 3: parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "auth" of original type "auth_info" (Job authorization strategy information.) &rarr; tuple of size 2: parameter "strat" of original type "auth_strategy" (An authorization strategy to use for jobs. Other than the DEFAULT strategy (ACLs local to the UJS and managed by the UJS sharing functions), currently the only other strategy is the 'kbaseworkspace' strategy, which consults the workspace service for authorization information.), parameter "param" of original type "auth_param" (An authorization parameter. The contents of this parameter differ by auth_strategy, but for the workspace strategy it is the workspace id (an integer) as a string.), parameter "meta" of original type "usermeta" (User provided metadata about a job. Arbitrary key-value pairs provided by the user.) &rarr; mapping from String to String, parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     */
+    @JsonServerMethod(rpc = "UserAndJobState.get_job_info2", async=true)
+    public Tuple13<String, Tuple2<String, String>, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results> getJobInfo2(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
+        Tuple13<String, Tuple2<String, String>, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results> returnVal = null;
+        //BEGIN get_job_info2
+		returnVal = jobToJobInfo2(js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)));
+        //END get_job_info2
         return returnVal;
     }
 
@@ -1051,18 +1314,57 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <p>Original spec-file function name: get_job_info</p>
      * <pre>
      * Get information about a job.
+     * @deprecated get_job_info2
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
-     * @return   parameter "info" of original type "job_info" (Information about a job.) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     * @return   parameter "info" of original type "job_info" (Information about a job. @deprecated job_info2) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', 'canceled' or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_job_info")
-    public Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> getJobInfo(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_job_info", async=true)
+    public Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> getJobInfo(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results> returnVal = null;
         //BEGIN get_job_info
-		returnVal = jobToJobInfo(getJobState(job, authPart).getJob(
-				authPart.getUserName(), job));
-		//TODO add job source to info and description? maybe not, backwards incompatible
+		returnVal = jobToJobInfo(js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)));
         //END get_job_info
+        return returnVal;
+    }
+
+    /**
+     * <p>Original spec-file function name: list_jobs2</p>
+     * <pre>
+     * List jobs.
+     * </pre>
+     * @param   params   instance of type {@link us.kbase.userandjobstate.ListJobsParams ListJobsParams}
+     * @return   parameter "jobs" of list of original type "job_info2" (Information about a job.) &rarr; tuple of size 13: parameter "job" of original type "job_id" (A job id.), parameter "users" of original type "user_info" (Who owns a job and who canceled a job (null if not canceled).) &rarr; tuple of size 2: parameter "owner" of original type "username" (Login name of a KBase user account.), parameter "canceledby" of original type "username" (Login name of a KBase user account.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', 'canceled' or 'error'.), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "times" of original type "time_info" (Job timing information.) &rarr; tuple of size 3: parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "progress" of original type "progress_info" (Job progress information.) &rarr; tuple of size 3: parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "auth" of original type "auth_info" (Job authorization strategy information.) &rarr; tuple of size 2: parameter "strat" of original type "auth_strategy" (An authorization strategy to use for jobs. Other than the DEFAULT strategy (ACLs local to the UJS and managed by the UJS sharing functions), currently the only other strategy is the 'kbaseworkspace' strategy, which consults the workspace service for authorization information.), parameter "param" of original type "auth_param" (An authorization parameter. The contents of this parameter differ by auth_strategy, but for the workspace strategy it is the workspace id (an integer) as a string.), parameter "meta" of original type "usermeta" (User provided metadata about a job. Arbitrary key-value pairs provided by the user.) &rarr; mapping from String to String, parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     */
+    @JsonServerMethod(rpc = "UserAndJobState.list_jobs2", async=true)
+    public List<Tuple13<String, Tuple2<String, String>, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> listJobs2(ListJobsParams params, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
+        List<Tuple13<String, Tuple2<String, String>, String, String, String, Tuple3<String, String, String>, Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>, Map<String,String>, String, Results>> returnVal = null;
+        //BEGIN list_jobs2
+		final boolean[] rces = parseFilter(params.getFilter());
+		final List<String> services = params.getServices();
+		final List<Job> jobs;
+		final String as = params.getAuthstrat();
+		if (as == null || as.isEmpty() ||
+				as.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat())) {
+			jobs = js.listJobs(authPart.getUserName(), services,
+				rces[0], rces[1], rces[2], rces[3], rces[4]);
+		} else {
+			jobs = js.listJobs(authPart.getUserName(), services,
+					rces[0], rces[1], rces[2], rces[3], rces[4],
+					getAuthorizer(authPart),
+					new AuthorizationStrategy(params.getAuthstrat()),
+					params.getAuthparams());
+		}
+		returnVal = new LinkedList<Tuple13<String, Tuple2<String, String>,
+				String, String, String, Tuple3<String, String, String>,
+				Tuple3<Long, Long, String>, Long, Long, Tuple2<String, String>,
+				Map<String, String>,
+				String, Results>>();
+		for (final Job j: jobs) {
+			returnVal.add(jobToJobInfo2(j));
+		}
+        //END list_jobs2
         return returnVal;
     }
 
@@ -1071,50 +1373,23 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <pre>
      * List jobs. Leave 'services' empty or null to list jobs from all
      * services.
+     * @deprecated list_jobs2
      * </pre>
      * @param   services   instance of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
-     * @param   filter   instance of original type "job_filter" (A string-based filter for listing jobs. If the string contains: 'Q' - queued jobs are returned (but see below). 'R' - running jobs are returned. 'C' - completed jobs are returned. 'E' - jobs that errored out are returned. 'S' - shared jobs are returned. The string can contain any combination of these codes in any order. If the string contains none of the codes or is null, all self-owned jobs are returned. If only the S filter is present, all jobs are returned. The Q filter has no meaning in the context of UJS based jobs (e.g. jobs that are not pulled by the UJS from an external job runner) and is ignored. A UJS job in the 'created' state is not yet 'owned', per se, by a job runner, and so UJS jobs in the 'created' state are never returned. In contrast, for a job runner like AWE, jobs may be in the submitted or queued state, and the Q filter will cause these jobs to be returned. Note that the S filter currently does not work with AWE. All AWE jobs visible to the user are always returned.)
-     * @return   parameter "jobs" of list of original type "job_info" (Information about a job.) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
+     * @param   filter   instance of original type "job_filter" (A string-based filter for listing jobs. If the string contains: 'R' - running jobs are returned. 'C' - completed jobs are returned. 'N' - canceled jobs are returned. 'E' - jobs that errored out are returned. 'S' - shared jobs are returned. The string can contain any combination of these codes in any order. If the string contains none of the codes or is null, all self-owned jobs are returned. If only the S filter is present, all jobs are returned. The S filter is ignored for jobs not using the default authorization strategy.)
+     * @return   parameter "jobs" of list of original type "job_info" (Information about a job. @deprecated job_info2) &rarr; tuple of size 14: parameter "job" of original type "job_id" (A job id.), parameter "service" of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.), parameter "stage" of original type "job_stage" (A string that describes the stage of processing of the job. One of 'created', 'started', 'completed', 'canceled' or 'error'.), parameter "started" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "status" of original type "job_status" (A job status string supplied by the reporting service. No more than 200 characters.), parameter "last_update" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "prog" of original type "total_progress" (The total progress of a job.), parameter "max" of original type "max_progress" (The maximum possible progress of a job.), parameter "ptype" of original type "progress_type" (The type of progress that is being tracked. One of: 'none' - no numerical progress tracking 'task' - Task based tracking, e.g. 3/24 'percent' - percentage based tracking, e.g. 5/100%), parameter "est_complete" of original type "timestamp" (A time in the format YYYY-MM-DDThh:mm:ssZ, where Z is the difference in time to UTC in the format +/-HHMM, eg: 2012-12-17T23:24:06-0500 (EST time) 2013-04-03T08:56:32+0000 (UTC time)), parameter "complete" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "error" of original type "boolean" (A boolean. 0 = false, other = true.), parameter "desc" of original type "job_description" (A job description string supplied by the reporting service. No more than 1000 characters.), parameter "res" of type {@link us.kbase.userandjobstate.Results Results}
      */
-    @JsonServerMethod(rpc = "UserAndJobState.list_jobs")
-    public List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> listJobs(List<String> services, String filter, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.list_jobs", async=true)
+    public List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> listJobs(List<String> services, String filter, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<Tuple14<String, String, String, String, String, String, Long, Long, String, String, Long, Long, String, Results>> returnVal = null;
         //BEGIN list_jobs
-		boolean queued = false;
-		boolean running = false;
-		boolean complete = false;
-		boolean error = false;
-		boolean shared = false;
-		if (filter != null) {
-			if (filter.indexOf("Q") > -1) {
-				queued = true;
-			}
-			if (filter.indexOf("R") > -1) {
-				running = true;
-			}
-			if (filter.indexOf("C") > -1) {
-				complete = true;
-			}
-			if (filter.indexOf("E") > -1) {
-				error = true;
-			}
-			if (filter.indexOf("S") > -1) {
-				shared = true;
-			}
-		}
+		final boolean[] rces = parseFilter(filter);
 		returnVal = new LinkedList<Tuple14<String, String, String, String,
 				String, String, Long, Long, String, String, Long,
 				Long, String, Results>>();
-		List<JobState> jobstatus = new LinkedList<JobState>();
-		jobstatus.add(js);
-		if (aweUrl != null) {
-			jobstatus.add(getAweJobState(authPart));
-		}
-		for (final JobState jobst: jobstatus) {
-			for (final Job j: jobst.listJobs(authPart.getUserName(), services,
-					queued, running, complete, error, shared)) {
-				returnVal.add(jobToJobInfo(j));
-			}
+		for (final Job j: js.listJobs(authPart.getUserName(), services,
+				rces[0], rces[1], rces[2], rces[3], rces[4])) {
+			returnVal.add(jobToJobInfo(j));
 		}
         //END list_jobs
         return returnVal;
@@ -1123,17 +1398,18 @@ public class UserAndJobStateServer extends JsonServerServlet {
     /**
      * <p>Original spec-file function name: list_job_services</p>
      * <pre>
-     * List all job services. Does not currently list AWE services.
+     * List all job services. Note that only services with jobs owned by the
+     * user or shared with the user via the default auth strategy will be
+     * listed.
      * </pre>
      * @return   parameter "services" of list of original type "service_name" (A service name. Alphanumerics and the underscore are allowed.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.list_job_services")
-    public List<String> listJobServices(AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.list_job_services", async=true)
+    public List<String> listJobServices(AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<String> returnVal = null;
         //BEGIN list_job_services
 		returnVal = new ArrayList<String>(js.listServices(
 				authPart.getUserName()));
-		//TODO list awe services when awe provides DISTINCT query
         //END list_job_services
         return returnVal;
     }
@@ -1142,16 +1418,17 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <p>Original spec-file function name: share_job</p>
      * <pre>
      * Share a job. Sharing a job to the same user twice or with the job owner
-     * has no effect.
+     * has no effect. Attempting to share a job not using the default auth
+     * strategy will fail.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @param   users   instance of list of original type "username" (Login name of a KBase user account.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.share_job")
-    public void shareJob(String job, List<String> users, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.share_job", async=true)
+    public void shareJob(String job, List<String> users, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN share_job
 		checkUsers(users, authPart);
-		getJobState(job, authPart).shareJob(
+		js.shareJob(
 				authPart.getUserName(), job, users);
         //END share_job
     }
@@ -1160,16 +1437,17 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <p>Original spec-file function name: unshare_job</p>
      * <pre>
      * Stop sharing a job. Removing sharing from a user that the job is not
-     * shared with or the job owner has no effect.
+     * shared with or the job owner has no effect. Attemping to unshare a job
+     * not using the default auth strategy will fail.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @param   users   instance of list of original type "username" (Login name of a KBase user account.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.unshare_job")
-    public void unshareJob(String job, List<String> users, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.unshare_job", async=true)
+    public void unshareJob(String job, List<String> users, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN unshare_job
 		checkUsers(users, authPart);
-		getJobState(job, authPart).unshareJob(
+		js.unshareJob(
 				authPart.getUserName(), job, users);
         //END unshare_job
     }
@@ -1177,17 +1455,17 @@ public class UserAndJobStateServer extends JsonServerServlet {
     /**
      * <p>Original spec-file function name: get_job_owner</p>
      * <pre>
-     * Get the owner of a job. Does not currently work with AWE jobs.
+     * Get the owner of a job.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @return   parameter "owner" of original type "username" (Login name of a KBase user account.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_job_owner")
-    public String getJobOwner(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_job_owner", async=true)
+    public String getJobOwner(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         String returnVal = null;
         //BEGIN get_job_owner
-		returnVal = getJobState(job, authPart).getJob(
-				authPart.getUserName(), job).getUser();
+		returnVal = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart)).getUser();
         //END get_job_owner
         return returnVal;
     }
@@ -1196,17 +1474,18 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <p>Original spec-file function name: get_job_shared</p>
      * <pre>
      * Get the list of users with which a job is shared. Only the job owner
-     * may access this method. Does not currently work with AWE jobs.
+     * may access this method. Returns an empty list for jobs not using the
+     * default auth strategy.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      * @return   parameter "users" of list of original type "username" (Login name of a KBase user account.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.get_job_shared")
-    public List<String> getJobShared(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.get_job_shared", async=true)
+    public List<String> getJobShared(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         List<String> returnVal = null;
         //BEGIN get_job_shared
-		final Job j = getJobState(job, authPart).getJob(
-				authPart.getUserName(), job);
+		final Job j = js.getJob(authPart.getUserName(), job,
+				getAuthorizer(authPart));
 		if (!j.getUser().equals(authPart.getUserName())) {
 			throw new IllegalArgumentException(String.format(
 					"User %s may not access the sharing list of job %s",
@@ -1220,16 +1499,15 @@ public class UserAndJobStateServer extends JsonServerServlet {
     /**
      * <p>Original spec-file function name: delete_job</p>
      * <pre>
-     * Delete a job. Will fail if the job is not complete.
-     * Does not currently work with AWE jobs.
+     * Delete a job. Will fail if the job is not complete. Only the job owner
+     * can delete a job.
      * </pre>
      * @param   job   instance of original type "job_id" (A job id.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.delete_job")
-    public void deleteJob(String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.delete_job", async=true)
+    public void deleteJob(String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN delete_job
-		getJobState(job, authPart).deleteJob(
-				authPart.getUserName(), job);
+		js.deleteJob(authPart.getUserName(), job, getAuthorizer(authPart));
         //END delete_job
     }
 
@@ -1238,24 +1516,50 @@ public class UserAndJobStateServer extends JsonServerServlet {
      * <pre>
      * Force delete a job - will succeed unless the job has not been started.
      * In that case, the service must start the job and then delete it, since
-     * a job is not "owned" by any service until it is started.
+     * a job is not "owned" by any service until it is started. Only the job
+     * owner can delete a job.
      * </pre>
      * @param   token   instance of original type "service_token" (A globus ID token that validates that the service really is said service.)
      * @param   job   instance of original type "job_id" (A job id.)
      */
-    @JsonServerMethod(rpc = "UserAndJobState.force_delete_job")
-    public void forceDeleteJob(String token, String job, AuthToken authPart) throws Exception {
+    @JsonServerMethod(rpc = "UserAndJobState.force_delete_job", async=true)
+    public void forceDeleteJob(String token, String job, AuthToken authPart, RpcContext jsonRpcContext) throws Exception {
         //BEGIN force_delete_job
-		getJobState(job, authPart).deleteJob(authPart.getUserName(), job,
-				getServiceName(token));
+		js.deleteJob(authPart.getUserName(), job, getServiceUserName(token),
+				getAuthorizer(authPart));
         //END force_delete_job
+    }
+    @JsonServerMethod(rpc = "UserAndJobState.status")
+    public Map<String, Object> status() {
+        Map<String, Object> returnVal = null;
+        //BEGIN_STATUS
+        //TODO ZZLATER check mongo & memory
+		returnVal = new LinkedHashMap<String, Object>();
+		returnVal.put("state", "OK");
+		returnVal.put("message", "");
+		returnVal.put("version", VER);
+		returnVal.put("git_url", GIT);
+		@SuppressWarnings("unused")
+		String v = version;
+		@SuppressWarnings("unused")
+		String h = gitCommitHash;
+		@SuppressWarnings("unused")
+		String u = gitUrl;
+        //END_STATUS
+        return returnVal;
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 1) {
+        if (args.length == 1) {
+            new UserAndJobStateServer().startupServer(Integer.parseInt(args[0]));
+        } else if (args.length == 3) {
+            JsonServerSyslog.setStaticUseSyslog(false);
+            JsonServerSyslog.setStaticMlogFile(args[1] + ".log");
+            new UserAndJobStateServer().processRpcCall(new File(args[0]), new File(args[1]), args[2]);
+        } else {
             System.out.println("Usage: <program> <server_port>");
+            System.out.println("   or: <program> <context_json_file> <output_json_file> <token>");
             return;
         }
-        new UserAndJobStateServer().startupServer(Integer.parseInt(args[0]));
     }
 }

@@ -1,10 +1,17 @@
 package Bio::KBase::userandjobstate::Client;
 
 use JSON::RPC::Client;
+use POSIX;
 use strict;
 use Data::Dumper;
 use URI;
 use Bio::KBase::Exceptions;
+my $get_time = sub { time, 0 };
+eval {
+    require Time::HiRes;
+    $get_time = sub { Time::HiRes::gettimeofday() };
+};
+
 use Bio::KBase::AuthToken;
 
 # Client version should match Impl version
@@ -18,6 +25,8 @@ Bio::KBase::userandjobstate::Client
 
 =head1 DESCRIPTION
 
+
+User and Job State service (UJS)
 
 Service for storing arbitrary key/object pairs on a per user per service basis
 and storing job status so that a) long JSON RPC calls can report status and
@@ -47,12 +56,6 @@ pairs or jobs, require service authentication.
 The service assumes other services are capable of simple math and does not
 throw errors if a progress bar overflows.
 
-Jobs are automatically deleted after 30 days.
-
-Where string limits are noted, these apply only to *incoming* strings. Other
-services that the UJS wraps (currently AWE) may provide longer strings for
-these fields and the UJS passes them on unchanged.
-
 Potential job process flows:
 
 Asysnc:
@@ -74,6 +77,27 @@ meanwhile, the UI periodically polls the job status server to get progress
 service call finishes, completes job, returns results
 UI thread joins
 
+Authorization:
+Currently two modes of authorization are supported:
+
+DEFAULT:
+DEFAULT authorization uses the UJS access control lists (ACLs) stored in the
+UJS database. All methods work normally for this authorization strategy. To
+use the default authorization strategy, simply do not specify an authorization
+strategy when creating a job.
+
+kbaseworkspace:
+kbaseworkspace authorization (kbwsa) associates each job with an integer
+Workspace Service (WSS) workspace ID (the authorization parameter). In order to
+create a job with kbwsa, a user must have write access to the workspace in
+question. That user can then read and update (but not necessarily list) the job
+for the remainder of the job lifetime, regardless of the workspace permission.
+
+Other users must have read permissions to the workspace in order to view the
+job.
+
+Share and unshare commands do not work with kbwsa.
+
 
 =cut
 
@@ -89,7 +113,41 @@ sub new
     my $self = {
 	client => Bio::KBase::userandjobstate::Client::RpcClient->new,
 	url => $url,
+	headers => [],
     };
+
+    chomp($self->{hostname} = `hostname`);
+    $self->{hostname} ||= 'unknown-host';
+
+    #
+    # Set up for propagating KBRPC_TAG and KBRPC_METADATA environment variables through
+    # to invoked services. If these values are not set, we create a new tag
+    # and a metadata field with basic information about the invoking script.
+    #
+    if ($ENV{KBRPC_TAG})
+    {
+	$self->{kbrpc_tag} = $ENV{KBRPC_TAG};
+    }
+    else
+    {
+	my ($t, $us) = &$get_time();
+	$us = sprintf("%06d", $us);
+	my $ts = strftime("%Y-%m-%dT%H:%M:%S.${us}Z", gmtime $t);
+	$self->{kbrpc_tag} = "C:$0:$self->{hostname}:$$:$ts";
+    }
+    push(@{$self->{headers}}, 'Kbrpc-Tag', $self->{kbrpc_tag});
+
+    if ($ENV{KBRPC_METADATA})
+    {
+	$self->{kbrpc_metadata} = $ENV{KBRPC_METADATA};
+	push(@{$self->{headers}}, 'Kbrpc-Metadata', $self->{kbrpc_metadata});
+    }
+
+    if ($ENV{KBRPC_ERROR_DEST})
+    {
+	$self->{kbrpc_error_dest} = $ENV{KBRPC_ERROR_DEST};
+	push(@{$self->{headers}}, 'Kbrpc-Errordest', $self->{kbrpc_error_dest});
+    }
 
     #
     # This module requires authentication.
@@ -149,7 +207,7 @@ Returns the version of the userandjobstate service.
 
 =cut
 
-sub ver
+ sub ver
 {
     my($self, @args) = @_;
 
@@ -161,9 +219,10 @@ sub ver
 							       "Invalid argument count for function ver (received $n, expecting 0)");
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.ver",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.ver",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -182,7 +241,7 @@ sub ver
 				       );
     }
 }
-
+ 
 
 
 =head2 set_state
@@ -196,7 +255,7 @@ sub ver
 =begin html
 
 <pre>
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
 $value is an UnspecifiedObject, which can hold any non-null object
 service_name is a string
@@ -207,7 +266,7 @@ service_name is a string
 
 =begin text
 
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
 $value is an UnspecifiedObject, which can hold any non-null object
 service_name is a string
@@ -223,7 +282,7 @@ Set the state of a key for a service without service authentication.
 
 =cut
 
-sub set_state
+ sub set_state
 {
     my($self, @args) = @_;
 
@@ -248,9 +307,10 @@ sub set_state
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.set_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.set_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -269,7 +329,7 @@ sub set_state
 				       );
     }
 }
-
+ 
 
 
 =head2 set_state_auth
@@ -283,7 +343,7 @@ sub set_state
 =begin html
 
 <pre>
-$token is a UserAndJobState.service_token
+$token is an UserAndJobState.service_token
 $key is a string
 $value is an UnspecifiedObject, which can hold any non-null object
 service_token is a string
@@ -294,7 +354,7 @@ service_token is a string
 
 =begin text
 
-$token is a UserAndJobState.service_token
+$token is an UserAndJobState.service_token
 $key is a string
 $value is an UnspecifiedObject, which can hold any non-null object
 service_token is a string
@@ -310,7 +370,7 @@ Set the state of a key for a service with service authentication.
 
 =cut
 
-sub set_state_auth
+ sub set_state_auth
 {
     my($self, @args) = @_;
 
@@ -335,9 +395,10 @@ sub set_state_auth
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.set_state_auth",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.set_state_auth",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -356,7 +417,7 @@ sub set_state_auth
 				       );
     }
 }
-
+ 
 
 
 =head2 get_state
@@ -370,12 +431,12 @@ sub set_state_auth
 =begin html
 
 <pre>
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
-$auth is a UserAndJobState.authed
+$auth is an UserAndJobState.authed
 $value is an UnspecifiedObject, which can hold any non-null object
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 </pre>
@@ -384,12 +445,12 @@ boolean is an int
 
 =begin text
 
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
-$auth is a UserAndJobState.authed
+$auth is an UserAndJobState.authed
 $value is an UnspecifiedObject, which can hold any non-null object
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 
@@ -403,7 +464,7 @@ Get the state of a key for a service.
 
 =cut
 
-sub get_state
+ sub get_state
 {
     my($self, @args) = @_;
 
@@ -428,9 +489,10 @@ sub get_state
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -449,7 +511,7 @@ sub get_state
 				       );
     }
 }
-
+ 
 
 
 =head2 has_state
@@ -463,12 +525,12 @@ sub get_state
 =begin html
 
 <pre>
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
-$auth is a UserAndJobState.authed
-$has_key is a UserAndJobState.boolean
+$auth is an UserAndJobState.authed
+$has_key is an UserAndJobState.boolean
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 </pre>
@@ -477,12 +539,12 @@ boolean is an int
 
 =begin text
 
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
-$auth is a UserAndJobState.authed
-$has_key is a UserAndJobState.boolean
+$auth is an UserAndJobState.authed
+$has_key is an UserAndJobState.boolean
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 
@@ -496,7 +558,7 @@ Determine if a key exists for a service.
 
 =cut
 
-sub has_state
+ sub has_state
 {
     my($self, @args) = @_;
 
@@ -521,9 +583,10 @@ sub has_state
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.has_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.has_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -542,7 +605,7 @@ sub has_state
 				       );
     }
 }
-
+ 
 
 
 =head2 get_has_state
@@ -556,13 +619,13 @@ sub has_state
 =begin html
 
 <pre>
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
-$auth is a UserAndJobState.authed
-$has_key is a UserAndJobState.boolean
+$auth is an UserAndJobState.authed
+$has_key is an UserAndJobState.boolean
 $value is an UnspecifiedObject, which can hold any non-null object
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 </pre>
@@ -571,13 +634,13 @@ boolean is an int
 
 =begin text
 
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
-$auth is a UserAndJobState.authed
-$has_key is a UserAndJobState.boolean
+$auth is an UserAndJobState.authed
+$has_key is an UserAndJobState.boolean
 $value is an UnspecifiedObject, which can hold any non-null object
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 
@@ -593,7 +656,7 @@ and the key value will be null.
 
 =cut
 
-sub get_has_state
+ sub get_has_state
 {
     my($self, @args) = @_;
 
@@ -618,9 +681,10 @@ sub get_has_state
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_has_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_has_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -639,7 +703,7 @@ sub get_has_state
 				       );
     }
 }
-
+ 
 
 
 =head2 remove_state
@@ -653,7 +717,7 @@ sub get_has_state
 =begin html
 
 <pre>
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
 service_name is a string
 
@@ -663,7 +727,7 @@ service_name is a string
 
 =begin text
 
-$service is a UserAndJobState.service_name
+$service is an UserAndJobState.service_name
 $key is a string
 service_name is a string
 
@@ -678,7 +742,7 @@ Remove a key value pair without service authentication.
 
 =cut
 
-sub remove_state
+ sub remove_state
 {
     my($self, @args) = @_;
 
@@ -702,9 +766,10 @@ sub remove_state
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.remove_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.remove_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -723,7 +788,7 @@ sub remove_state
 				       );
     }
 }
-
+ 
 
 
 =head2 remove_state_auth
@@ -737,7 +802,7 @@ sub remove_state
 =begin html
 
 <pre>
-$token is a UserAndJobState.service_token
+$token is an UserAndJobState.service_token
 $key is a string
 service_token is a string
 
@@ -747,7 +812,7 @@ service_token is a string
 
 =begin text
 
-$token is a UserAndJobState.service_token
+$token is an UserAndJobState.service_token
 $key is a string
 service_token is a string
 
@@ -762,7 +827,7 @@ Remove a key value pair with service authentication.
 
 =cut
 
-sub remove_state_auth
+ sub remove_state_auth
 {
     my($self, @args) = @_;
 
@@ -786,9 +851,10 @@ sub remove_state_auth
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.remove_state_auth",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.remove_state_auth",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -807,7 +873,7 @@ sub remove_state_auth
 				       );
     }
 }
-
+ 
 
 
 =head2 list_state
@@ -821,11 +887,11 @@ sub remove_state_auth
 =begin html
 
 <pre>
-$service is a UserAndJobState.service_name
-$auth is a UserAndJobState.authed
+$service is an UserAndJobState.service_name
+$auth is an UserAndJobState.authed
 $keys is a reference to a list where each element is a string
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 </pre>
@@ -834,11 +900,11 @@ boolean is an int
 
 =begin text
 
-$service is a UserAndJobState.service_name
-$auth is a UserAndJobState.authed
+$service is an UserAndJobState.service_name
+$auth is an UserAndJobState.authed
 $keys is a reference to a list where each element is a string
 service_name is a string
-authed is a UserAndJobState.boolean
+authed is an UserAndJobState.boolean
 boolean is an int
 
 
@@ -852,7 +918,7 @@ List all keys.
 
 =cut
 
-sub list_state
+ sub list_state
 {
     my($self, @args) = @_;
 
@@ -876,9 +942,10 @@ sub list_state
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.list_state",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_state",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -897,7 +964,7 @@ sub list_state
 				       );
     }
 }
-
+ 
 
 
 =head2 list_state_services
@@ -911,9 +978,9 @@ sub list_state
 =begin html
 
 <pre>
-$auth is a UserAndJobState.authed
-$services is a reference to a list where each element is a UserAndJobState.service_name
-authed is a UserAndJobState.boolean
+$auth is an UserAndJobState.authed
+$services is a reference to a list where each element is an UserAndJobState.service_name
+authed is an UserAndJobState.boolean
 boolean is an int
 service_name is a string
 
@@ -923,9 +990,9 @@ service_name is a string
 
 =begin text
 
-$auth is a UserAndJobState.authed
-$services is a reference to a list where each element is a UserAndJobState.service_name
-authed is a UserAndJobState.boolean
+$auth is an UserAndJobState.authed
+$services is a reference to a list where each element is an UserAndJobState.service_name
+authed is an UserAndJobState.boolean
 boolean is an int
 service_name is a string
 
@@ -940,7 +1007,7 @@ List all state services.
 
 =cut
 
-sub list_state_services
+ sub list_state_services
 {
     my($self, @args) = @_;
 
@@ -963,9 +1030,10 @@ sub list_state_services
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.list_state_services",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_state_services",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -984,12 +1052,12 @@ sub list_state_services
 				       );
     }
 }
+ 
 
 
+=head2 create_job2
 
-=head2 create_job
-
-  $job = $obj->create_job()
+  $job = $obj->create_job2($params)
 
 =over 4
 
@@ -998,7 +1066,15 @@ sub list_state_services
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
+$params is an UserAndJobState.CreateJobParams
+$job is an UserAndJobState.job_id
+CreateJobParams is a reference to a hash where the following keys are defined:
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparam has a value which is an UserAndJobState.auth_param
+	meta has a value which is an UserAndJobState.usermeta
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
 job_id is a string
 
 </pre>
@@ -1007,7 +1083,15 @@ job_id is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
+$params is an UserAndJobState.CreateJobParams
+$job is an UserAndJobState.job_id
+CreateJobParams is a reference to a hash where the following keys are defined:
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparam has a value which is an UserAndJobState.auth_param
+	meta has a value which is an UserAndJobState.usermeta
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
 job_id is a string
 
 
@@ -1021,7 +1105,90 @@ Create a new job status report.
 
 =cut
 
-sub create_job
+ sub create_job2
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 1)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function create_job2 (received $n, expecting 1)");
+    }
+    {
+	my($params) = @args;
+
+	my @_bad_arguments;
+        (ref($params) eq 'HASH') or push(@_bad_arguments, "Invalid type for argument 1 \"params\" (value was \"$params\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to create_job2:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'create_job2');
+	}
+    }
+
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.create_job2",
+	    params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'create_job2',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return wantarray ? @{$result->result} : $result->result->[0];
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method create_job2",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'create_job2',
+				       );
+    }
+}
+ 
+
+
+=head2 create_job
+
+  $job = $obj->create_job()
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$job is an UserAndJobState.job_id
+job_id is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$job is an UserAndJobState.job_id
+job_id is a string
+
+
+=end text
+
+=item Description
+
+Create a new job status report.
+@deprecated create_job2
+
+=back
+
+=cut
+
+ sub create_job
 {
     my($self, @args) = @_;
 
@@ -1033,9 +1200,10 @@ sub create_job
 							       "Invalid argument count for function create_job (received $n, expecting 0)");
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.create_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.create_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1054,7 +1222,7 @@ sub create_job
 				       );
     }
 }
-
+ 
 
 
 =head2 start_job
@@ -1068,19 +1236,19 @@ sub create_job
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$desc is a UserAndJobState.job_description
-$progress is a UserAndJobState.InitProgress
-$est_complete is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$desc is an UserAndJobState.job_description
+$progress is an UserAndJobState.InitProgress
+$est_complete is an UserAndJobState.timestamp
 job_id is a string
 service_token is a string
 job_status is a string
 job_description is a string
 InitProgress is a reference to a hash where the following keys are defined:
-	ptype has a value which is a UserAndJobState.progress_type
-	max has a value which is a UserAndJobState.max_progress
+	ptype has a value which is an UserAndJobState.progress_type
+	max has a value which is an UserAndJobState.max_progress
 progress_type is a string
 max_progress is an int
 timestamp is a string
@@ -1091,19 +1259,19 @@ timestamp is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$desc is a UserAndJobState.job_description
-$progress is a UserAndJobState.InitProgress
-$est_complete is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$desc is an UserAndJobState.job_description
+$progress is an UserAndJobState.InitProgress
+$est_complete is an UserAndJobState.timestamp
 job_id is a string
 service_token is a string
 job_status is a string
 job_description is a string
 InitProgress is a reference to a hash where the following keys are defined:
-	ptype has a value which is a UserAndJobState.progress_type
-	max has a value which is a UserAndJobState.max_progress
+	ptype has a value which is an UserAndJobState.progress_type
+	max has a value which is an UserAndJobState.max_progress
 progress_type is a string
 max_progress is an int
 timestamp is a string
@@ -1119,7 +1287,7 @@ Start a job and specify the job parameters.
 
 =cut
 
-sub start_job
+ sub start_job
 {
     my($self, @args) = @_;
 
@@ -1147,9 +1315,10 @@ sub start_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.start_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.start_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1168,7 +1337,7 @@ sub start_job
 				       );
     }
 }
-
+ 
 
 
 =head2 create_and_start_job
@@ -1182,18 +1351,18 @@ sub start_job
 =begin html
 
 <pre>
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$desc is a UserAndJobState.job_description
-$progress is a UserAndJobState.InitProgress
-$est_complete is a UserAndJobState.timestamp
-$job is a UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$desc is an UserAndJobState.job_description
+$progress is an UserAndJobState.InitProgress
+$est_complete is an UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
 service_token is a string
 job_status is a string
 job_description is a string
 InitProgress is a reference to a hash where the following keys are defined:
-	ptype has a value which is a UserAndJobState.progress_type
-	max has a value which is a UserAndJobState.max_progress
+	ptype has a value which is an UserAndJobState.progress_type
+	max has a value which is an UserAndJobState.max_progress
 progress_type is a string
 max_progress is an int
 timestamp is a string
@@ -1205,18 +1374,18 @@ job_id is a string
 
 =begin text
 
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$desc is a UserAndJobState.job_description
-$progress is a UserAndJobState.InitProgress
-$est_complete is a UserAndJobState.timestamp
-$job is a UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$desc is an UserAndJobState.job_description
+$progress is an UserAndJobState.InitProgress
+$est_complete is an UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
 service_token is a string
 job_status is a string
 job_description is a string
 InitProgress is a reference to a hash where the following keys are defined:
-	ptype has a value which is a UserAndJobState.progress_type
-	max has a value which is a UserAndJobState.max_progress
+	ptype has a value which is an UserAndJobState.progress_type
+	max has a value which is an UserAndJobState.max_progress
 progress_type is a string
 max_progress is an int
 timestamp is a string
@@ -1233,7 +1402,7 @@ Create and start a job.
 
 =cut
 
-sub create_and_start_job
+ sub create_and_start_job
 {
     my($self, @args) = @_;
 
@@ -1260,9 +1429,10 @@ sub create_and_start_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.create_and_start_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.create_and_start_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1281,7 +1451,7 @@ sub create_and_start_job
 				       );
     }
 }
-
+ 
 
 
 =head2 update_job_progress
@@ -1295,11 +1465,11 @@ sub create_and_start_job
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$prog is a UserAndJobState.progress
-$est_complete is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$prog is an UserAndJobState.progress
+$est_complete is an UserAndJobState.timestamp
 job_id is a string
 service_token is a string
 job_status is a string
@@ -1312,11 +1482,11 @@ timestamp is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$prog is a UserAndJobState.progress
-$est_complete is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$prog is an UserAndJobState.progress
+$est_complete is an UserAndJobState.timestamp
 job_id is a string
 service_token is a string
 job_status is a string
@@ -1334,7 +1504,7 @@ Update the status and progress for a job.
 
 =cut
 
-sub update_job_progress
+ sub update_job_progress
 {
     my($self, @args) = @_;
 
@@ -1361,9 +1531,10 @@ sub update_job_progress
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.update_job_progress",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.update_job_progress",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1382,7 +1553,7 @@ sub update_job_progress
 				       );
     }
 }
-
+ 
 
 
 =head2 update_job
@@ -1396,10 +1567,10 @@ sub update_job_progress
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$est_complete is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$est_complete is an UserAndJobState.timestamp
 job_id is a string
 service_token is a string
 job_status is a string
@@ -1411,10 +1582,10 @@ timestamp is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$est_complete is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$est_complete is an UserAndJobState.timestamp
 job_id is a string
 service_token is a string
 job_status is a string
@@ -1431,7 +1602,7 @@ Update the status for a job.
 
 =cut
 
-sub update_job
+ sub update_job
 {
     my($self, @args) = @_;
 
@@ -1457,9 +1628,10 @@ sub update_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.update_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.update_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1478,7 +1650,7 @@ sub update_job
 				       );
     }
 }
-
+ 
 
 
 =head2 get_job_description
@@ -1492,12 +1664,12 @@ sub update_job
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$service is a UserAndJobState.service_name
-$ptype is a UserAndJobState.progress_type
-$max is a UserAndJobState.max_progress
-$desc is a UserAndJobState.job_description
-$started is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$service is an UserAndJobState.service_name
+$ptype is an UserAndJobState.progress_type
+$max is an UserAndJobState.max_progress
+$desc is an UserAndJobState.job_description
+$started is an UserAndJobState.timestamp
 job_id is a string
 service_name is a string
 progress_type is a string
@@ -1511,12 +1683,12 @@ timestamp is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$service is a UserAndJobState.service_name
-$ptype is a UserAndJobState.progress_type
-$max is a UserAndJobState.max_progress
-$desc is a UserAndJobState.job_description
-$started is a UserAndJobState.timestamp
+$job is an UserAndJobState.job_id
+$service is an UserAndJobState.service_name
+$ptype is an UserAndJobState.progress_type
+$max is an UserAndJobState.max_progress
+$desc is an UserAndJobState.job_description
+$started is an UserAndJobState.timestamp
 job_id is a string
 service_name is a string
 progress_type is a string
@@ -1535,7 +1707,7 @@ Get the description of a job.
 
 =cut
 
-sub get_job_description
+ sub get_job_description
 {
     my($self, @args) = @_;
 
@@ -1558,9 +1730,10 @@ sub get_job_description
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_job_description",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_description",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1579,7 +1752,7 @@ sub get_job_description
 				       );
     }
 }
-
+ 
 
 
 =head2 get_job_status
@@ -1593,14 +1766,14 @@ sub get_job_description
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$last_update is a UserAndJobState.timestamp
-$stage is a UserAndJobState.job_stage
-$status is a UserAndJobState.job_status
-$progress is a UserAndJobState.total_progress
-$est_complete is a UserAndJobState.timestamp
-$complete is a UserAndJobState.boolean
-$error is a UserAndJobState.boolean
+$job is an UserAndJobState.job_id
+$last_update is an UserAndJobState.timestamp
+$stage is an UserAndJobState.job_stage
+$status is an UserAndJobState.job_status
+$progress is an UserAndJobState.total_progress
+$est_complete is an UserAndJobState.timestamp
+$complete is an UserAndJobState.boolean
+$error is an UserAndJobState.boolean
 job_id is a string
 timestamp is a string
 job_stage is a string
@@ -1614,14 +1787,14 @@ boolean is an int
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$last_update is a UserAndJobState.timestamp
-$stage is a UserAndJobState.job_stage
-$status is a UserAndJobState.job_status
-$progress is a UserAndJobState.total_progress
-$est_complete is a UserAndJobState.timestamp
-$complete is a UserAndJobState.boolean
-$error is a UserAndJobState.boolean
+$job is an UserAndJobState.job_id
+$last_update is an UserAndJobState.timestamp
+$stage is an UserAndJobState.job_stage
+$status is an UserAndJobState.job_status
+$progress is an UserAndJobState.total_progress
+$est_complete is an UserAndJobState.timestamp
+$complete is an UserAndJobState.boolean
+$error is an UserAndJobState.boolean
 job_id is a string
 timestamp is a string
 job_stage is a string
@@ -1640,7 +1813,7 @@ Get the status of a job.
 
 =cut
 
-sub get_job_status
+ sub get_job_status
 {
     my($self, @args) = @_;
 
@@ -1663,9 +1836,10 @@ sub get_job_status
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_job_status",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_status",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1684,7 +1858,7 @@ sub get_job_status
 				       );
     }
 }
-
+ 
 
 
 =head2 complete_job
@@ -1698,11 +1872,11 @@ sub get_job_status
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$error is a UserAndJobState.detailed_err
-$res is a UserAndJobState.Results
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$error is an UserAndJobState.detailed_err
+$res is an UserAndJobState.Results
 job_id is a string
 service_token is a string
 job_status is a string
@@ -1712,7 +1886,7 @@ Results is a reference to a hash where the following keys are defined:
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -1725,11 +1899,11 @@ Result is a reference to a hash where the following keys are defined:
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$token is a UserAndJobState.service_token
-$status is a UserAndJobState.job_status
-$error is a UserAndJobState.detailed_err
-$res is a UserAndJobState.Results
+$job is an UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$status is an UserAndJobState.job_status
+$error is an UserAndJobState.detailed_err
+$res is an UserAndJobState.Results
 job_id is a string
 service_token is a string
 job_status is a string
@@ -1739,7 +1913,7 @@ Results is a reference to a hash where the following keys are defined:
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -1759,7 +1933,7 @@ the job is considered to have errored out.
 
 =cut
 
-sub complete_job
+ sub complete_job
 {
     my($self, @args) = @_;
 
@@ -1786,9 +1960,10 @@ sub complete_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.complete_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.complete_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1807,7 +1982,94 @@ sub complete_job
 				       );
     }
 }
+ 
 
+
+=head2 cancel_job
+
+  $obj->cancel_job($job, $status)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$job is an UserAndJobState.job_id
+$status is an UserAndJobState.job_status
+job_id is a string
+job_status is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$job is an UserAndJobState.job_id
+$status is an UserAndJobState.job_status
+job_id is a string
+job_status is a string
+
+
+=end text
+
+=item Description
+
+Cancel a job.
+
+=back
+
+=cut
+
+ sub cancel_job
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 2)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function cancel_job (received $n, expecting 2)");
+    }
+    {
+	my($job, $status) = @args;
+
+	my @_bad_arguments;
+        (!ref($job)) or push(@_bad_arguments, "Invalid type for argument 1 \"job\" (value was \"$job\")");
+        (!ref($status)) or push(@_bad_arguments, "Invalid type for argument 2 \"status\" (value was \"$status\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to cancel_job:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'cancel_job');
+	}
+    }
+
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.cancel_job",
+	    params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'cancel_job',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return;
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method cancel_job",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'cancel_job',
+				       );
+    }
+}
+ 
 
 
 =head2 get_results
@@ -1821,15 +2083,15 @@ sub complete_job
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$res is a UserAndJobState.Results
+$job is an UserAndJobState.job_id
+$res is an UserAndJobState.Results
 job_id is a string
 Results is a reference to a hash where the following keys are defined:
 	shocknodes has a value which is a reference to a list where each element is a string
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -1842,15 +2104,15 @@ Result is a reference to a hash where the following keys are defined:
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$res is a UserAndJobState.Results
+$job is an UserAndJobState.job_id
+$res is an UserAndJobState.Results
 job_id is a string
 Results is a reference to a hash where the following keys are defined:
 	shocknodes has a value which is a reference to a list where each element is a string
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -1868,7 +2130,7 @@ Get the job results.
 
 =cut
 
-sub get_results
+ sub get_results
 {
     my($self, @args) = @_;
 
@@ -1891,9 +2153,10 @@ sub get_results
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_results",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_results",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1912,7 +2175,7 @@ sub get_results
 				       );
     }
 }
-
+ 
 
 
 =head2 get_detailed_error
@@ -1926,8 +2189,8 @@ sub get_results
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$error is a UserAndJobState.detailed_err
+$job is an UserAndJobState.job_id
+$error is an UserAndJobState.detailed_err
 job_id is a string
 detailed_err is a string
 
@@ -1937,8 +2200,8 @@ detailed_err is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$error is a UserAndJobState.detailed_err
+$job is an UserAndJobState.job_id
+$error is an UserAndJobState.detailed_err
 job_id is a string
 detailed_err is a string
 
@@ -1953,7 +2216,7 @@ Get the detailed error message, if any
 
 =cut
 
-sub get_detailed_error
+ sub get_detailed_error
 {
     my($self, @args) = @_;
 
@@ -1976,9 +2239,10 @@ sub get_detailed_error
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_detailed_error",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_detailed_error",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -1997,12 +2261,12 @@ sub get_detailed_error
 				       );
     }
 }
+ 
 
 
+=head2 get_job_info2
 
-=head2 get_job_info
-
-  $info = $obj->get_job_info($job)
+  $info = $obj->get_job_info2($job)
 
 =over 4
 
@@ -2011,39 +2275,56 @@ sub get_detailed_error
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$info is a UserAndJobState.job_info
+$job is an UserAndJobState.job_id
+$info is an UserAndJobState.job_info2
 job_id is a string
-job_info is a reference to a list containing 14 items:
-	0: (job) a UserAndJobState.job_id
-	1: (service) a UserAndJobState.service_name
-	2: (stage) a UserAndJobState.job_stage
-	3: (started) a UserAndJobState.timestamp
-	4: (status) a UserAndJobState.job_status
-	5: (last_update) a UserAndJobState.timestamp
-	6: (prog) a UserAndJobState.total_progress
-	7: (max) a UserAndJobState.max_progress
-	8: (ptype) a UserAndJobState.progress_type
-	9: (est_complete) a UserAndJobState.timestamp
-	10: (complete) a UserAndJobState.boolean
-	11: (error) a UserAndJobState.boolean
-	12: (desc) a UserAndJobState.job_description
-	13: (res) a UserAndJobState.Results
+job_info2 is a reference to a list containing 13 items:
+	0: (job) an UserAndJobState.job_id
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
 service_name is a string
 job_stage is a string
-timestamp is a string
 job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
 total_progress is an int
 max_progress is an int
 progress_type is a string
 boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
 job_description is a string
 Results is a reference to a hash where the following keys are defined:
 	shocknodes has a value which is a reference to a list where each element is a string
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -2056,39 +2337,56 @@ Result is a reference to a hash where the following keys are defined:
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$info is a UserAndJobState.job_info
+$job is an UserAndJobState.job_id
+$info is an UserAndJobState.job_info2
 job_id is a string
-job_info is a reference to a list containing 14 items:
-	0: (job) a UserAndJobState.job_id
-	1: (service) a UserAndJobState.service_name
-	2: (stage) a UserAndJobState.job_stage
-	3: (started) a UserAndJobState.timestamp
-	4: (status) a UserAndJobState.job_status
-	5: (last_update) a UserAndJobState.timestamp
-	6: (prog) a UserAndJobState.total_progress
-	7: (max) a UserAndJobState.max_progress
-	8: (ptype) a UserAndJobState.progress_type
-	9: (est_complete) a UserAndJobState.timestamp
-	10: (complete) a UserAndJobState.boolean
-	11: (error) a UserAndJobState.boolean
-	12: (desc) a UserAndJobState.job_description
-	13: (res) a UserAndJobState.Results
+job_info2 is a reference to a list containing 13 items:
+	0: (job) an UserAndJobState.job_id
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
 service_name is a string
 job_stage is a string
-timestamp is a string
 job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
 total_progress is an int
 max_progress is an int
 progress_type is a string
 boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+auth_strategy is a string
+auth_param is a string
+usermeta is a reference to a hash where the key is a string and the value is a string
 job_description is a string
 Results is a reference to a hash where the following keys are defined:
 	shocknodes has a value which is a reference to a list where each element is a string
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -2106,7 +2404,162 @@ Get information about a job.
 
 =cut
 
-sub get_job_info
+ sub get_job_info2
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 1)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function get_job_info2 (received $n, expecting 1)");
+    }
+    {
+	my($job) = @args;
+
+	my @_bad_arguments;
+        (!ref($job)) or push(@_bad_arguments, "Invalid type for argument 1 \"job\" (value was \"$job\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to get_job_info2:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'get_job_info2');
+	}
+    }
+
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_info2",
+	    params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'get_job_info2',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return wantarray ? @{$result->result} : $result->result->[0];
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method get_job_info2",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'get_job_info2',
+				       );
+    }
+}
+ 
+
+
+=head2 get_job_info
+
+  $info = $obj->get_job_info($job)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$job is an UserAndJobState.job_id
+$info is an UserAndJobState.job_info
+job_id is a string
+job_info is a reference to a list containing 14 items:
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (started) an UserAndJobState.timestamp
+	4: (status) an UserAndJobState.job_status
+	5: (last_update) an UserAndJobState.timestamp
+	6: (prog) an UserAndJobState.total_progress
+	7: (max) an UserAndJobState.max_progress
+	8: (ptype) an UserAndJobState.progress_type
+	9: (est_complete) an UserAndJobState.timestamp
+	10: (complete) an UserAndJobState.boolean
+	11: (error) an UserAndJobState.boolean
+	12: (desc) an UserAndJobState.job_description
+	13: (res) an UserAndJobState.Results
+service_name is a string
+job_stage is a string
+timestamp is a string
+job_status is a string
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$job is an UserAndJobState.job_id
+$info is an UserAndJobState.job_info
+job_id is a string
+job_info is a reference to a list containing 14 items:
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (started) an UserAndJobState.timestamp
+	4: (status) an UserAndJobState.job_status
+	5: (last_update) an UserAndJobState.timestamp
+	6: (prog) an UserAndJobState.total_progress
+	7: (max) an UserAndJobState.max_progress
+	8: (ptype) an UserAndJobState.progress_type
+	9: (est_complete) an UserAndJobState.timestamp
+	10: (complete) an UserAndJobState.boolean
+	11: (error) an UserAndJobState.boolean
+	12: (desc) an UserAndJobState.job_description
+	13: (res) an UserAndJobState.Results
+service_name is a string
+job_stage is a string
+timestamp is a string
+job_status is a string
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+
+=end text
+
+=item Description
+
+Get information about a job.
+@deprecated get_job_info2
+
+=back
+
+=cut
+
+ sub get_job_info
 {
     my($self, @args) = @_;
 
@@ -2129,9 +2582,10 @@ sub get_job_info
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_job_info",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_info",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2150,7 +2604,207 @@ sub get_job_info
 				       );
     }
 }
+ 
 
+
+=head2 list_jobs2
+
+  $jobs = $obj->list_jobs2($params)
+
+=over 4
+
+=item Parameter and return types
+
+=begin html
+
+<pre>
+$params is an UserAndJobState.ListJobsParams
+$jobs is a reference to a list where each element is an UserAndJobState.job_info2
+ListJobsParams is a reference to a hash where the following keys are defined:
+	services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+	filter has a value which is an UserAndJobState.job_filter
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+service_name is a string
+job_filter is a string
+auth_strategy is a string
+auth_param is a string
+job_info2 is a reference to a list containing 13 items:
+	0: (job) an UserAndJobState.job_id
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
+job_id is a string
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
+job_stage is a string
+job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+</pre>
+
+=end html
+
+=begin text
+
+$params is an UserAndJobState.ListJobsParams
+$jobs is a reference to a list where each element is an UserAndJobState.job_info2
+ListJobsParams is a reference to a hash where the following keys are defined:
+	services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+	filter has a value which is an UserAndJobState.job_filter
+	authstrat has a value which is an UserAndJobState.auth_strategy
+	authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+service_name is a string
+job_filter is a string
+auth_strategy is a string
+auth_param is a string
+job_info2 is a reference to a list containing 13 items:
+	0: (job) an UserAndJobState.job_id
+	1: (users) an UserAndJobState.user_info
+	2: (service) an UserAndJobState.service_name
+	3: (stage) an UserAndJobState.job_stage
+	4: (status) an UserAndJobState.job_status
+	5: (times) an UserAndJobState.time_info
+	6: (progress) an UserAndJobState.progress_info
+	7: (complete) an UserAndJobState.boolean
+	8: (error) an UserAndJobState.boolean
+	9: (auth) an UserAndJobState.auth_info
+	10: (meta) an UserAndJobState.usermeta
+	11: (desc) an UserAndJobState.job_description
+	12: (res) an UserAndJobState.Results
+job_id is a string
+user_info is a reference to a list containing 2 items:
+	0: (owner) an UserAndJobState.username
+	1: (canceledby) an UserAndJobState.username
+username is a string
+job_stage is a string
+job_status is a string
+time_info is a reference to a list containing 3 items:
+	0: (started) an UserAndJobState.timestamp
+	1: (last_update) an UserAndJobState.timestamp
+	2: (est_complete) an UserAndJobState.timestamp
+timestamp is a string
+progress_info is a reference to a list containing 3 items:
+	0: (prog) an UserAndJobState.total_progress
+	1: (max) an UserAndJobState.max_progress
+	2: (ptype) an UserAndJobState.progress_type
+total_progress is an int
+max_progress is an int
+progress_type is a string
+boolean is an int
+auth_info is a reference to a list containing 2 items:
+	0: (strat) an UserAndJobState.auth_strategy
+	1: (param) an UserAndJobState.auth_param
+usermeta is a reference to a hash where the key is a string and the value is a string
+job_description is a string
+Results is a reference to a hash where the following keys are defined:
+	shocknodes has a value which is a reference to a list where each element is a string
+	shockurl has a value which is a string
+	workspaceids has a value which is a reference to a list where each element is a string
+	workspaceurl has a value which is a string
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
+Result is a reference to a hash where the following keys are defined:
+	server_type has a value which is a string
+	url has a value which is a string
+	id has a value which is a string
+	description has a value which is a string
+
+
+=end text
+
+=item Description
+
+List jobs.
+
+=back
+
+=cut
+
+ sub list_jobs2
+{
+    my($self, @args) = @_;
+
+# Authentication: required
+
+    if ((my $n = @args) != 1)
+    {
+	Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+							       "Invalid argument count for function list_jobs2 (received $n, expecting 1)");
+    }
+    {
+	my($params) = @args;
+
+	my @_bad_arguments;
+        (ref($params) eq 'HASH') or push(@_bad_arguments, "Invalid type for argument 1 \"params\" (value was \"$params\")");
+        if (@_bad_arguments) {
+	    my $msg = "Invalid arguments passed to list_jobs2:\n" . join("", map { "\t$_\n" } @_bad_arguments);
+	    Bio::KBase::Exceptions::ArgumentValidationError->throw(error => $msg,
+								   method_name => 'list_jobs2');
+	}
+    }
+
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_jobs2",
+	    params => \@args,
+    });
+    if ($result) {
+	if ($result->is_error) {
+	    Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+					       code => $result->content->{error}->{code},
+					       method_name => 'list_jobs2',
+					       data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+					      );
+	} else {
+	    return wantarray ? @{$result->result} : $result->result->[0];
+	}
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method list_jobs2",
+					    status_line => $self->{client}->status_line,
+					    method_name => 'list_jobs2',
+				       );
+    }
+}
+ 
 
 
 =head2 list_jobs
@@ -2164,26 +2818,26 @@ sub get_job_info
 =begin html
 
 <pre>
-$services is a reference to a list where each element is a UserAndJobState.service_name
-$filter is a UserAndJobState.job_filter
-$jobs is a reference to a list where each element is a UserAndJobState.job_info
+$services is a reference to a list where each element is an UserAndJobState.service_name
+$filter is an UserAndJobState.job_filter
+$jobs is a reference to a list where each element is an UserAndJobState.job_info
 service_name is a string
 job_filter is a string
 job_info is a reference to a list containing 14 items:
-	0: (job) a UserAndJobState.job_id
-	1: (service) a UserAndJobState.service_name
-	2: (stage) a UserAndJobState.job_stage
-	3: (started) a UserAndJobState.timestamp
-	4: (status) a UserAndJobState.job_status
-	5: (last_update) a UserAndJobState.timestamp
-	6: (prog) a UserAndJobState.total_progress
-	7: (max) a UserAndJobState.max_progress
-	8: (ptype) a UserAndJobState.progress_type
-	9: (est_complete) a UserAndJobState.timestamp
-	10: (complete) a UserAndJobState.boolean
-	11: (error) a UserAndJobState.boolean
-	12: (desc) a UserAndJobState.job_description
-	13: (res) a UserAndJobState.Results
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (started) an UserAndJobState.timestamp
+	4: (status) an UserAndJobState.job_status
+	5: (last_update) an UserAndJobState.timestamp
+	6: (prog) an UserAndJobState.total_progress
+	7: (max) an UserAndJobState.max_progress
+	8: (ptype) an UserAndJobState.progress_type
+	9: (est_complete) an UserAndJobState.timestamp
+	10: (complete) an UserAndJobState.boolean
+	11: (error) an UserAndJobState.boolean
+	12: (desc) an UserAndJobState.job_description
+	13: (res) an UserAndJobState.Results
 job_id is a string
 job_stage is a string
 timestamp is a string
@@ -2198,7 +2852,7 @@ Results is a reference to a hash where the following keys are defined:
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -2211,26 +2865,26 @@ Result is a reference to a hash where the following keys are defined:
 
 =begin text
 
-$services is a reference to a list where each element is a UserAndJobState.service_name
-$filter is a UserAndJobState.job_filter
-$jobs is a reference to a list where each element is a UserAndJobState.job_info
+$services is a reference to a list where each element is an UserAndJobState.service_name
+$filter is an UserAndJobState.job_filter
+$jobs is a reference to a list where each element is an UserAndJobState.job_info
 service_name is a string
 job_filter is a string
 job_info is a reference to a list containing 14 items:
-	0: (job) a UserAndJobState.job_id
-	1: (service) a UserAndJobState.service_name
-	2: (stage) a UserAndJobState.job_stage
-	3: (started) a UserAndJobState.timestamp
-	4: (status) a UserAndJobState.job_status
-	5: (last_update) a UserAndJobState.timestamp
-	6: (prog) a UserAndJobState.total_progress
-	7: (max) a UserAndJobState.max_progress
-	8: (ptype) a UserAndJobState.progress_type
-	9: (est_complete) a UserAndJobState.timestamp
-	10: (complete) a UserAndJobState.boolean
-	11: (error) a UserAndJobState.boolean
-	12: (desc) a UserAndJobState.job_description
-	13: (res) a UserAndJobState.Results
+	0: (job) an UserAndJobState.job_id
+	1: (service) an UserAndJobState.service_name
+	2: (stage) an UserAndJobState.job_stage
+	3: (started) an UserAndJobState.timestamp
+	4: (status) an UserAndJobState.job_status
+	5: (last_update) an UserAndJobState.timestamp
+	6: (prog) an UserAndJobState.total_progress
+	7: (max) an UserAndJobState.max_progress
+	8: (ptype) an UserAndJobState.progress_type
+	9: (est_complete) an UserAndJobState.timestamp
+	10: (complete) an UserAndJobState.boolean
+	11: (error) an UserAndJobState.boolean
+	12: (desc) an UserAndJobState.job_description
+	13: (res) an UserAndJobState.Results
 job_id is a string
 job_stage is a string
 timestamp is a string
@@ -2245,7 +2899,7 @@ Results is a reference to a hash where the following keys are defined:
 	shockurl has a value which is a string
 	workspaceids has a value which is a reference to a list where each element is a string
 	workspaceurl has a value which is a string
-	results has a value which is a reference to a list where each element is a UserAndJobState.Result
+	results has a value which is a reference to a list where each element is an UserAndJobState.Result
 Result is a reference to a hash where the following keys are defined:
 	server_type has a value which is a string
 	url has a value which is a string
@@ -2260,11 +2914,13 @@ Result is a reference to a hash where the following keys are defined:
 List jobs. Leave 'services' empty or null to list jobs from all
 services.
 
+@deprecated list_jobs2
+
 =back
 
 =cut
 
-sub list_jobs
+ sub list_jobs
 {
     my($self, @args) = @_;
 
@@ -2288,9 +2944,10 @@ sub list_jobs
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.list_jobs",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_jobs",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2309,7 +2966,7 @@ sub list_jobs
 				       );
     }
 }
-
+ 
 
 
 =head2 list_job_services
@@ -2323,7 +2980,7 @@ sub list_jobs
 =begin html
 
 <pre>
-$services is a reference to a list where each element is a UserAndJobState.service_name
+$services is a reference to a list where each element is an UserAndJobState.service_name
 service_name is a string
 
 </pre>
@@ -2332,7 +2989,7 @@ service_name is a string
 
 =begin text
 
-$services is a reference to a list where each element is a UserAndJobState.service_name
+$services is a reference to a list where each element is an UserAndJobState.service_name
 service_name is a string
 
 
@@ -2340,13 +2997,15 @@ service_name is a string
 
 =item Description
 
-List all job services. Does not currently list AWE services.
+List all job services. Note that only services with jobs owned by the
+user or shared with the user via the default auth strategy will be
+listed.
 
 =back
 
 =cut
 
-sub list_job_services
+ sub list_job_services
 {
     my($self, @args) = @_;
 
@@ -2358,9 +3017,10 @@ sub list_job_services
 							       "Invalid argument count for function list_job_services (received $n, expecting 0)");
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.list_job_services",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.list_job_services",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2379,7 +3039,7 @@ sub list_job_services
 				       );
     }
 }
-
+ 
 
 
 =head2 share_job
@@ -2393,8 +3053,8 @@ sub list_job_services
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$users is a reference to a list where each element is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$users is a reference to a list where each element is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2404,8 +3064,8 @@ username is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$users is a reference to a list where each element is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$users is a reference to a list where each element is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2415,13 +3075,14 @@ username is a string
 =item Description
 
 Share a job. Sharing a job to the same user twice or with the job owner
-has no effect.
+has no effect. Attempting to share a job not using the default auth
+strategy will fail.
 
 =back
 
 =cut
 
-sub share_job
+ sub share_job
 {
     my($self, @args) = @_;
 
@@ -2445,9 +3106,10 @@ sub share_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.share_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.share_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2466,7 +3128,7 @@ sub share_job
 				       );
     }
 }
-
+ 
 
 
 =head2 unshare_job
@@ -2480,8 +3142,8 @@ sub share_job
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$users is a reference to a list where each element is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$users is a reference to a list where each element is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2491,8 +3153,8 @@ username is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$users is a reference to a list where each element is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$users is a reference to a list where each element is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2502,13 +3164,14 @@ username is a string
 =item Description
 
 Stop sharing a job. Removing sharing from a user that the job is not
-shared with or the job owner has no effect.
+shared with or the job owner has no effect. Attemping to unshare a job
+not using the default auth strategy will fail.
 
 =back
 
 =cut
 
-sub unshare_job
+ sub unshare_job
 {
     my($self, @args) = @_;
 
@@ -2532,9 +3195,10 @@ sub unshare_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.unshare_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.unshare_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2553,7 +3217,7 @@ sub unshare_job
 				       );
     }
 }
-
+ 
 
 
 =head2 get_job_owner
@@ -2567,8 +3231,8 @@ sub unshare_job
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$owner is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$owner is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2578,8 +3242,8 @@ username is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$owner is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$owner is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2588,13 +3252,13 @@ username is a string
 
 =item Description
 
-Get the owner of a job. Does not currently work with AWE jobs.
+Get the owner of a job.
 
 =back
 
 =cut
 
-sub get_job_owner
+ sub get_job_owner
 {
     my($self, @args) = @_;
 
@@ -2617,9 +3281,10 @@ sub get_job_owner
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_job_owner",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_owner",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2638,7 +3303,7 @@ sub get_job_owner
 				       );
     }
 }
-
+ 
 
 
 =head2 get_job_shared
@@ -2652,8 +3317,8 @@ sub get_job_owner
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
-$users is a reference to a list where each element is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$users is a reference to a list where each element is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2663,8 +3328,8 @@ username is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
-$users is a reference to a list where each element is a UserAndJobState.username
+$job is an UserAndJobState.job_id
+$users is a reference to a list where each element is an UserAndJobState.username
 job_id is a string
 username is a string
 
@@ -2674,13 +3339,14 @@ username is a string
 =item Description
 
 Get the list of users with which a job is shared. Only the job owner
-may access this method. Does not currently work with AWE jobs.
+may access this method. Returns an empty list for jobs not using the
+default auth strategy.
 
 =back
 
 =cut
 
-sub get_job_shared
+ sub get_job_shared
 {
     my($self, @args) = @_;
 
@@ -2703,9 +3369,10 @@ sub get_job_shared
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.get_job_shared",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.get_job_shared",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2724,7 +3391,7 @@ sub get_job_shared
 				       );
     }
 }
-
+ 
 
 
 =head2 delete_job
@@ -2738,7 +3405,7 @@ sub get_job_shared
 =begin html
 
 <pre>
-$job is a UserAndJobState.job_id
+$job is an UserAndJobState.job_id
 job_id is a string
 
 </pre>
@@ -2747,7 +3414,7 @@ job_id is a string
 
 =begin text
 
-$job is a UserAndJobState.job_id
+$job is an UserAndJobState.job_id
 job_id is a string
 
 
@@ -2755,14 +3422,14 @@ job_id is a string
 
 =item Description
 
-Delete a job. Will fail if the job is not complete.
-Does not currently work with AWE jobs.
+Delete a job. Will fail if the job is not complete. Only the job owner
+can delete a job.
 
 =back
 
 =cut
 
-sub delete_job
+ sub delete_job
 {
     my($self, @args) = @_;
 
@@ -2785,9 +3452,10 @@ sub delete_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.delete_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.delete_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2806,7 +3474,7 @@ sub delete_job
 				       );
     }
 }
-
+ 
 
 
 =head2 force_delete_job
@@ -2820,8 +3488,8 @@ sub delete_job
 =begin html
 
 <pre>
-$token is a UserAndJobState.service_token
-$job is a UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$job is an UserAndJobState.job_id
 service_token is a string
 job_id is a string
 
@@ -2831,8 +3499,8 @@ job_id is a string
 
 =begin text
 
-$token is a UserAndJobState.service_token
-$job is a UserAndJobState.job_id
+$token is an UserAndJobState.service_token
+$job is an UserAndJobState.job_id
 service_token is a string
 job_id is a string
 
@@ -2843,13 +3511,14 @@ job_id is a string
 
 Force delete a job - will succeed unless the job has not been started.
 In that case, the service must start the job and then delete it, since
-a job is not "owned" by any service until it is started.
+a job is not "owned" by any service until it is started. Only the job
+owner can delete a job.
 
 =back
 
 =cut
 
-sub force_delete_job
+ sub force_delete_job
 {
     my($self, @args) = @_;
 
@@ -2873,9 +3542,10 @@ sub force_delete_job
 	}
     }
 
-    my $result = $self->{client}->call($self->{url}, {
-	method => "UserAndJobState.force_delete_job",
-	params => \@args,
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+	    method => "UserAndJobState.force_delete_job",
+	    params => \@args,
     });
     if ($result) {
 	if ($result->is_error) {
@@ -2894,12 +3564,42 @@ sub force_delete_job
 				       );
     }
 }
-
-
+ 
+  
+sub status
+{
+    my($self, @args) = @_;
+    if ((my $n = @args) != 0) {
+        Bio::KBase::Exceptions::ArgumentValidationError->throw(error =>
+                                   "Invalid argument count for function status (received $n, expecting 0)");
+    }
+    my $url = $self->{url};
+    my $result = $self->{client}->call($url, $self->{headers}, {
+        method => "UserAndJobState.status",
+        params => \@args,
+    });
+    if ($result) {
+        if ($result->is_error) {
+            Bio::KBase::Exceptions::JSONRPC->throw(error => $result->error_message,
+                           code => $result->content->{error}->{code},
+                           method_name => 'status',
+                           data => $result->content->{error}->{error} # JSON::RPC::ReturnObject only supports JSONRPC 1.1 or 1.O
+                          );
+        } else {
+            return wantarray ? @{$result->result} : $result->result->[0];
+        }
+    } else {
+        Bio::KBase::Exceptions::HTTP->throw(error => "Error invoking method status",
+                        status_line => $self->{client}->status_line,
+                        method_name => 'status',
+                       );
+    }
+}
+   
 
 sub version {
     my ($self) = @_;
-    my $result = $self->{client}->call($self->{url}, {
+    my $result = $self->{client}->call($self->{url}, $self->{headers}, {
         method => "UserAndJobState.version",
         params => [],
     });
@@ -3096,14 +3796,14 @@ set with service authentication (true) or without (false).
 =begin html
 
 <pre>
-a UserAndJobState.boolean
+an UserAndJobState.boolean
 </pre>
 
 =end html
 
 =begin text
 
-a UserAndJobState.boolean
+an UserAndJobState.boolean
 
 =end text
 
@@ -3185,7 +3885,7 @@ a string
 =item Description
 
 A string that describes the stage of processing of the job.
-One of 'created', 'started', 'completed', or 'error'.
+One of 'created', 'started', 'completed', 'canceled' or 'error'.
 
 
 =item Definition
@@ -3453,8 +4153,8 @@ max_progress max- required only for task based tracking. The
 
 <pre>
 a reference to a hash where the following keys are defined:
-ptype has a value which is a UserAndJobState.progress_type
-max has a value which is a UserAndJobState.max_progress
+ptype has a value which is an UserAndJobState.progress_type
+max has a value which is an UserAndJobState.max_progress
 
 </pre>
 
@@ -3463,8 +4163,8 @@ max has a value which is a UserAndJobState.max_progress
 =begin text
 
 a reference to a hash where the following keys are defined:
-ptype has a value which is a UserAndJobState.progress_type
-max has a value which is a UserAndJobState.max_progress
+ptype has a value which is an UserAndJobState.progress_type
+max has a value which is an UserAndJobState.max_progress
 
 
 =end text
@@ -3556,7 +4256,7 @@ shocknodes has a value which is a reference to a list where each element is a st
 shockurl has a value which is a string
 workspaceids has a value which is a reference to a list where each element is a string
 workspaceurl has a value which is a string
-results has a value which is a reference to a list where each element is a UserAndJobState.Result
+results has a value which is a reference to a list where each element is an UserAndJobState.Result
 
 </pre>
 
@@ -3569,7 +4269,365 @@ shocknodes has a value which is a reference to a list where each element is a st
 shockurl has a value which is a string
 workspaceids has a value which is a reference to a list where each element is a string
 workspaceurl has a value which is a string
-results has a value which is a reference to a list where each element is a UserAndJobState.Result
+results has a value which is a reference to a list where each element is an UserAndJobState.Result
+
+
+=end text
+
+=back
+
+
+
+=head2 auth_strategy
+
+=over 4
+
+
+
+=item Description
+
+An authorization strategy to use for jobs. Other than the
+DEFAULT strategy (ACLs local to the UJS and managed by the UJS
+sharing functions), currently the only other strategy is the
+'kbaseworkspace' strategy, which consults the workspace service for
+authorization information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a string
+</pre>
+
+=end html
+
+=begin text
+
+a string
+
+=end text
+
+=back
+
+
+
+=head2 auth_param
+
+=over 4
+
+
+
+=item Description
+
+An authorization parameter. The contents of this parameter differ by
+auth_strategy, but for the workspace strategy it is the workspace id
+(an integer) as a string.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a string
+</pre>
+
+=end html
+
+=begin text
+
+a string
+
+=end text
+
+=back
+
+
+
+=head2 usermeta
+
+=over 4
+
+
+
+=item Description
+
+User provided metadata about a job.
+Arbitrary key-value pairs provided by the user.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a hash where the key is a string and the value is a string
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a hash where the key is a string and the value is a string
+
+=end text
+
+=back
+
+
+
+=head2 CreateJobParams
+
+=over 4
+
+
+
+=item Description
+
+Parameters for the create_job2 method.
+
+Optional parameters:
+auth_strategy authstrat - the authorization strategy to use for the
+        job. Omit to use the standard UJS authorization. If an
+        authorization strategy is supplied, in most cases an authparam must
+        be supplied as well.
+auth_param - a parameter for the authorization strategy.
+usermeta meta - metadata for the job.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a hash where the following keys are defined:
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparam has a value which is an UserAndJobState.auth_param
+meta has a value which is an UserAndJobState.usermeta
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a hash where the following keys are defined:
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparam has a value which is an UserAndJobState.auth_param
+meta has a value which is an UserAndJobState.usermeta
+
+
+=end text
+
+=back
+
+
+
+=head2 user_info
+
+=over 4
+
+
+
+=item Description
+
+Who owns a job and who canceled a job (null if not canceled).
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 2 items:
+0: (owner) an UserAndJobState.username
+1: (canceledby) an UserAndJobState.username
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 2 items:
+0: (owner) an UserAndJobState.username
+1: (canceledby) an UserAndJobState.username
+
+
+=end text
+
+=back
+
+
+
+=head2 time_info
+
+=over 4
+
+
+
+=item Description
+
+Job timing information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 3 items:
+0: (started) an UserAndJobState.timestamp
+1: (last_update) an UserAndJobState.timestamp
+2: (est_complete) an UserAndJobState.timestamp
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 3 items:
+0: (started) an UserAndJobState.timestamp
+1: (last_update) an UserAndJobState.timestamp
+2: (est_complete) an UserAndJobState.timestamp
+
+
+=end text
+
+=back
+
+
+
+=head2 auth_info
+
+=over 4
+
+
+
+=item Description
+
+Job authorization strategy information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 2 items:
+0: (strat) an UserAndJobState.auth_strategy
+1: (param) an UserAndJobState.auth_param
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 2 items:
+0: (strat) an UserAndJobState.auth_strategy
+1: (param) an UserAndJobState.auth_param
+
+
+=end text
+
+=back
+
+
+
+=head2 progress_info
+
+=over 4
+
+
+
+=item Description
+
+Job progress information.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 3 items:
+0: (prog) an UserAndJobState.total_progress
+1: (max) an UserAndJobState.max_progress
+2: (ptype) an UserAndJobState.progress_type
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 3 items:
+0: (prog) an UserAndJobState.total_progress
+1: (max) an UserAndJobState.max_progress
+2: (ptype) an UserAndJobState.progress_type
+
+
+=end text
+
+=back
+
+
+
+=head2 job_info2
+
+=over 4
+
+
+
+=item Description
+
+Information about a job.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a list containing 13 items:
+0: (job) an UserAndJobState.job_id
+1: (users) an UserAndJobState.user_info
+2: (service) an UserAndJobState.service_name
+3: (stage) an UserAndJobState.job_stage
+4: (status) an UserAndJobState.job_status
+5: (times) an UserAndJobState.time_info
+6: (progress) an UserAndJobState.progress_info
+7: (complete) an UserAndJobState.boolean
+8: (error) an UserAndJobState.boolean
+9: (auth) an UserAndJobState.auth_info
+10: (meta) an UserAndJobState.usermeta
+11: (desc) an UserAndJobState.job_description
+12: (res) an UserAndJobState.Results
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a list containing 13 items:
+0: (job) an UserAndJobState.job_id
+1: (users) an UserAndJobState.user_info
+2: (service) an UserAndJobState.service_name
+3: (stage) an UserAndJobState.job_stage
+4: (status) an UserAndJobState.job_status
+5: (times) an UserAndJobState.time_info
+6: (progress) an UserAndJobState.progress_info
+7: (complete) an UserAndJobState.boolean
+8: (error) an UserAndJobState.boolean
+9: (auth) an UserAndJobState.auth_info
+10: (meta) an UserAndJobState.usermeta
+11: (desc) an UserAndJobState.job_description
+12: (res) an UserAndJobState.Results
 
 
 =end text
@@ -3587,6 +4645,7 @@ results has a value which is a reference to a list where each element is a UserA
 =item Description
 
 Information about a job.
+@deprecated job_info2
 
 
 =item Definition
@@ -3595,20 +4654,20 @@ Information about a job.
 
 <pre>
 a reference to a list containing 14 items:
-0: (job) a UserAndJobState.job_id
-1: (service) a UserAndJobState.service_name
-2: (stage) a UserAndJobState.job_stage
-3: (started) a UserAndJobState.timestamp
-4: (status) a UserAndJobState.job_status
-5: (last_update) a UserAndJobState.timestamp
-6: (prog) a UserAndJobState.total_progress
-7: (max) a UserAndJobState.max_progress
-8: (ptype) a UserAndJobState.progress_type
-9: (est_complete) a UserAndJobState.timestamp
-10: (complete) a UserAndJobState.boolean
-11: (error) a UserAndJobState.boolean
-12: (desc) a UserAndJobState.job_description
-13: (res) a UserAndJobState.Results
+0: (job) an UserAndJobState.job_id
+1: (service) an UserAndJobState.service_name
+2: (stage) an UserAndJobState.job_stage
+3: (started) an UserAndJobState.timestamp
+4: (status) an UserAndJobState.job_status
+5: (last_update) an UserAndJobState.timestamp
+6: (prog) an UserAndJobState.total_progress
+7: (max) an UserAndJobState.max_progress
+8: (ptype) an UserAndJobState.progress_type
+9: (est_complete) an UserAndJobState.timestamp
+10: (complete) an UserAndJobState.boolean
+11: (error) an UserAndJobState.boolean
+12: (desc) an UserAndJobState.job_description
+13: (res) an UserAndJobState.Results
 
 </pre>
 
@@ -3617,20 +4676,20 @@ a reference to a list containing 14 items:
 =begin text
 
 a reference to a list containing 14 items:
-0: (job) a UserAndJobState.job_id
-1: (service) a UserAndJobState.service_name
-2: (stage) a UserAndJobState.job_stage
-3: (started) a UserAndJobState.timestamp
-4: (status) a UserAndJobState.job_status
-5: (last_update) a UserAndJobState.timestamp
-6: (prog) a UserAndJobState.total_progress
-7: (max) a UserAndJobState.max_progress
-8: (ptype) a UserAndJobState.progress_type
-9: (est_complete) a UserAndJobState.timestamp
-10: (complete) a UserAndJobState.boolean
-11: (error) a UserAndJobState.boolean
-12: (desc) a UserAndJobState.job_description
-13: (res) a UserAndJobState.Results
+0: (job) an UserAndJobState.job_id
+1: (service) an UserAndJobState.service_name
+2: (stage) an UserAndJobState.job_stage
+3: (started) an UserAndJobState.timestamp
+4: (status) an UserAndJobState.job_status
+5: (last_update) an UserAndJobState.timestamp
+6: (prog) an UserAndJobState.total_progress
+7: (max) an UserAndJobState.max_progress
+8: (ptype) an UserAndJobState.progress_type
+9: (est_complete) an UserAndJobState.timestamp
+10: (complete) an UserAndJobState.boolean
+11: (error) an UserAndJobState.boolean
+12: (desc) an UserAndJobState.job_description
+13: (res) an UserAndJobState.Results
 
 
 =end text
@@ -3650,27 +4709,16 @@ a reference to a list containing 14 items:
 A string-based filter for listing jobs.
 
         If the string contains:
-                'Q' - queued jobs are returned (but see below).
                 'R' - running jobs are returned.
                 'C' - completed jobs are returned.
+                'N' - canceled jobs are returned.
                 'E' - jobs that errored out are returned.
                 'S' - shared jobs are returned.
         The string can contain any combination of these codes in any order.
         If the string contains none of the codes or is null, all self-owned 
-        jobs are returned. If only the S filter is
-        present, all jobs are returned.
-        
-        The Q filter has no meaning in the context of UJS based jobs (e.g. jobs
-        that are not pulled by the UJS from an external job runner) and is
-        ignored. A UJS job in the 'created' state is not yet 'owned', per se,
-        by a job runner, and so UJS jobs in the 'created' state are never
-        returned.
-        
-        In contrast, for a job runner like AWE, jobs may be in the submitted
-        or queued state, and the Q filter will cause these jobs to be returned.
-        
-        Note that the S filter currently does not work with AWE. All AWE jobs
-        visible to the user are always returned.
+        jobs are returned. If only the S filter is present, all jobs are
+        returned. The S filter is ignored for jobs not using the default
+        authorization strategy.
 
 
 =item Definition
@@ -3693,25 +4741,86 @@ a string
 
 
 
+=head2 ListJobsParams
+
+=over 4
+
+
+
+=item Description
+
+Input parameters for the list_jobs2 method.
+
+Optional parameters:
+list<service_name> services - the services from which to list jobs.
+        Omit to list jobs from all services.
+job_filter filter - the filter to apply to the set of jobs.
+auth_strategy authstrat - return jobs with the specified
+        authorization strategy. If this parameter is omitted, jobs
+        with the default strategy will be returned.
+list<auth_params> authparams - only return jobs with one of the
+        specified authorization parameters. An authorization strategy must
+        be provided if authparams is specified. In most cases, at least one
+        authorization parameter must be supplied and there is an upper
+        limit to the number of paramters allowed. In the case of the
+        kbaseworkspace strategy, these limits are 1 and 10, respectively.
+
+
+=item Definition
+
+=begin html
+
+<pre>
+a reference to a hash where the following keys are defined:
+services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+filter has a value which is an UserAndJobState.job_filter
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+
+</pre>
+
+=end html
+
+=begin text
+
+a reference to a hash where the following keys are defined:
+services has a value which is a reference to a list where each element is an UserAndJobState.service_name
+filter has a value which is an UserAndJobState.job_filter
+authstrat has a value which is an UserAndJobState.auth_strategy
+authparams has a value which is a reference to a list where each element is an UserAndJobState.auth_param
+
+
+=end text
+
+=back
+
+
+
 =cut
 
 package Bio::KBase::userandjobstate::Client::RpcClient;
 use base 'JSON::RPC::Client';
+use POSIX;
+use strict;
 
 #
 # Override JSON::RPC::Client::call because it doesn't handle error returns properly.
 #
 
 sub call {
-    my ($self, $uri, $obj) = @_;
+    my ($self, $uri, $headers, $obj) = @_;
     my $result;
 
-    if ($uri =~ /\?/) {
-       $result = $self->_get($uri);
-    }
-    else {
-        Carp::croak "not hashref." unless (ref $obj eq 'HASH');
-        $result = $self->_post($uri, $obj);
+
+    {
+	if ($uri =~ /\?/) {
+	    $result = $self->_get($uri);
+	}
+	else {
+	    Carp::croak "not hashref." unless (ref $obj eq 'HASH');
+	    $result = $self->_post($uri, $headers, $obj);
+	}
+
     }
 
     my $service = $obj->{method} =~ /^system\./ if ( $obj );
@@ -3739,7 +4848,7 @@ sub call {
 
 
 sub _post {
-    my ($self, $uri, $obj) = @_;
+    my ($self, $uri, $headers, $obj) = @_;
     my $json = $self->json;
 
     $obj->{version} ||= $self->{version} || '1.1';
@@ -3766,6 +4875,7 @@ sub _post {
         Content_Type   => $self->{content_type},
         Content        => $content,
         Accept         => 'application/json',
+	@$headers,
 	($self->{token} ? (Authorization => $self->{token}) : ()),
     );
 }
