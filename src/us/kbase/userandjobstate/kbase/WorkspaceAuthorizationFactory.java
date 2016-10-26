@@ -93,6 +93,7 @@ public class WorkspaceAuthorizationFactory {
 		private static final List<String> CAN_WRITE =
 				Collections.unmodifiableList(Arrays.asList("w", "a"));
 		private static final String ADMIN = "a";
+		private static final String GLOBAL_USER = "*";
 		private static final int MAX_WS_COUNT = 10;
 		
 		private WorkspaceClient client;
@@ -184,9 +185,11 @@ public class WorkspaceAuthorizationFactory {
 			if (user.equals(j.getUser())) {
 				return; // owner can always read job
 			}
-			final String p = getPerms(j.getAuthorizationParameter())
-					.get(0).get(username);
-			if (!CAN_READ.contains(p)) {
+			final Map<String, String> perms = getPerms(
+					j.getAuthorizationParameter()).get(0);
+			final String p = perms.get(username);
+			final String g = perms.get(GLOBAL_USER);
+			if (!(CAN_READ.contains(p) || CAN_READ.contains(g))) {
 				throw new UJSAuthorizationException(String.format(
 						"User %s cannot read workspace %s",
 						username, j.getAuthorizationParameter()));
@@ -209,7 +212,8 @@ public class WorkspaceAuthorizationFactory {
 			final List<Map<String, String>> perms = getPerms(authParams);
 			for (int i = 0; i < authParams.size(); i ++) {
 				final String p = perms.get(i).get(username);
-				if (!CAN_READ.contains(p)) {
+				final String g = perms.get(i).get(GLOBAL_USER);
+				if (!(CAN_READ.contains(p) || CAN_READ.contains(g))) {
 					throw new UJSAuthorizationException(String.format(
 							"User %s cannot read workspace %s",
 							username, authParams.get(i)));

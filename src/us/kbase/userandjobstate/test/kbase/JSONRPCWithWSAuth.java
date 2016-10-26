@@ -34,6 +34,7 @@ import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.test.FakeJob;
 import us.kbase.workspace.CreateWorkspaceParams;
+import us.kbase.workspace.SetGlobalPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
 import us.kbase.workspace.WorkspaceServer;
@@ -232,6 +233,18 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
 		
+		//test globally readable workspace
+		setPermissions(WSC1, 1, "n", USER2);
+		failGetJob(UJSC2, id, err);
+		failGetJobOwner(UJSC2, id, err);
+		failGetJobShared(UJSC2, id, err);
+		
+		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(1L)
+				.withNewPermission("r"));
+		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", USER2, "desc1",
+				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
+		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
+		
 	}
 	
 	@Test
@@ -423,8 +436,7 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		checkListJobs2(UJSC1, user2, "", fjs3, KBWS, Arrays.asList("3"));
 		
 		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		checkListJobs2(UJSC2, user2, "", fjs13, KBWS,
-				Arrays.asList("1", "3"));
+		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
 		setPermissions(WSC1, 3, "n", user2);
 
@@ -436,6 +448,14 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
 		setPermissions(WSC1, 3, "a", user2);
+		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		
+		//test globally readable workspaces
+		setPermissions(WSC1, 3, "n", user2);
+		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "3"),
+				String.format("User %s cannot read workspace 3", user2));
+		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(3L)
+				.withNewPermission("r"));
 		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
 		failListJobs2(UJSC1, "foo", KBWS, new LinkedList<String>(),

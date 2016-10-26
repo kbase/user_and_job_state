@@ -35,6 +35,7 @@ import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
 import us.kbase.workspace.CreateWorkspaceParams;
+import us.kbase.workspace.SetGlobalPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
 import us.kbase.workspace.WorkspaceServer;
@@ -257,6 +258,14 @@ public class WorkspaceAuthTest {
 		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
 		wa2.authorizeRead(user2, j);
 		
+		// test globally readable workspace
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
+		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
+				String.format("User %s cannot read workspace 1", user2)));
+		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(1L)
+				.withNewPermission("r"));
+		wa2.authorizeRead(user2, j);
+		
 		failSingleRead(wa2, user1, j, new IllegalStateException(
 				"A programming error occured: the token username and the " +
 				"supplied username do not match"));
@@ -456,6 +465,14 @@ public class WorkspaceAuthTest {
 		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "a", user2);
 		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
 		
+		//test globally readable workspaces
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", user2);
+		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
+				new UJSAuthorizationException(String.format(
+				"User %s cannot read workspace 3", user2)));
+		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(3L)
+				.withNewPermission("r"));
+		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
 		
 		
 		failMultipleRead(wa1, strat, user1, Arrays.asList("1", "2", "3", "4",
