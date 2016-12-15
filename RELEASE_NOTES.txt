@@ -5,8 +5,61 @@ OVERVIEW
 A service for 1) maintaining global KBase user state, and 2) maintaining
 job state. See the API docs for more details.
 
+VERSION: 0.2.1 (9/7/16)
+-------------------------
+
+UPDATED FEATURES / MAJOR BUG FIXES:
+- Fixed a bug with the 'kbaseworkspace' authorization strategy where jobs
+  associated with globally readable workspaces could not be accessed without
+  specific permissions for that workspace.
+
+VERSION: 0.2.0 (8/12/16)
+-------------------------
+
+WARNING: A database update MUST be run before deploying 0.2.0. To do so:
+make create-db-update-script
+./db_update -d [deploy.cfg location]
+
+To use the kbaseworkspace authorization strategy (see below) the workspace-url
+parameter must be set in the deploy.cfg file prior to starting the server.
+
+BACKWARDS INCOMPATIBILIES:
+
+- All AWE related code has been removed, and the UJS can no longer fetch jobs
+from AWE.
+
+NEW FEATURES:
+
+- On creating a job, a user can now specify an authorization strategy and
+  authorization parameter for that job instead of using the default UJS ACLs
+  as the authorization source.
+- Added the 'kbaseworkspace' authorization strategy, which takes an integer
+  workspace ID as a string as the authorization parameter. Jobs using the
+  kbaseworkspace authstrat are shared as the designated workspace is shared.
+- Added the create_job2, get_job_info2, and list_jobs2 methods which can
+  accept or return an authorization strategy and parameter(s). create_job,
+  get_job_info, and list_jobs are now deprecated.
+- Jobs can now be canceled, which puts them in a canceled state. Canceled jobs
+  may not be altered further other than deletion. The user that canceled the
+  job is returned by get_job_info2. Users with write access to a workspace can
+  cancel jobs associated with that workspace.
+- Users with administrative access to a workspace can delete jobs associated
+  with that workspace when those jobs are in the error, complete, or canceled
+  state.
+- User specified metadata can now be associated with a job via the create_job2
+  method.
+- These is now a minimal documentation server at the /docs endpoint.
+- The authorization URLs used by the server may now be configured.
+- All configuration user id / password combinations may now be alternately
+  fulfilled with a token.
+
+UPDATED FEATURES / MAJOR BUG FIXES:
+
+- Fixed a bug where mongo connections would not be released when redeploying
+  the server in an already running glassfish instance.
+
 VERSION: 0.1.3 (4/9/2015)
---------------------------------------
+-------------------------
 
 NEW FEATURES:
 - None

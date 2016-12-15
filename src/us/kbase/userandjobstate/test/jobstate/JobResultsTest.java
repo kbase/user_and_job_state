@@ -101,7 +101,6 @@ public class JobResultsTest {
 		nullarray.add(null);
 		List<String> mtarray = Arrays.asList("");
 		List<String> lngarray = Arrays.asList(s1001);
-		System.out.println(s1001.length());
 		
 		failCreateJobResults("", null, null, null, "workspaceurl cannot be the empty string");
 		failCreateJobResults(null, null, "", null, "shockurl cannot be the empty string");
