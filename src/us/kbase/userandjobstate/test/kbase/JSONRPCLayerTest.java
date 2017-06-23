@@ -54,12 +54,9 @@ import us.kbase.userandjobstate.test.FakeJob;
  */
 public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
-	private static final String ERR_AUTH_INVALID = "Couldn't validate the " +
-			"server token. The authentication server said: Login failed! " +
-			"Invalid token";
 	private static final String ERR_AUTH_LOGIN = "Couldn't validate the " +
 			"server token. The authentication server said: " +
-			"Login failed! Server responded with code 401 UNAUTHORIZED";
+			"Login failed! Server responded with code 401 Unauthorized";
 	
 	private static UserAndJobStateServer SERVER = null;
 	private static UserAndJobStateClient CLIENT1 = null;
@@ -129,7 +126,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@Test
 	public void ver() throws Exception {
-		assertThat("got correct version", CLIENT1.ver(), is("0.2.1"));
+		assertThat("got correct version", CLIENT1.ver(), is("0.2.2"));
 	}
 	
 	
@@ -241,7 +238,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is(ERR_AUTH_INVALID));
+					is(ERR_AUTH_LOGIN));
 		}
 		try {
 			CLIENT1.setStateAuth(TOKEN2 + "a", "key", new UObject("foo"));
@@ -269,7 +266,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			fail("set state w/ bad token");
 		} catch (ServerException se) {
 			assertThat("correct exception", se.getLocalizedMessage(),
-					is(ERR_AUTH_INVALID));
+					is(ERR_AUTH_LOGIN));
 		}
 		try {
 			CLIENT1.removeStateAuth(TOKEN2 + "a", "key");
@@ -336,7 +333,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		startJobBadArgs(jobid, null, "s", "d", new InitProgress().withPtype("none"),
 				null, "Service token cannot be null or the empty string");
 		startJobBadArgs(jobid, "foo", "s", "d", new InitProgress().withPtype("none"),
-				null, ERR_AUTH_INVALID);
+				null, ERR_AUTH_LOGIN);
 		startJobBadArgs(jobid, TOKEN2 + "a", "s", "d", new InitProgress().withPtype("none"),
 				null, ERR_AUTH_LOGIN);
 		
@@ -570,7 +567,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		updateJobBadArgs(jobid, null, "s", null,
 				"Service token cannot be null or the empty string");
 		updateJobBadArgs(jobid, "foo", "s", null,
-				ERR_AUTH_INVALID);
+				ERR_AUTH_LOGIN);
 		updateJobBadArgs(jobid, TOKEN1, "s", null, String.format(
 				"There is no uncompleted job %s for user %s started by service %s",
 				jobid, USER1, USER1));
@@ -688,7 +685,7 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		failCompleteJob(jobid, null, "s", null, null,
 				"Service token cannot be null or the empty string");
 		failCompleteJob(jobid, "foo", "s", null, null,
-				ERR_AUTH_INVALID);
+				ERR_AUTH_LOGIN);
 		failCompleteJob(jobid, TOKEN2 + "w", "s", null, null,
 				ERR_AUTH_LOGIN);
 		failCompleteJob(jobid, TOKEN1, "s", null, null, String.format(
@@ -838,10 +835,8 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		
 		failToDeleteJob(CLIENT1, jobid, null,
 				"Service token cannot be null or the empty string", true);
-		failToDeleteJob(CLIENT1, jobid, "foo",
-				ERR_AUTH_INVALID);
-		failToDeleteJob(CLIENT1, jobid, TOKEN2 + 'w',
-				ERR_AUTH_LOGIN);
+		failToDeleteJob(CLIENT1, jobid, "foo", ERR_AUTH_LOGIN);
+		failToDeleteJob(CLIENT1, jobid, TOKEN2 + 'w', ERR_AUTH_LOGIN);
 		failToDeleteJob(CLIENT1, jobid, TOKEN1, String.format(
 				"There is no deletable job %s for user %s and service %s",
 				jobid, USER1, USER1));
