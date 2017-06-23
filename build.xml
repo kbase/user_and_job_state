@@ -47,7 +47,7 @@
 
   <fileset dir="${jardir}" id="clientserverlib">
     <include name="junit/junit-4.9.jar"/>
-    <include name="kbase/auth/kbase-auth-0.4.1.jar"/>
+    <include name="kbase/auth/kbase-auth-0.4.4.jar"/>
     <include name="jackson/jackson-annotations-2.2.3.jar"/>
     <include name="jackson/jackson-core-2.2.3.jar"/>
     <include name="jackson/jackson-databind-2.2.3.jar"/>
@@ -137,7 +137,7 @@
   <target name="compile" depends="init" description="compile the source">
     <!-- Compile class files-->
     <javac destdir="${classes}" includeantruntime="false"
-      debug="true" classpathref="compile.classpath">
+      debug="true" classpathref="compile.classpath" source="1.7" target="1.7">
       <src path="${src}"/>
     </javac>
     <!-- Copy resource files-->
