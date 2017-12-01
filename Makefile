@@ -118,6 +118,14 @@ deploy-service-scripts:
 		$(TARGET) $(JAVA_HOME) deploy.cfg $(ASADMIN) $(SERVICE_CAPS)\
 		$(SERVICE_PORT)
 
+docker_image: build-libs build-docs 
+	$(ANT) buildwar
+	# cp server_scripts/glassfish_administer_service.py deployment/bin
+	# chmod 755 deployment/bin/glassfish_administer_service.py
+	mkdir -p deployment/services/ujs
+	cp dist/$(WAR) deployment/services/ujs/ROOT.war
+	./build/build_docker_image.sh
+
 deploy-upstart:
 	echo "# $(SERVICE) service" > /etc/init/$(SERVICE).conf
 	echo "# NOTE: stop $(SERVICE) does not work" >> /etc/init/$(SERVICE).conf
