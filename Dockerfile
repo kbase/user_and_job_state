@@ -7,13 +7,6 @@ ARG BRANCH=develop
 
 COPY deployment/ /kb/deployment/
 
-RUN /usr/bin/tomcat8-instance-create /kb/deployment/services/ujs/tomcat && \
-    mv /kb/deployment/services/ujs/ROOT.war /kb/deployment/services/ujs/tomcat/webapps/ROOT.war && \
-    rm -rf /kb/deployment/services/workspace/tomcat/webapps/ROOT
-
-# Must set catalina_base to match location of tomcat8-instance-create dir
-# before calling /usr/share/tomcat8/bin/catalina.sh
-ENV CATALINA_BASE /kb/deployment/services/ujs/tomcat
 ENV KB_DEPLOYMENT_CONFIG /kb/deployment/conf/deployment.cfg
 
 # The BUILD_DATE value seem to bust the docker cache when the timestamp changes, move to
@@ -28,12 +21,11 @@ LABEL org.label-schema.build-date=$BUILD_DATE \
 EXPOSE 7058
 ENTRYPOINT [ "/kb/deployment/bin/dockerize" ]
 CMD [ "-template", "/kb/deployment/conf/.templates/deployment.cfg.templ:/kb/deployment/conf/deployment.cfg", \
-      "-template", "/kb/deployment/conf/.templates/server.xml.templ:/kb/deployment/services/ujs/tomcat/conf/server.xml", \
-      "-template", "/kb/deployment/conf/.templates/tomcat-users.xml.templ:/kb/deployment/services/ujs/tomcat/conf/tomcat-users.xml", \
-      "-template", "/kb/deployment/conf/.templates/logging.properties.templ:/kb/deployment/services/ujs/tomcat/conf/logging.properties", \
-      "-template", "/kb/deployment/conf/.templates/setenv.sh.templ:/kb/deployment/services/ujs/tomcat/bin/setenv.sh", \
-      "-stdout", "/kb/deployment/services/ujs/tomcat/logs/catalina.out", \
-      "-stdout", "/kb/deployment/services/ujs/tomcat/logs/access.log", \
-      "/usr/share/tomcat8/bin/catalina.sh", "run" ]
-WORKDIR /kb/deployment/services/ujs/tomcat
+      "-template", "/kb/deployment/conf/.templates/http.ini.templ:/kb/deployment/jettybase/start.d/http.ini", \
+      "-template", "/kb/deployment/conf/.templates/server.ini.templ:/kb/deployment/jettybase/start.d/server.ini", \
+      "-template", "/kb/deployment/conf/.templates/start_server.sh.templ:/kb/deployment/bin/start_server.sh", \
+      "-stdout", "/kb/deployment/jettybase/logs/request.log", \
+      "/kb/deployment/bin/start_server.sh" ]
+
+WORKDIR /kb/deployment/jettybase
 

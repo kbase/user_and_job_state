@@ -122,8 +122,11 @@ docker_image: build-libs build-docs
 	$(ANT) buildwar
 	# cp server_scripts/glassfish_administer_service.py deployment/bin
 	# chmod 755 deployment/bin/glassfish_administer_service.py
-	mkdir -p deployment/services/ujs
-	cp dist/$(WAR) deployment/services/ujs/ROOT.war
+	-mkdir deployment/lib
+	-mkdir -p deployment/jettybase/webapps
+	-mkdir -p deployment/jettybase/logs
+	-mkdir -p deployment/jettybase/start.d
+	cp dist/$(WAR) deployment/jettybase/webapps/root.war 
 	./build/build_docker_image.sh
 
 deploy-upstart:
