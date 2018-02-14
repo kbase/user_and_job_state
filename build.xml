@@ -33,7 +33,7 @@
   <property name="test.token2" value="" />
 
   <fileset dir="${jardir}" id="sourceslib">
-    <include name="kbase/common/kbase-common-0.0.20.jar"/>
+    <include name="kbase/common/kbase-common-0.0.22.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="serverlib">
@@ -51,7 +51,7 @@
     <include name="jackson/jackson-annotations-2.2.3.jar"/>
     <include name="jackson/jackson-core-2.2.3.jar"/>
     <include name="jackson/jackson-databind-2.2.3.jar"/>
-    <include name="kbase/common/kbase-common-0.0.20.jar"/>
+    <include name="kbase/common/kbase-common-0.0.22.jar"/>
   </fileset>
 
   <fileset dir="${jardir}" id="applicationlib">
