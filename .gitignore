@@ -1,6 +1,0 @@
-*.class
-*.jar
-*.war
-deployment/services/
-*.html
-*.css
