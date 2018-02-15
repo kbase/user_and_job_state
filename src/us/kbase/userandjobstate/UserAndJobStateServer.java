@@ -585,8 +585,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		if (authURL == null || globusURL == null) { // a url was invalid
 			return null;
 		}
-		System.out.println(UserAndJobStateServer.class.getName() + ": " + INSECURE_AUTH_URL +" = " + 
-		(authAllowInsecure == null ? "<not-set> ('false' will be used)" : authAllowInsecure));
 
 		final AuthConfig c;
 		try {
@@ -734,6 +732,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		} else {
 			final String user = ujConfig.get(USER);
 			final String pwd = ujConfig.get(PWD);
+			final String authAllowInsecure = ujConfig.get(INSECURE_AUTH_URL);
 			String params = "";
 			for (String s: Arrays.asList(HOST, DB, USER, KBASE_AUTH_URL,
 					GLOBUS_AUTH_URL)) {
@@ -741,6 +740,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					params += s + "=" + ujConfig.get(s) + "\n";
 				}
 			}
+			params += INSECURE_AUTH_URL +"=" + 
+				(authAllowInsecure == null ? "<not-set> ('false' will be used)" : authAllowInsecure) + "\n";
+	
 			if (pwd != null) {
 				params += PWD + "=[redacted for your safety and comfort]\n";
 			}
