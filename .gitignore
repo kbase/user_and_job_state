@@ -1,6 +1,0 @@
-*.class
-*.jar
-*.war
-*.html
-deployment/services/*
-docs/*
