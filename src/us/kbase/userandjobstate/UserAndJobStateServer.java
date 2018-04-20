@@ -163,6 +163,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	
 	//auth servers
 	private static final String KBASE_AUTH_URL = "auth-service-url";
+	private static final String INSECURE_AUTH_URL = "auth-service-url-allow-insecure";
 	private static final String GLOBUS_AUTH_URL = "globus-url";
 	
 	private static final String WORKSPACE_URL = "workspace-url";
@@ -579,14 +580,17 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private ConfigurableAuthService setUpAuthClient(
 			final Map<String, String> config) {
 		final URL authURL = getURL(config, KBASE_AUTH_URL);
+		final String authAllowInsecure = config.get(INSECURE_AUTH_URL);
 		final URL globusURL = getURL(config, GLOBUS_AUTH_URL);
 		if (authURL == null || globusURL == null) { // a url was invalid
 			return null;
 		}
+
 		final AuthConfig c;
 		try {
 			c = new AuthConfig().withGlobusAuthURL(globusURL)
-				.withKBaseAuthServerURL(authURL);
+				.withKBaseAuthServerURL(authURL)
+				.withAllowInsecureURLs("true".equals(authAllowInsecure));
 		} catch (URISyntaxException e) {
 			throw new RuntimeException("Neat. I'm suprised this happened", e);
 		}
@@ -728,6 +732,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		} else {
 			final String user = ujConfig.get(USER);
 			final String pwd = ujConfig.get(PWD);
+			final String authAllowInsecure = ujConfig.get(INSECURE_AUTH_URL);
 			String params = "";
 			for (String s: Arrays.asList(HOST, DB, USER, KBASE_AUTH_URL,
 					GLOBUS_AUTH_URL)) {
@@ -735,6 +740,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					params += s + "=" + ujConfig.get(s) + "\n";
 				}
 			}
+			params += INSECURE_AUTH_URL +"=" + 
+				(authAllowInsecure == null ? "<not-set> ('false' will be used)" : authAllowInsecure) + "\n";
+	
 			if (pwd != null) {
 				params += PWD + "=[redacted for your safety and comfort]\n";
 			}
