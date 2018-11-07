@@ -15,9 +15,6 @@ workspace-url={{ default .Env.workspace_url "https://ci.kbase.us/services/ws" }}
 doc-server-name = {{ default .Env.doc_server_name "UJSDocServ" }}
 doc-server-docs-location = {{ default .Env.doc_server_docs_location "/server_docs" }}
 
-# Credentials of the account the workspace server should use to get user
-# information. This user should be an admin of the kbase_users group so that
-# users with private profiles are not hidden.
 # The KBase authorization server url for auth2.
 auth-service-url={{ default .Env.auth_service "https://ci.kbase.us/services/auth/api/legacy/KBase" }}
 auth-service-url-allow-insecure = {{ default .Env.auth_service_url_allow_insecure "" }}
