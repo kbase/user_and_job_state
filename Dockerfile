@@ -1,3 +1,20 @@
+FROM kbase/sdkbase2:latest as build
+
+
+COPY . /tmp/ujs
+COPY deployment /kb/deployment
+
+RUN cd /tmp && \
+    git clone https://github.com/kbase/jars && \
+    cd /tmp/ujs && \
+    make build-libs build-docs && \
+	ant buildwar && \
+	[ -e deployment/lib ] || mkdir deployment/lib  && \
+	[ -e deployment/jettybase/webapps ] || mkdir -p deployment/jettybase/webapps  && \
+    [ -e deployment/jettybase/logs ] || mkdir -p deployment/jettybase/logs  && \
+	[ -e deployment/jettybase/start.d ] || mkdir -p deployment/jettybase/start.d  && \
+	cp dist/UserAndJobStateService.war deployment/jettybase/webapps/root.war 
+
 FROM kbase/kb_jre
 
 # These ARGs values are passed in via the docker build command

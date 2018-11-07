@@ -118,17 +118,6 @@ deploy-service-scripts:
 		$(TARGET) $(JAVA_HOME) deploy.cfg $(ASADMIN) $(SERVICE_CAPS)\
 		$(SERVICE_PORT)
 
-docker_image: build-libs build-docs 
-	$(ANT) buildwar
-	# cp server_scripts/glassfish_administer_service.py deployment/bin
-	# chmod 755 deployment/bin/glassfish_administer_service.py
-	-mkdir deployment/lib
-	-mkdir -p deployment/jettybase/webapps
-	-mkdir -p deployment/jettybase/logs
-	-mkdir -p deployment/jettybase/start.d
-	cp dist/$(WAR) deployment/jettybase/webapps/root.war 
-	./build/build_docker_image.sh
-
 deploy-upstart:
 	echo "# $(SERVICE) service" > /etc/init/$(SERVICE).conf
 	echo "# NOTE: stop $(SERVICE) does not work" >> /etc/init/$(SERVICE).conf
