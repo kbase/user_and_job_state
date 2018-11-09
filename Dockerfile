@@ -22,7 +22,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG BRANCH=develop
 
-COPY deployment/ /kb/deployment/
+COPY --from=build /kb/deployment/ /kb/deployment/
 
 ENV KB_DEPLOYMENT_CONFIG /kb/deployment/conf/deployment.cfg
 
