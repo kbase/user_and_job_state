@@ -5,6 +5,13 @@ OVERVIEW
 A service for 1) maintaining global KBase user state, and 2) maintaining
 job state. See the API docs for more details.
 
+VERSION: 0.2.3 (2/13/18)
+-------------------------
+
+UPDATED FEATURES / MAJOR BUG FIXES:
+- Modified repo to use automated dockerhub builds
+
+
 VERSION: 0.2.2 (6/22/17)
 -------------------------
 

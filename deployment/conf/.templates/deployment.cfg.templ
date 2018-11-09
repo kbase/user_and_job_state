@@ -1,0 +1,19 @@
+[UserAndJobState]
+mongodb-database={{ default .Env.mongodb_database "userjobstate" }}
+mongodb-pwd={{ default .Env.mongodb_pwd "" }}
+mongodb-host={{ default .Env.mongodb_host "ci-mongo" }}
+mongodb-user={{ default .Env.mongodb_user "ujsserv" }}
+service-port={{ default .Env.service_port "8080" }}
+kbase-admin-token={{ default .Env.kbase_admin_token "" }}
+workspace-url={{ default .Env.workspace_url "https://ci.kbase.us/services/ws" }}
+
+# Document server name. Used for logging.
+doc-server-name = {{ default .Env.doc_server_name "UJSDocServ" }}
+doc-server-docs-location = {{ default .Env.doc_server_docs_location "/server_docs" }}
+
+# The KBase authorization server url for auth2.
+auth-service-url={{ default .Env.auth_service "https://ci.kbase.us/services/auth/api/legacy/KBase" }}
+auth-service-url-allow-insecure = {{ default .Env.auth_service_url_allow_insecure "" }}
+
+# The Globus v1 authorization API url.  auth2 supports this directly
+globus-url = {{ default .Env.globus_url "https://ci.kbase.us/services/auth/api/legacy/globus" }}
