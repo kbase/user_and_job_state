@@ -2,7 +2,6 @@ FROM kbase/sdkbase2:latest as build
 
 
 COPY . /tmp/ujs
-COPY deployment /kb/deployment
 
 RUN cd /tmp && \
     git clone https://github.com/kbase/jars && \
@@ -22,7 +21,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG BRANCH=develop
 
-COPY --from=build /kb/deployment/ /kb/deployment/
+COPY --from=build /tmp/ujs/deployment/ /kb/deployment/
 
 ENV KB_DEPLOYMENT_CONFIG /kb/deployment/conf/deployment.cfg
 
