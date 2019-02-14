@@ -38,8 +38,7 @@ import us.kbase.workspace.WorkspaceServer;
  */
 public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 	
-	public static final Map<String, String> MTMAP =
-			new HashMap<String, String>();
+	public static final Map<String, String> MTMAP = new HashMap<>();
 	
 	public static final String KBWS = "kbaseworkspace";
 	
@@ -49,7 +48,6 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 	public static WorkspaceClient WSC;
 	
 	public static AuthUser USER;
-	public static String PWD;
 	
 	public static final String WS_DB_NAME = "ws";
 	
@@ -59,7 +57,6 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 				new AuthConfig().withKBaseAuthServerURL(
 						TestCommon.getAuthUrl()));
 		final AuthToken t1 = TestCommon.getToken(1, auth);
-		PWD = TestCommon.getPwdNullIfToken(1);
 		USER = auth.getUserFromToken(t1);
 
 		MONGO = new MongoController(
@@ -70,7 +67,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		System.out.println("mongo on " + mongohost);
 		
 		WS = startupWorkspaceServer(mongohost, WS_DB_NAME, "ws_types",
-				t1, PWD, t1.getUserName());
+				t1, t1.getUserName());
 		final int wsport = WS.getServerPort();
 		WSC = new WorkspaceClient(new URL("http://localhost:" + wsport), t1);
 		WSC.setIsInsecureHttpConnectionAllowed(true);
@@ -100,7 +97,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		UserAndJobStateServer ujs = startUpUJSServer(
 				"localhost:" + MONGO.getServerPort(),
 				"http://localhost:" + WS.getServerPort(),
-				"ujs", USER.getToken(), PWD);
+				"ujs", USER.getToken());
 		UserAndJobStateClient cli = new UserAndJobStateClient(
 				new URL("http://localhost:" + ujs.getServerPort()),
 				USER.getToken());
@@ -130,7 +127,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		ujs.stopServer();
 		UserAndJobStateServer.clearConfigForTests();
 		ujs = startUpUJSServer("localhost:" + MONGO.getServerPort(),
-				null, "ujs", USER.getToken(), PWD);
+				null, "ujs", USER.getToken());
 		cli = new UserAndJobStateClient(
 				new URL("http://localhost:" + ujs.getServerPort()),
 				USER.getToken());
@@ -162,7 +159,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		ujs = startUpUJSServer(
 				"localhost:" + MONGO.getServerPort(),
 				"http://localhost:" + WS.getServerPort(),
-				"ujs", USER.getToken(), PWD);
+				"ujs", USER.getToken());
 		cli = new UserAndJobStateClient(
 				new URL("http://localhost:" + ujs.getServerPort()),
 				USER.getToken());

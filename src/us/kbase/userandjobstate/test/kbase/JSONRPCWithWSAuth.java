@@ -80,7 +80,6 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		if (USER1.equals(USER2)) {
 			throw new TestException("user1 cannot equal user2: " + USER1);
 		}
-		String p1 = TestCommon.getPwdNullIfToken(1);
 		U1 = auth.getUserFromToken(t1);
 		U2 = auth.getUserFromToken(t2);
 		MONGO = new MongoController(
@@ -91,7 +90,7 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		System.out.println("mongo on " + mongohost);
 		
 		WS = startupWorkspaceServer(mongohost, WS_DB_NAME, "ws_types",
-				t1, p1, t2.getUserName());
+				t1, t2.getUserName());
 		final int wsport = WS.getServerPort();
 		WSC1 = new WorkspaceClient(new URL("http://localhost:" + wsport), t1);
 		WSC2 = new WorkspaceClient(new URL("http://localhost:" + wsport), t2);
@@ -100,7 +99,7 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		
 		UJS = startUpUJSServer("localhost:" + MONGO.getServerPort(),
 				"http://localhost:" + WS.getServerPort(),
-				JOB_DB_NAME, t1, p1);
+				JOB_DB_NAME, t1);
 		int ujsport = UJS.getServerPort();
 		System.out.println("Started UJS test server on port " + ujsport);
 		System.out.println("Starting tests");

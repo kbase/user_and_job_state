@@ -70,8 +70,7 @@ public class WorkspaceAuthTest {
 			throw new TestException("user1 cannot equal user2: " +
 					t1.getUserName());
 		}
-		final String p1 = TestCommon.getPwdNullIfToken(1); 
-		
+
 		U1 = auth.getUserFromToken(t1);
 		U2 = auth.getUserFromToken(t2);
 		MONGO = new MongoController(
@@ -82,7 +81,7 @@ public class WorkspaceAuthTest {
 		System.out.println("mongo on " + mongohost);
 		
 		WS = JSONRPCLayerTestUtils.startupWorkspaceServer(
-				mongohost, WS_DB_NAME, "ws_types", t1, p1, t2.getUserName());
+				mongohost, WS_DB_NAME, "ws_types", t1, t2.getUserName());
 		final int port = WS.getServerPort();
 		WSC1 = new WorkspaceClient(new URL("http://localhost:" + port), t1);
 		WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), t2);
