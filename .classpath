@@ -35,5 +35,6 @@
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/auth/kbase-auth-0.4.4.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/common/kbase-common-0.0.22.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/workspace/WorkspaceService-0.8.2.jar"/>
+	<classpathentry kind="lib" path="/jars/lib/jars/kbase/auth2/kbase-auth2test-0.2.4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

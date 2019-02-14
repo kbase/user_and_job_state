@@ -59,6 +59,7 @@
   </fileset>
 
   <fileset dir="${jardir}" id="testlib">
+    <include name="kbase/auth2/kbase-auth2test-0.2.4.jar"/>
     <include name="apache_commons/commons-io-2.4.jar"/>
     <include name="apache_commons/commons-collections-3.2.1.jar"/>
     <include name="apache_commons/commons-lang-2.4.jar"/>
