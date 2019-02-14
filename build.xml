@@ -52,7 +52,8 @@
     <include name="logback/logback-core-1.1.2.jar"/>
     <include name="apache_commons/commons-logging-1.1.1.jar"/>
     <include name="jcommander/jcommander-1.48.jar"/>
-    <include name="kbase/workspace/WorkspaceService-0.5.0-dev6.jar" />
+    <!-- this is here just to import the WorkspaceUserMetadata class. Yuck. -->
+    <include name="kbase/workspace/WorkspaceService-0.8.2.jar" />
     <include name="apache_commons/http/httpcore-4.3.jar"/>
     <include name="apache_commons/http/httpclient-4.3.1.jar"/>
   </fileset>
@@ -135,6 +136,7 @@
             <include name="**/*.cfg"/>
             <include name="**/*.py"/>
             <include name="**/*.html"/>
+            <include name="**/wsjars"/>
           </patternset>
         </fileset>
       </copy>

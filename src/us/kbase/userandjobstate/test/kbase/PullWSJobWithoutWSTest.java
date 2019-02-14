@@ -28,9 +28,9 @@ import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
+import us.kbase.userandjobstate.test.controllers.workspace.WorkspaceController;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.WorkspaceClient;
-import us.kbase.workspace.WorkspaceServer;
 
 
 /* Tests associating a job with a workspace id, and the restarting the UJS
@@ -44,7 +44,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 	
 	public static MongoController MONGO;
 	
-	public static WorkspaceServer WS;
+	public static WorkspaceController WS;
 	public static WorkspaceClient WSC;
 	
 	public static AuthUser USER;
@@ -66,8 +66,14 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 		String mongohost = "localhost:" + MONGO.getServerPort();
 		System.out.println("mongo on " + mongohost);
 		
-		WS = startupWorkspaceServer(mongohost, WS_DB_NAME, "ws_types",
-				t1, t1.getUserName());
+		WS = new WorkspaceController(
+				TestCommon.getJarsDir(),
+				mongohost,
+				WS_DB_NAME,
+				t1.getUserName(),
+				new URL(TestCommon.getAuthUrl().toString().replace("/api/legacy/KBase/Sessions/Login", "")),
+				Paths.get(TestCommon.getTempDir()).resolve("tempForWorkspaceForUJSAuthTest"));
+		
 		final int wsport = WS.getServerPort();
 		WSC = new WorkspaceClient(new URL("http://localhost:" + wsport), t1);
 		WSC.setIsInsecureHttpConnectionAllowed(true);
@@ -79,7 +85,7 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 			MONGO.destroy(TestCommon.getDeleteTempFiles());
 		}
 		if (WS != null) {
-			WS.stopServer();
+			WS.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	

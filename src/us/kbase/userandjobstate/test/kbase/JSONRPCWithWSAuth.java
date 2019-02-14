@@ -24,6 +24,7 @@ import us.kbase.auth.AuthUser;
 import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
+import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
@@ -33,12 +34,13 @@ import us.kbase.userandjobstate.UserAndJobStateClient;
 import us.kbase.userandjobstate.UserAndJobStateServer;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.test.FakeJob;
+import us.kbase.userandjobstate.test.controllers.workspace.WorkspaceController;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.SetGlobalPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
-import us.kbase.workspace.WorkspaceServer;
 
+import com.google.common.collect.ImmutableMap;
 import com.mongodb.DB;
 
 public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
@@ -50,7 +52,7 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	
 	public static MongoController MONGO;
 	
-	public static WorkspaceServer WS;
+	public static WorkspaceController WS;
 	public static WorkspaceClient WSC1;
 	public static WorkspaceClient WSC2;
 	
@@ -89,8 +91,14 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		String mongohost = "localhost:" + MONGO.getServerPort();
 		System.out.println("mongo on " + mongohost);
 		
-		WS = startupWorkspaceServer(mongohost, WS_DB_NAME, "ws_types",
-				t1, t2.getUserName());
+		WS = new WorkspaceController(
+				TestCommon.getJarsDir(),
+				mongohost,
+				WS_DB_NAME,
+				t2.getUserName(),
+				new URL(TestCommon.getAuthUrl().toString().replace("/api/legacy/KBase/Sessions/Login", "")),
+				Paths.get(TestCommon.getTempDir()).resolve("tempForWorkspaceForUJSAuthTest"));
+		
 		final int wsport = WS.getServerPort();
 		WSC1 = new WorkspaceClient(new URL("http://localhost:" + wsport), t1);
 		WSC2 = new WorkspaceClient(new URL("http://localhost:" + wsport), t2);
@@ -119,7 +127,7 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 			MONGO.destroy(TestCommon.getDeleteTempFiles());
 		}
 		if (WS != null) {
-			WS.stopServer();
+			WS.destroy(TestCommon.getDeleteTempFiles());
 		}
 		if (UJS != null) {
 			UJS.stopServer();
@@ -212,7 +220,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		assertThat("owner ok", UJSC1.getJobOwner(id), is(USER1));
 		assertThat("shared list ok", UJSC1.getJobShared(id), is(mtl));
 		
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		checkJob(UJSC2, id, USER1, null, "complete", "c stat2", USER2, "desc1",
 				"none", null, null, null, 1L, 0L, null, null, KBWS, "1", MTMAP);
 		assertThat("owner ok", UJSC2.getJobOwner(id), is(USER1));
@@ -278,7 +287,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		checkJob(UJSC1, id2, USER1, USER1, "canceled", "cancel2", USER2,
 				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
 				"1", MTMAP);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		UJSC2.cancelJob(id, "cancel3");
 		checkJob(UJSC1, id, USER1, USER2, "canceled", "cancel3", USER2,
 				"desc", "none", null, null, null, 1L, 0L, null, null, KBWS,
@@ -327,7 +337,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 
 		deleteJob(UJSC1, id3);
 		deleteJob(UJSC1, id4, TOKEN2);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		failGetJob(UJSC1, id3, String.format(
 				"There is no job %s viewable by user %s",
 				id3, USER1));
@@ -434,7 +445,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 				"No workspace with id 4 exists");
 		checkListJobs2(UJSC1, user2, "", fjs3, KBWS, Arrays.asList("3"));
 		
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
 		setPermissions(WSC1, 3, "n", user2);
