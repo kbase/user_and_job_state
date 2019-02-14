@@ -73,7 +73,7 @@ public class JSONRPCLayerTestUtils {
 	}
 	
 	public static UserAndJobStateServer startUpUJSServer(String mongohost,
-			String wsurl, String dbname, AuthToken t, String pwd)
+			String wsurl, String dbname, AuthToken t)
 			throws Exception {
 		//write the server config file:
 		File iniFile = File.createTempFile("test", ".cfg",
@@ -89,12 +89,7 @@ public class JSONRPCLayerTestUtils {
 		ws.add("mongodb-pwd", "foo");
 		ws.add("auth-service-url", TestCommon.getAuthUrl());
 		ws.add("globus-url", TestCommon.getGlobusUrl());
-		if (pwd == null) {
-			ws.add("kbase-admin-token", t.getToken());
-		} else {
-			ws.add("kbase-admin-user", t.getUserName());
-			ws.add("kbase-admin-pwd", pwd);
-		}
+		ws.add("kbase-admin-token", t.getToken());
 		if (wsurl != null) {
 			ws.add("workspace-url", wsurl);
 		}
@@ -134,8 +129,7 @@ public class JSONRPCLayerTestUtils {
 	
 	//TODO ZZLATER make the JSONRPCLayerTester method public & use
 	public static WorkspaceServer startupWorkspaceServer(String mongohost,
-			String dbname, String typedb, AuthToken t1, String pwd1,
-			String user2)
+			String dbname, String typedb, AuthToken t1, String user2)
 			throws InvalidHostException, UnknownHostException, IOException,
 			NoSuchFieldException, IllegalAccessException, Exception,
 			InterruptedException {
@@ -158,12 +152,7 @@ public class JSONRPCLayerTestUtils {
 		ws.add("auth-service-url", TestCommon.getAuthUrl());
 		ws.add("globus-url", TestCommon.getGlobusUrl());
 		ws.add("ws-admin", user2);
-		if (pwd1 == null) {
-			ws.add("kbase-admin-token", t1.getToken());
-		} else {
-			ws.add("kbase-admin-user", t1.getUserName());
-			ws.add("kbase-admin-pwd", pwd1);
-		}
+		ws.add("kbase-admin-token", t1.getToken());
 		ws.add("temp-dir", Paths.get(TestCommon.getTempDir())
 				.resolve("tempForWorkspaceForUJSAuthTest"));
 		ws.add("ignore-handle-service", "true");

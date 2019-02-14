@@ -1,0 +1,23 @@
+
+[UserJobTest]
+
+# Two *different* KBase user accounts.
+test.token1 =
+test.token2 =
+
+# The KBase authorization server legacy url.
+test.auth.url = https://ci.kbase.us/services/auth/api/legacy/KBase/Sessions/Login/
+
+# The KBase authorization server legacy Globus authorization API url.
+test.globus.url = https://ci.kbase.us/services/auth/api/legacy/globus/
+
+# MongoDB exe file location
+test.mongo.exe = /kb/runtime/bin/mongod
+
+# Temp directory for various database and server files. This path cannot have
+# any system specific information (e.g. ~, $HOME, etc)
+test.temp.dir = ujs_test_temp
+
+# Set to 'true' (without quotes) to keep temporary test files
+# (for debugging purposes), any other value is false
+test.temp.dir.keep=false

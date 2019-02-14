@@ -85,15 +85,13 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 		if (USER1.equals(USER2)) {
 			throw new TestException("user1 cannot equal user2: " + USER1);
 		}
-		String p1 = TestCommon.getPwdNullIfToken(1);
-
 		mongo = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
 		SERVER = startUpUJSServer("localhost:" + mongo.getServerPort(),
-				null, DB_NAME, t1, p1);
+				null, DB_NAME, t1);
 		int port = SERVER.getServerPort();
 		System.out.println("Started test server on port " + port);
 		System.out.println("Starting tests");
