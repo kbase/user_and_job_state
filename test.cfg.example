@@ -1,16 +1,6 @@
 
 [UserJobTest]
 
-# Two *different* KBase user accounts.
-test.token1 =
-test.token2 =
-
-# The KBase authorization server legacy url.
-test.auth.url = https://ci.kbase.us/services/auth/api/legacy/KBase/Sessions/Login/
-
-# The KBase authorization server legacy Globus authorization API url.
-test.globus.url = https://ci.kbase.us/services/auth/api/legacy/globus/
-
 # MongoDB exe file location
 test.mongo.exe = <path to mongod executable>
 # 'true' to use the MongoDB WiredTiger file storage engine (3.0+)

@@ -21,9 +21,6 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 
-import us.kbase.auth.AuthException;
-import us.kbase.auth.AuthToken;
-import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.test.TestException;
 
 public class TestCommon {
@@ -35,8 +32,6 @@ public class TestCommon {
 	public static final String KEEP_TEMP_DIR = "test.temp.dir.keep";
 	
 	public static final String JARS_PATH = "test.jars.dir";
-	
-	public static final String TEST_TOKEN_PREFIX = "test.token";
 	
 	public static final String TEST_CONFIG_FILE_PROP_NAME = "test.cfg";
 	public static final String TEST_CONFIG_FILE_SECTION = "UserJobTest";
@@ -95,21 +90,6 @@ public class TestCommon {
 					TEST_CONFIG_FILE_PROP_NAME));
 		}
 		return Paths.get(testCfgFilePathStr).toAbsolutePath().normalize();
-	}
-	
-	public static AuthToken getToken(
-			final int user,
-			final ConfigurableAuthService auth) {
-		try {
-			return auth.validateToken(getToken(user));
-		} catch (AuthException | IOException e) {
-			throw new TestException(String.format(
-					"Couldn't log in user #%s with token: %s", user, e.getMessage()), e);
-		}
-	}
-	
-	public static String getToken(final int user) {
-		return getTestProperty(TEST_TOKEN_PREFIX + user);
 	}
 	
 	public static String getTempDir() {
