@@ -124,7 +124,10 @@ public class SchemaManagerTest {
 			assertThat("incorrect exception message", msg, containsString(
 					"Multiple schema records exist in the database: "));
 			assertThat("incorrect exception message", msg, containsString(
-					"E11000 duplicate key error index: SchemaManagerTests.noindexes.$config_1"));
+					"E11000 duplicate key error"));
+			assertThat("incorrect exception message", msg, containsString(
+					"SchemaManagerTests.noindexes"));
+			assertThat("incorrect exception message", msg, containsString("config_1"));
 		}
 	}
 	
