@@ -532,9 +532,6 @@ public class JobState {
 		return query;
 	}
 	
-	private static final String QRY_CANCELABLE =  String.format(
-			"{%s: #, %s: {$ne: true}}", MONGO_ID, COMPLETE);
-	
 	public void cancelJob(
 			final String user,
 			final String jobID,
@@ -557,7 +554,8 @@ public class JobState {
 				jobID, user));
 		final Job j;
 		try {
-			j = jobjong.findOne(QRY_CANCELABLE, oi).as(Job.class);
+			j = toJob(jobcol.findOne(new BasicDBObject(MONGO_ID, oi)
+					.append(COMPLETE, new BasicDBObject("$ne", true))));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
@@ -616,15 +614,13 @@ public class JobState {
 				jobID, user +
 				(service == null ? "" : " and service " + service)));
 		
-		String querystr = String.format("{%s: #, ", MONGO_ID);
+		final BasicDBObject query = new BasicDBObject(MONGO_ID, id);
 		final Job j;
 		try {
 			if (service == null) {
-				querystr += String.format("%s: true}", COMPLETE);
-				j = jobjong.findOne(querystr, id).as(Job.class);
+				j = toJob(jobcol.findOne(query.append(COMPLETE, true)));
 			} else {
-				querystr += String.format("%s: #}", SERVICE);
-				j = jobjong.findOne(querystr, id, service).as(Job.class);
+				j = toJob(jobcol.findOne(query.append(SERVICE, service)));
 			}
 		} catch (MongoException me) {
 			throw new CommunicationException(
@@ -639,12 +635,6 @@ public class JobState {
 			throw err;
 		}
 		
-		final DBObject query = new BasicDBObject(MONGO_ID, id);
-		if (service == null) {
-			query.put(COMPLETE, true);
-		} else {
-			query.put(SERVICE, service);
-		}
 		final WriteResult wr;
 		try {
 			wr = jobcol.remove(query);
