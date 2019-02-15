@@ -36,7 +36,7 @@ script:
   - ant javadoc
   - ant $ANT_TEST
 
-#after_success:
-#  - ls test-reports
-#  - bash <(curl -s https://codecov.io/bash) -f test-reports/coverage-report.xml
+after_success:
+  - ls test-reports
+  - bash <(curl -s https://codecov.io/bash) -f test-reports/coverage-report.xml
 

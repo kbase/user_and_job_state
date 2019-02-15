@@ -1,4 +1,5 @@
-<project name="User and Job State Service" default="test" basedir=".">
+<project name="User and Job State Service" default="test" basedir="."
+	xmlns:jacoco="antlib:org.jacoco.ant">
 
   <description>
       Build file for the User and Job State Service
@@ -19,6 +20,7 @@
   <property name="war.file" value="UserAndJobStateService.war"/>
   <property name="clientjar.file" value="UserAndJobStateClient.jar"/>
   <property name="war.dir" value="war"/>
+  <property name="test.reports.dir" location="test-reports"/>
 
   <fileset dir="${jardir}" id="sourceslib">
     <include name="kbase/common/kbase-common-0.0.22.jar"/>
@@ -123,6 +125,8 @@
     <!-- Create the output directory structure-->
     <mkdir dir="${classes}"/>
     <mkdir dir="${dist}"/>
+    <mkdir dir="${test.reports.dir}"/>
+    <mkdir dir="${test.reports.dir}/html"/>
   </target>
 
   <target name="compile" depends="init" description="compile the source">
@@ -205,6 +209,44 @@
       <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
     </junit>
     <fail message="Test failure detected, check test results." if="test.failed" />
+  </target>
+
+  <path id="jacoco.classpath">
+    <fileset dir="${jardir}">
+      <include name="jacoco/jacocoant.jar"/>
+    </fileset>
+  </path>
+
+  <taskdef uri="antlib:org.jacoco.ant" resource="org/jacoco/ant/antlib.xml"
+    classpathref="jacoco.classpath"/>
+	
+  <target name="test_coverage"
+          depends="test"
+          description="run tests and generate test report">
+    <delete file="${test.reports.dir}/merged_jacoco.exec"/>
+    <jacoco:merge destfile="${test.reports.dir}/merged_jacoco.exec">
+      <fileset dir="${test.reports.dir}" includes="*.exec"/>
+    </jacoco:merge>
+    <jacoco:report>
+      <executiondata>
+        <file file="${test.reports.dir}/merged_jacoco.exec"/>
+      </executiondata>
+      <structure name="${package} Unit Tests">
+        <classfiles>
+          <fileset dir="${classes}">
+            <exclude name="**/test/**"/>
+          </fileset>
+        </classfiles>
+        <sourcefiles encoding="UTF-8">
+          <fileset dir="${src}">
+            <exclude name="**/test/**"/>
+          </fileset>
+        </sourcefiles>
+      </structure>
+      <html destdir="${test.reports.dir}/html"/>
+      <csv destfile="${test.reports.dir}/coverage-report.csv"/>
+      <xml destfile="${test.reports.dir}/coverage-report.xml"/>
+    </jacoco:report>
   </target>
 	
   <target name="test_client_import" depends="compile" description="make sure the client jar contains all files">
