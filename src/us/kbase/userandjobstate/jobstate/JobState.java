@@ -756,10 +756,6 @@ public class JobState {
 		return queryPrefix;
 	}
 	
-	private final static String QRY_FIND_JOB_BY_OWNER = String.format(
-			"{%s: #, %s: #, %s: \"%s\"}", MONGO_ID, USER, AUTH_STRAT,
-			UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat());
-	
 	//note sharing with an already shared user or sharing with the owner has
 	//no effect
 	public void shareJob(final String owner, final String jobID,
@@ -774,8 +770,11 @@ public class JobState {
 		}
 		final WriteResult wr;
 		try {
-			wr = jobjong.update(QRY_FIND_JOB_BY_OWNER, id, owner)
-					.with("{$addToSet: {" + SHARED + ": {$each: #}}}", us);
+			wr = jobcol.update(
+					new BasicDBObject(MONGO_ID, id).append(USER, owner)
+							.append(AUTH_STRAT, UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat()),
+					new BasicDBObject("$addToSet", new BasicDBObject(SHARED,
+							new BasicDBObject("$each", us))));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
@@ -835,8 +834,10 @@ public class JobState {
 			throw e;
 		}
 		try {
-			jobjong.update(QRY_FIND_JOB_BY_OWNER, id, j.getUser())
-					.with("{$pullAll: {" + SHARED + ": #}}", users);
+			jobcol.update(
+					new BasicDBObject(MONGO_ID, id).append(USER, j.getUser())
+							.append(AUTH_STRAT, UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat()),
+					new BasicDBObject("$pullAll", new BasicDBObject(SHARED, users)));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
