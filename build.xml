@@ -59,6 +59,7 @@
   </fileset>
 
   <fileset dir="${jardir}" id="testlib">
+    <include name="hamcrest/hamcrest-core-1.3.jar"/>
     <include name="kbase/auth2/kbase-auth2test-0.2.4.jar"/>
     <include name="apache_commons/commons-io-2.4.jar"/>
     <include name="apache_commons/commons-collections-3.2.1.jar"/>
@@ -71,10 +72,10 @@
   </fileset>
 	
   <union id="serverside">
+    <fileset refid="testlib"/>
     <fileset refid="serverlib"/>
     <fileset refid="clientserverlib"/>
     <fileset refid="applicationlib"/>
-    <fileset refid="testlib"/>
     <fileset refid="workspacelib"/>
   </union>
 

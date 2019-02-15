@@ -1,6 +1,6 @@
 package us.kbase.userandjobstate.test;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertThat;
 
 import java.text.ParseException;
@@ -58,7 +58,7 @@ public class FakeJob {
 		prog = j.getProgress();
 		maxprog = j.getMaxProgress();
 		status = j.getStatus();
-		assertThat("updated is date", j.getLastUpdated(), is(Date.class));
+		assertThat("updated is date", j.getLastUpdated(), instanceOf(Date.class));
 		complete = j.isComplete();
 		canceledby = j.getCanceledBy();
 		isCanceled = j.isCanceled();

@@ -1,6 +1,7 @@
 package us.kbase.common.test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertThat;
 
 import java.io.DataOutputStream;
@@ -128,7 +129,7 @@ public class TestCommon {
 				ExceptionUtils.getStackTrace(got),
 				got.getLocalizedMessage(),
 				is(expected.getLocalizedMessage()));
-		assertThat("incorrect exception type", got, is(expected.getClass()));
+		assertThat("incorrect exception type", got, instanceOf(expected.getClass()));
 	}
 	
 	//http://quirkygba.blogspot.com/2009/11/setting-environment-variables-in-java.html
