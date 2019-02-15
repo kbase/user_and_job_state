@@ -14,10 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
-import org.jongo.Jongo;
-import org.jongo.MongoCollection;
 
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.SchemaException;
@@ -31,6 +28,7 @@ import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 import com.mongodb.WriteResult;
@@ -80,7 +78,6 @@ public class JobState {
 	public final static int SCHEMA_VER = 2;
 	
 	private final DBCollection jobcol;
-	private final MongoCollection jobjong;
 	
 	public JobState(final DBCollection jobcol, final SchemaManager sm)
 			throws SchemaException {
@@ -88,7 +85,6 @@ public class JobState {
 			throw new NullPointerException("jobcol");
 		}
 		this.jobcol = jobcol;
-		jobjong = new Jongo(jobcol.getDB()).getCollection(jobcol.getName());
 		ensureIndexes();
 		sm.checkSchema(SCHEMA_TYPE, SCHEMA_VER);
 	}
@@ -716,34 +712,40 @@ public class JobState {
 		 */
 		checkString(user, "user");
 		auth.authorizeRead(strat, user, authParams);
-		String query;
+		final BasicDBObject query = startQuery(running, complete, canceled, error);
 		if (strat.equals(UJSAuthorizer.DEFAULT_AUTH_STRAT)) {
 			if (shared) {
-				query = String.format("{$or: [{%s: '%s'}, {%s: '%s'}]",
-						USER, user, SHARED, user);
+				// clean this up later
+				final List<BasicDBObject> shr = Arrays.asList(new BasicDBObject(USER, user),
+						new BasicDBObject(SHARED, user));
+				@SuppressWarnings("unchecked")
+				final List<BasicDBObject> bdor = (List<BasicDBObject>) query.remove("$or");
+				if (bdor == null) {
+					query.put("$or", shr);
+				} else {
+					query.put("$and", Arrays.asList(new BasicDBObject("$or", bdor),
+							new BasicDBObject("$or", shr)));
+				}
 			} else {
-				query = String.format("{%s: '%s'", USER, user);
+				query.put(USER, user);
 			}
 		} else {
-			query = String.format("{%s: '%s', %s: {$in: ['%s']}",
-					AUTH_STRAT, strat.getStrat(),
-					AUTH_PARAM, StringUtils.join(authParams, "', '"));
+			query.append(AUTH_STRAT, strat.getStrat())
+					.append(AUTH_PARAM, new BasicDBObject("$in", authParams));
 		}
 		if (services != null && !services.isEmpty()) {
 			for (final String s: services) {
 				checkString(s, "service", MAX_LEN_SERVICE);
 			}
-			query += String.format(", %s: {$in: ['%s']}", SERVICE,
-					StringUtils.join(services, "', '"));
+			query.put(SERVICE, new BasicDBObject("$in", services));
 		} else {
-			query += String.format(", %s: {$ne: null}", SERVICE);
+			query.put(SERVICE, new BasicDBObject("$ne", null));
 		}
-		query = completeQuery(query, running, complete, canceled, error);
 		final List<Job> jobs = new LinkedList<Job>();
 		try {
-			final Iterable<Job> j  = jobjong.find(query).as(Job.class);
-			for (final Job job: j) {
-				jobs.add(job);
+			final DBCursor cur = jobcol.find(query);
+			for (final DBObject dbo: cur) {
+				jobs.add(toJob(dbo));
 			}
 		} catch (MongoException me) {
 			throw new CommunicationException(
@@ -752,8 +754,7 @@ public class JobState {
 		return jobs;
 	}
 
-	private String completeQuery(
-			String queryPrefix,
+	private BasicDBObject startQuery(
 			final boolean running,
 			final boolean complete,
 			final boolean canceled,
@@ -764,46 +765,45 @@ public class JobState {
 		 * requires DB update, but would make this much simpler.
 		 * This is fucking dumb. Live with it for now.
 		 */
+		final BasicDBObject query = new BasicDBObject();
+		final BasicDBObject exists = new BasicDBObject("$exists", true);
+		final BasicDBObject notExists = new BasicDBObject("$exists", false);
 		if (running && !complete && !canceled && !error) {
-			queryPrefix += ", " + COMPLETE + ": false}";
+			query.put(COMPLETE, false);
 		} else if (!running && complete && !canceled && !error) {
-			queryPrefix += ", " + COMPLETE + ": true, " + ERROR + ": false, " +
-					CANCELEDBY + ": {$exists: false}}";
+			query.append(COMPLETE, true).append(ERROR, false).append(CANCELEDBY, notExists);
 		} else if (!running && !complete && canceled && !error) {
-			queryPrefix += ", " + CANCELEDBY + ": {$exists: true}}";
+			query.append(CANCELEDBY, exists);
 		} else if (!running && !complete && !canceled && error) {
-			queryPrefix += ", " + ERROR + ": true}";
+			query.put(ERROR, true);
 		} else if (running && complete && !canceled && !error) {
-			queryPrefix += ", " + ERROR + ": false, " +
-					CANCELEDBY + ": {$exists: false}}";
+			query.append(ERROR, false).append(CANCELEDBY, notExists);
 		} else if (running && !complete && canceled && !error) {
-			queryPrefix += ", $or: [{" + COMPLETE + ": false}, {" +
-					CANCELEDBY + ": {$exists: true}}]}";
+			query.append("$or", Arrays.asList(new BasicDBObject(COMPLETE, false),
+					new BasicDBObject(CANCELEDBY, exists)));
 		} else if (running && !complete && !canceled && error) {
-			queryPrefix += ", $or: [{" + COMPLETE + ": false}, {" +
-					ERROR + ": true}]}";
+			query.append("$or", Arrays.asList(new BasicDBObject(COMPLETE, false),
+					new BasicDBObject(ERROR, true)));
 		} else if (running && complete && canceled && !error) {
-			queryPrefix += ", " + ERROR + ": false}";
+			query.append(ERROR, false);
 		} else if (running && complete && !canceled && error) {
-			queryPrefix += ", " + CANCELEDBY + ": {$exists: false}}";
+			query.append(CANCELEDBY, notExists);
 		} else if (running && !complete && canceled && error) {
-			queryPrefix += ", $or: [{ " + COMPLETE + ": false}, {" +
-					ERROR + ": true}, {" +
-					CANCELEDBY + ": {$exists: true}}]}";
+			query.append("$or", Arrays.asList(
+					new BasicDBObject(COMPLETE, false),
+					new BasicDBObject(ERROR, true),
+					new BasicDBObject(CANCELEDBY, exists)));
 		} else if (!running && complete && canceled && !error) {
-			queryPrefix += ", " + COMPLETE + ": true, " + ERROR + ": false}";
+			query.append(COMPLETE, true).append(ERROR, false);
 		} else if (!running && complete && !canceled && error) {
-			queryPrefix += ", " + COMPLETE + ": true, " +
-					CANCELEDBY + ": {$exists: false}}";
+			query.append(COMPLETE, true).append(CANCELEDBY, notExists);
 		} else if (!running && complete && canceled && error) {
-			queryPrefix += ", " + COMPLETE + ": true}";
+			query.put(COMPLETE, true);
 		} else if (!running && !complete && canceled && error) {
-			queryPrefix += ", $or: [{" + ERROR + ": true}, {" +
-					CANCELEDBY + ": {$exists: true}}]}";
-		} else {
-			queryPrefix += "}";
-		}
-		return queryPrefix;
+			query.append("$or", Arrays.asList(new BasicDBObject(ERROR, true),
+					new BasicDBObject(CANCELEDBY, exists)));
+		} // otherwise leave the query alone
+		return query;
 	}
 	
 	//note sharing with an already shared user or sharing with the owner has
