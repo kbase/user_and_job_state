@@ -21,9 +21,9 @@ import org.junit.Test;
 
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.MongoClient;
 
 import us.kbase.common.exceptions.UnimplementedException;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
@@ -44,13 +44,13 @@ public class AuthorizationTest {
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
+		TestCommon.stfuLoggers();
 		mongo = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		final DB db = GetMongoDB.getDB(
-				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		final DB db = new MongoClient("localhost:" + mongo.getServerPort()).getDB(DB_NAME);
 		DBCollection jobcol = db.getCollection("jobstate");
 		DBCollection schemacol = db.getCollection("schema");
 		js = new JobState(jobcol, new SchemaManager(schemacol));

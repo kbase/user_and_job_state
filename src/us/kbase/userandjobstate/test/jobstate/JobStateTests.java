@@ -27,9 +27,9 @@ import org.junit.Test;
 
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.MongoClient;
 
 import us.kbase.common.exceptions.UnimplementedException;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.RegexMatcher;
@@ -59,13 +59,13 @@ public class JobStateTests {
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
+		TestCommon.stfuLoggers();
 		mongo = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		final DB db = GetMongoDB.getDB(
-				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		final DB db = new MongoClient("localhost:" + mongo.getServerPort()).getDB(DB_NAME);
 		jobcol = db.getCollection("jobstate");
 		schemacol = db.getCollection("schema");
 		js = new JobState(jobcol, new SchemaManager(schemacol));
@@ -81,9 +81,10 @@ public class JobStateTests {
 	
 	@Before
 	public void clearDB() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
-				DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + mongo.getServerPort());
+		final DB db = mc.getDB(DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	private static final RegexMatcher OBJ_ID_MATCH = new RegexMatcher("[\\da-f]{24}");

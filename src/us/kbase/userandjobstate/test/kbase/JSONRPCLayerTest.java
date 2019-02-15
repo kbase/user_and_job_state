@@ -24,9 +24,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.mongodb.DB;
+import com.mongodb.MongoClient;
 
 import us.kbase.auth.AuthToken;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
@@ -131,8 +131,10 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	@Before
 	public void clearDB() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(), DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + MONGO.getServerPort());
+		final DB db = mc.getDB(DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	@Test

@@ -1,6 +1,7 @@
 package us.kbase.common.test.schemamanager;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -13,7 +14,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
@@ -25,6 +25,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
+import com.mongodb.MongoClient;
 
 public class SchemaManagerTest {
 
@@ -38,13 +39,12 @@ public class SchemaManagerTest {
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
+		TestCommon.stfuLoggers();
 		mongo = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
-		
-		db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(), DB_NAME, 0,
-				0);
+		db = new MongoClient("localhost:" + mongo.getServerPort()).getDB(DB_NAME);
 	}
 	
 	@AfterClass
@@ -56,8 +56,6 @@ public class SchemaManagerTest {
 	
 	@Before
 	public void clearDB() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
-				DB_NAME);
 		TestCommon.destroyDB(db);
 	}
 	
@@ -122,13 +120,11 @@ public class SchemaManagerTest {
 			new SchemaManager(dbc);
 			fail("created manager with bad schema docs");
 		} catch (InvalidSchemaRecordException e) {
-			final String msg = e.getLocalizedMessage();
-			assertThat("incorrect exception message",
-					msg.contains("Multiple schema records exist in the database: {"),
-					is(true));
-			assertThat("incorrect exception message",
-					msg.contains("E11000 duplicate key error index: SchemaManagerTests.noindexes.$config_1"),
-					is(true));
+			final String msg = e.getMessage();
+			assertThat("incorrect exception message", msg, containsString(
+					"Multiple schema records exist in the database: "));
+			assertThat("incorrect exception message", msg, containsString(
+					"E11000 duplicate key error index: SchemaManagerTests.noindexes.$config_1"));
 		}
 	}
 	
