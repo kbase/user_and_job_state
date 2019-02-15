@@ -193,21 +193,24 @@
 
   <target name="test" depends="compile" description="run tests">
     <echo message="starting ${package} tests"/>
-    <junit failureproperty="test.failed" fork="yes">
-      <classpath refid="test.classpath"/>
-      <formatter type="plain" usefile="false" />
-      <sysproperty key="test.cfg" value="./test.cfg"/>
-      <test name="us.kbase.userandjobstate.test.jobstate.JobStateTests"/>
-      <test name="us.kbase.userandjobstate.test.jobstate.JobResultsTest"/>
-      <test name="us.kbase.userandjobstate.test.userstate.UserStateTests"/>
-      <test name="us.kbase.userandjobstate.test.kbase.JSONRPCLayerTest"/>
-      <test name="us.kbase.userandjobstate.test.kbase.JSONRPCWithWSAuth"/>
-      <test name="us.kbase.userandjobstate.test.kbase.WorkspaceAuthTest"/>
-      <test name="us.kbase.userandjobstate.test.kbase.PullWSJobWithoutWSTest"/>
-      <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
-      <test name="us.kbase.userandjobstate.test.docserver.DocServerTest"/>
-      <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
-    </junit>
+    <delete file="${test.reports.dir}/ujs.exec"/>
+    <jacoco:coverage destfile="${test.reports.dir}/ujs.exec" excludes="org/*:junit/*">
+      <junit failureproperty="test.failed" fork="yes">
+        <classpath refid="test.classpath"/>
+        <formatter type="plain" usefile="false" />
+        <sysproperty key="test.cfg" value="./test.cfg"/>
+        <test name="us.kbase.userandjobstate.test.jobstate.JobStateTests"/>
+        <test name="us.kbase.userandjobstate.test.jobstate.JobResultsTest"/>
+        <test name="us.kbase.userandjobstate.test.userstate.UserStateTests"/>
+        <test name="us.kbase.userandjobstate.test.kbase.JSONRPCLayerTest"/>
+        <test name="us.kbase.userandjobstate.test.kbase.JSONRPCWithWSAuth"/>
+        <test name="us.kbase.userandjobstate.test.kbase.WorkspaceAuthTest"/>
+        <test name="us.kbase.userandjobstate.test.kbase.PullWSJobWithoutWSTest"/>
+        <test name="us.kbase.userandjobstate.test.authorization.AuthorizationTest"/>
+        <test name="us.kbase.userandjobstate.test.docserver.DocServerTest"/>
+        <test name="us.kbase.common.test.schemamanager.SchemaManagerTest"/>
+      </junit>
+    </jacoco:coverage>
     <fail message="Test failure detected, check test results." if="test.failed" />
   </target>
 
