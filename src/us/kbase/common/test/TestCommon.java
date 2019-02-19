@@ -3,17 +3,21 @@ package us.kbase.common.test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.net.MalformedURLException;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.ini4j.Ini;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 
@@ -23,9 +27,6 @@ import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.test.TestException;
 
 public class TestCommon {
-	
-	public static final String AUTHSERV = "test.auth.url";
-	public static final String GLOBUS = "test.globus.url";
 	
 	public static final String MONGOEXE = "test.mongo.exe";
 	public static final String MONGO_USE_WIRED_TIGER = "test.mongo.useWiredTiger";
@@ -111,23 +112,6 @@ public class TestCommon {
 		return getTestProperty(TEST_TOKEN_PREFIX + user);
 	}
 	
-	public static URL getAuthUrl() {
-		return getURL(AUTHSERV);
-	}
-	
-	private static URL getURL(String prop) {
-		try {
-			return new URL(getTestProperty(prop));
-		} catch (MalformedURLException e) {
-			throw new TestException("Property " + prop + " is not a valid url",
-					e);
-		}
-	}
-	
-	public static URL getGlobusUrl() {
-		return getURL(GLOBUS);
-	}
-	
 	public static String getTempDir() {
 		return getTestProperty(TEST_TEMP_DIR);
 	}
@@ -177,5 +161,60 @@ public class TestCommon {
 		Field m = cu.getDeclaredField("m");
 		m.setAccessible(true);
 		return (Map<String, String>) m.get(unmodifiable);
+	}
+	
+	public static void createAuthUser(
+			final URL authURL,
+			final String userName,
+			final String displayName)
+					throws Exception {
+		final URL target = new URL(authURL.toString() + "/api/V2/testmodeonly/user");
+		final HttpURLConnection conn = (HttpURLConnection) target.openConnection();
+		conn.setRequestMethod("POST");
+		conn.setRequestProperty("content-type", "application/json");
+		conn.setRequestProperty("accept", "application/json");
+		conn.setDoOutput(true);
+
+		final DataOutputStream writer = new DataOutputStream(conn.getOutputStream());
+		writer.writeBytes(new ObjectMapper().writeValueAsString(ImmutableMap.of(
+				"user", userName,
+				"display", displayName)));
+		writer.flush();
+		writer.close();
+
+		checkForError(conn);
+	}
+
+	private static void checkForError(final HttpURLConnection conn) throws IOException {
+		if (conn.getResponseCode() != 200) {
+			String err = IOUtils.toString(conn.getErrorStream()); 
+			System.out.println(err);
+			if (err.length() > 200) {
+				err = err.substring(0, 200);
+			}
+			throw new TestException(err);
+		}
+	}
+
+	public static String createLoginToken(final URL authURL, String user) throws Exception {
+		final URL target = new URL(authURL.toString() + "/api/V2/testmodeonly/token");
+		final HttpURLConnection conn = (HttpURLConnection) target.openConnection();
+		conn.setRequestMethod("POST");
+		conn.setRequestProperty("content-type", "application/json");
+		conn.setRequestProperty("accept", "application/json");
+		conn.setDoOutput(true);
+
+		final DataOutputStream writer = new DataOutputStream(conn.getOutputStream());
+		writer.writeBytes(new ObjectMapper().writeValueAsString(ImmutableMap.of(
+				"user", user,
+				"type", "Login")));
+		writer.flush();
+		writer.close();
+
+		checkForError(conn);
+		final String out = IOUtils.toString(conn.getInputStream());
+		@SuppressWarnings("unchecked")
+		final Map<String, Object> resp = new ObjectMapper().readValue(out, Map.class);
+		return (String) resp.get("token");
 	}
 }

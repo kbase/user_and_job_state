@@ -156,10 +156,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	public static final String PWD = "mongodb-pwd";
 	//mongo connection attempt limit
 	private static final String MONGO_RECONNECT = "mongodb-retry";
-	//credentials to use for user queries
-	private static final String KBASE_ADMIN_USER = "kbase-admin-user";
-	private static final String KBASE_ADMIN_PWD = "kbase-admin-pwd";
-	private static final String KBASE_ADMIN_TOKEN = "kbase-admin-token";
 	
 	//auth servers
 	private static final String KBASE_AUTH_URL = "auth-service-url";
@@ -178,8 +174,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	
 	private final static int MAX_LEN_SERVTYPE = 100;
 	private final static int MAX_LEN_DESC = 1000;
-	
-	private final static int TOKEN_REFRESH_INTERVAL_SEC = 24 * 60 * 60;
 	
 	private final UserState us;
 	private final JobState js;
@@ -513,7 +507,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return date == null ? null : DATE_FORMATTER.print(new DateTime(date));
 	}
 	
-	private void checkUsers(final List<String> users, AuthToken token)
+	private void checkUsers(final List<String> users, final AuthToken token)
 			throws IOException, AuthException {
 		//token is guaranteed to not be null since all calls require
 		//authentication
@@ -527,7 +521,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						"A user name cannot be null or the empty string");
 			}
 		}
-		final Map<String, Boolean> userok = auth.isValidUserName(users);
+		final Map<String, Boolean> userok = auth.isValidUserName(users, token);
 		for (String u: userok.keySet()) {
 			if (!userok.get(u)) {
 				throw new IllegalArgumentException(String.format(
@@ -576,9 +570,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	/* assumes params are already in map and empty strings were set to null*/
-	@SuppressWarnings("deprecation")
-	private ConfigurableAuthService setUpAuthClient(
-			final Map<String, String> config) {
+	private ConfigurableAuthService setUpAuthClient(final Map<String, String> config) {
 		final URL authURL = getURL(config, KBASE_AUTH_URL);
 		final String authAllowInsecure = config.get(INSECURE_AUTH_URL);
 		final URL globusURL = getURL(config, GLOBUS_AUTH_URL);
@@ -594,24 +586,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		} catch (URISyntaxException e) {
 			throw new RuntimeException("Neat. I'm suprised this happened", e);
 		}
-		final boolean token = config.get(KBASE_ADMIN_TOKEN) != null;
-		final ConfigurableAuthService auth;
 		try {
-			auth = new ConfigurableAuthService(c);
-			if (token) {
-				c.withToken(auth.validateToken(config.get(KBASE_ADMIN_TOKEN)));
-			} else {
-				//TODO AUTH LATER remove refreshing token
-				c.withRefreshingToken(auth.getRefreshingToken(
-						config.get(KBASE_ADMIN_USER),
-						config.get(KBASE_ADMIN_PWD),
-						TOKEN_REFRESH_INTERVAL_SEC));
-			}
-			return auth;
-		} catch (AuthException e) {
-			fail("Couldn't log in the KBase administrative user " +
-					(token ? "with a token" : config.get(KBASE_ADMIN_USER)) +
-					": " + e.getMessage());
+			return new ConfigurableAuthService(c);
 		} catch (IOException e) {
 			fail("Couldn't connect to authorization service at " +
 					c.getAuthServerURL() + " : " + e.getLocalizedMessage());
@@ -704,23 +680,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					USER, PWD) + "params in config file if authentication " + 
 					"is to be used");
 			failed = true;
-		}
-		if (!hasParam(ujConfig, KBASE_ADMIN_TOKEN)) {
-			ujConfig.put(KBASE_ADMIN_TOKEN, null);
-			if (!hasParam(ujConfig, KBASE_ADMIN_USER)) {
-				fail(String.format(
-						"Must provide param %s or %s in config file",
-						KBASE_ADMIN_USER, KBASE_ADMIN_TOKEN));
-				failed = true;
-			}
-			if (!hasParam(ujConfig, KBASE_ADMIN_PWD)) {
-				fail("Must provide param " + KBASE_ADMIN_PWD +
-						" in config file");
-				failed = true;
-			}
-		} else {
-			ujConfig.put(KBASE_ADMIN_USER, null);
-			ujConfig.put(KBASE_ADMIN_PWD, null);
 		}
 		
 		if (failed) {

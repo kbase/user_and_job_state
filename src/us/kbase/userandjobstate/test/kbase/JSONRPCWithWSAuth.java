@@ -6,7 +6,7 @@ import static org.junit.Assert.assertThat;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,16 +18,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthToken;
-import us.kbase.auth.AuthUser;
-import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
-import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.test.auth2.authcontroller.AuthController;
 import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.UserAndJobStateClient;
@@ -45,12 +42,12 @@ import com.mongodb.DB;
 
 public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	
-	public static final Map<String, String> MTMAP =
-			new HashMap<String, String>();
+	public static final Map<String, String> MTMAP = Collections.emptyMap();
 	
 	public static final String KBWS = "kbaseworkspace";
 	
 	public static MongoController MONGO;
+	public static AuthController AUTHC;
 	
 	public static WorkspaceController WS;
 	public static WorkspaceClient WSC1;
@@ -60,10 +57,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	public static UserAndJobStateClient UJSC1;
 	public static UserAndJobStateClient UJSC2;
 	
-	public static AuthUser U1;
-	public static String USER1;
-	public static AuthUser U2;
-	public static String USER2;
+	public static String USER1 = "user1";
+	public static String USER2 = "user2";
 	public static String TOKEN1;
 	public static String TOKEN2;
 	
@@ -72,31 +67,38 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
-		final ConfigurableAuthService auth = new ConfigurableAuthService(
-				new AuthConfig().withKBaseAuthServerURL(
-						TestCommon.getAuthUrl()));
-		final AuthToken t1 = TestCommon.getToken(1, auth);
-		final AuthToken t2 = TestCommon.getToken(2, auth);
-		USER1 = t1.getUserName();
-		USER2 = t2.getUserName();
-		if (USER1.equals(USER2)) {
-			throw new TestException("user1 cannot equal user2: " + USER1);
-		}
-		U1 = auth.getUserFromToken(t1);
-		U2 = auth.getUserFromToken(t2);
+		TestCommon.stfuLoggers();
 		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
-				Paths.get(TestCommon.getTempDir()));
+				Paths.get(TestCommon.getTempDir()),
+				TestCommon.useWiredTigerEngine());
 		System.out.println("Using Mongo temp dir " + MONGO.getTempDir());
 		String mongohost = "localhost:" + MONGO.getServerPort();
 		System.out.println("mongo on " + mongohost);
+		
+		// set up auth
+		final String dbname = JSONRPCLayerTest.class.getSimpleName() + "Auth";
+		AUTHC = new AuthController(
+				TestCommon.getJarsDir(),
+				"localhost:" + MONGO.getServerPort(),
+				dbname,
+				Paths.get(TestCommon.getTempDir()));
+		
+		final URL authURL = new URL("http://localhost:" + AUTHC.getServerPort() + "/testmode");
+		System.out.println("started auth server at " + authURL);
+		TestCommon.createAuthUser(authURL, USER1, "display1");
+		TOKEN1 = TestCommon.createLoginToken(authURL, USER1);
+		TestCommon.createAuthUser(authURL, USER2, "display2");
+		TOKEN2 = TestCommon.createLoginToken(authURL, USER2);
+		final AuthToken t1 = new AuthToken(TOKEN1, USER1);
+		final AuthToken t2 = new AuthToken(TOKEN2, USER2);
 		
 		WS = new WorkspaceController(
 				TestCommon.getJarsDir(),
 				mongohost,
 				WS_DB_NAME,
-				t2.getUserName(),
-				new URL(TestCommon.getAuthUrl().toString().replace("/api/legacy/KBase/Sessions/Login", "")),
+				USER2,
+				authURL,
 				Paths.get(TestCommon.getTempDir()).resolve("tempForWorkspaceForUJSAuthTest"));
 		
 		final int wsport = WS.getServerPort();
@@ -105,9 +107,11 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		WSC1.setIsInsecureHttpConnectionAllowed(true);
 		WSC2.setIsInsecureHttpConnectionAllowed(true);
 		
-		UJS = startUpUJSServer("localhost:" + MONGO.getServerPort(),
+		UJS = startUpUJSServer(
+				"localhost:" + MONGO.getServerPort(),
+				authURL,
 				"http://localhost:" + WS.getServerPort(),
-				JOB_DB_NAME, t1);
+				JOB_DB_NAME);
 		int ujsport = UJS.getServerPort();
 		System.out.println("Started UJS test server on port " + ujsport);
 		System.out.println("Starting tests");
@@ -125,6 +129,9 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	public static void afterClass() throws Exception {
 		if (MONGO != null) {
 			MONGO.destroy(TestCommon.getDeleteTempFiles());
+		}
+		if (AUTHC != null) {
+			AUTHC.destroy(TestCommon.getDeleteTempFiles());
 		}
 		if (WS != null) {
 			WS.destroy(TestCommon.getDeleteTempFiles());
@@ -168,18 +175,18 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 				null, null, null, null, null, null, null, KBWS, "2", MTMAP);
 		
 		failCreateJob(UJSC2, KBWS, "1", String.format(
-				"User %s cannot write to workspace 1", U2.getUserId()));
+				"User %s cannot write to workspace 1", USER2));
 		
-		setPermissions(WSC1, 1, "r", U2.getUserId());
+		setPermissions(WSC1, 1, "r", USER2);
 		failCreateJob(UJSC2, KBWS, "1", String.format(
-				"User %s cannot write to workspace 1", U2.getUserId()));
+				"User %s cannot write to workspace 1", USER2));
 		
-		setPermissions(WSC1, 1, "w", U2.getUserId());
+		setPermissions(WSC1, 1, "w", USER2);
 		String id3 = UJSC2.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
 		checkJob(UJSC1, id3, USER2, null, "created", null, null, null, null,
 				null, null, null, null, null, null, null, KBWS, "1", MTMAP);
-		setPermissions(WSC1, 1, "a", U2.getUserId());
+		setPermissions(WSC1, 1, "a", USER2);
 		String id4 = UJSC2.createJob2(new CreateJobParams().withAuthstrat(KBWS)
 				.withAuthparam("1"));
 		checkJob(UJSC1, id4, USER2, null, "created", null, null, null, null,
@@ -391,7 +398,6 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	@Test
 	public void testListJobs() throws Exception {
 		InitProgress noprog = new InitProgress().withPtype("none");
-		String user2 = U2.getUserId();
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
@@ -399,8 +405,8 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 			.withWorkspace("foo1"));
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo2"));
-		setPermissions(WSC1, 1, "r", user2);
-		setPermissions(WSC1, 3, "r", user2);
+		setPermissions(WSC1, 1, "r", USER2);
+		setPermissions(WSC1, 3, "r", USER2);
 		
 		String id1 =  UJSC1.createJob2(new CreateJobParams()
 			.withAuthstrat(KBWS).withAuthparam("1"));
@@ -414,13 +420,13 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		// check that this doesn't show up in ws lists
 		UJSC1.createAndStartJob(TOKEN2, "defstat", "defdesc", noprog, null);
 		
-		FakeJob fj1 = new FakeJob(id1, USER1, null, user2, "started", null,
+		FakeJob fj1 = new FakeJob(id1, USER1, null, USER2, "started", null,
 				"desc1", "none", null, null, "stat1", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "1", MTMAP);
-		FakeJob fj2 = new FakeJob(id2, USER1, null, user2, "started", null,
+		FakeJob fj2 = new FakeJob(id2, USER1, null, USER2, "started", null,
 				"desc2", "none", null, null, "stat2", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "2", MTMAP);
-		FakeJob fj3 = new FakeJob(id3, USER1, null, user2, "started", null,
+		FakeJob fj3 = new FakeJob(id3, USER1, null, USER2, "started", null,
 				"desc3", "none", null, null, "stat3", false, false, null, null,
 				new AuthorizationStrategy(KBWS), "3", MTMAP);
 		Set<FakeJob> fjs123 = new HashSet<FakeJob>(
@@ -429,45 +435,45 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 		Set<FakeJob> fjs3 = new HashSet<FakeJob>(Arrays.asList(fj3));
 		
 		
-		checkListJobs2(UJSC1, user2, "", fjs123, KBWS,
+		checkListJobs2(UJSC1, USER2, "", fjs123, KBWS,
 				Arrays.asList("1", "2", "3"));
-		checkListJobs2(UJSC2, user2, "", fjs13, KBWS,
+		checkListJobs2(UJSC2, USER2, "", fjs13, KBWS,
 				Arrays.asList("1", "3"));
-		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "2", "3"),
-				String.format("User %s cannot read workspace 2", user2));
+		failListJobs2(UJSC2, USER2, KBWS, Arrays.asList("1", "2", "3"),
+				String.format("User %s cannot read workspace 2", USER2));
 		
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
-		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "3"),
+		failListJobs2(UJSC2, USER2, KBWS, Arrays.asList("1", "3"),
 				"Error contacting the workspace service to get permissions: " +
 				"Workspace 1 is deleted");
-		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("3", "4"),
+		failListJobs2(UJSC2, USER2, KBWS, Arrays.asList("3", "4"),
 				"Error contacting the workspace service to get permissions: " +
 				"No workspace with id 4 exists");
-		checkListJobs2(UJSC1, user2, "", fjs3, KBWS, Arrays.asList("3"));
+		checkListJobs2(UJSC1, USER2, "", fjs3, KBWS, Arrays.asList("3"));
 		
 		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
 				"params", new WorkspaceIdentity().withId(1L))));
-		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		checkListJobs2(UJSC2, USER2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
-		setPermissions(WSC1, 3, "n", user2);
+		setPermissions(WSC1, 3, "n", USER2);
 
 		//check fencepost error
-		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "3"),
-				String.format("User %s cannot read workspace 3", user2));
+		failListJobs2(UJSC2, USER2, KBWS, Arrays.asList("1", "3"),
+				String.format("User %s cannot read workspace 3", USER2));
 		
-		setPermissions(WSC1, 3, "w", user2);
-		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		setPermissions(WSC1, 3, "w", USER2);
+		checkListJobs2(UJSC2, USER2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
-		setPermissions(WSC1, 3, "a", user2);
-		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		setPermissions(WSC1, 3, "a", USER2);
+		checkListJobs2(UJSC2, USER2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
 		//test globally readable workspaces
-		setPermissions(WSC1, 3, "n", user2);
-		failListJobs2(UJSC2, user2, KBWS, Arrays.asList("1", "3"),
-				String.format("User %s cannot read workspace 3", user2));
+		setPermissions(WSC1, 3, "n", USER2);
+		failListJobs2(UJSC2, USER2, KBWS, Arrays.asList("1", "3"),
+				String.format("User %s cannot read workspace 3", USER2));
 		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(3L)
 				.withNewPermission("r"));
-		checkListJobs2(UJSC2, user2, "", fjs13, KBWS, Arrays.asList("1", "3"));
+		checkListJobs2(UJSC2, USER2, "", fjs13, KBWS, Arrays.asList("1", "3"));
 		
 		failListJobs2(UJSC1, "foo", KBWS, new LinkedList<String>(),
 				"authParams cannot be null or empty");

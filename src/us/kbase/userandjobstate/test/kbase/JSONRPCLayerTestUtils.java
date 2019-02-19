@@ -6,6 +6,7 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -18,8 +19,6 @@ import org.ini4j.Ini;
 import org.ini4j.Profile.Section;
 import org.slf4j.LoggerFactory;
 
-
-import us.kbase.auth.AuthToken;
 import us.kbase.common.service.JsonClientException;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple13;
@@ -65,8 +64,11 @@ public class JSONRPCLayerTestUtils {
 				.setLevel(Level.OFF);
 	}
 	
-	public static UserAndJobStateServer startUpUJSServer(String mongohost,
-			String wsurl, String dbname, AuthToken t)
+	public static UserAndJobStateServer startUpUJSServer(
+			final String mongohost,
+			final URL authURL,
+			final String wsurl,
+			final String dbname)
 			throws Exception {
 		//write the server config file:
 		File iniFile = File.createTempFile("test", ".cfg",
@@ -80,9 +82,9 @@ public class JSONRPCLayerTestUtils {
 		ws.add("mongodb-database", dbname);
 		ws.add("mongodb-user", "foo");
 		ws.add("mongodb-pwd", "foo");
-		ws.add("auth-service-url", TestCommon.getAuthUrl());
-		ws.add("globus-url", TestCommon.getGlobusUrl());
-		ws.add("kbase-admin-token", t.getToken());
+		ws.add("auth-service-url", authURL + "/api/legacy/KBase/Sessions/Login");
+		ws.add("auth-service-url-allow-insecure", "true");
+		ws.add("globus-url", authURL + "/api/legacy/globus/");
 		if (wsurl != null) {
 			ws.add("workspace-url", wsurl);
 		}
