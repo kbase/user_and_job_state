@@ -12,7 +12,13 @@ test.auth.url = https://ci.kbase.us/services/auth/api/legacy/KBase/Sessions/Logi
 test.globus.url = https://ci.kbase.us/services/auth/api/legacy/globus/
 
 # MongoDB exe file location
-test.mongo.exe = /kb/runtime/bin/mongod
+test.mongo.exe = <path to mongod executable>
+# 'true' to use the MongoDB WiredTiger file storage engine (3.0+)
+test.mongo.useWiredTiger=false
+
+# The path to the jars dir inside the jars repo, e.g.
+# [path to jars repo]/lib/jars
+test.jars.dir =
 
 # Temp directory for various database and server files. This path cannot have
 # any system specific information (e.g. ~, $HOME, etc)

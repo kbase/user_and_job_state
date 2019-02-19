@@ -32,8 +32,8 @@
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/kidl/kbase-kidl-parser-1409261812-7863aef.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/apache_commons/http/httpclient-4.3.1.jar" sourcepath="/home/crusherofheads/Downloads/httpclient-4.3.1-sources.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/apache_commons/http/httpcore-4.3.jar" sourcepath="/home/crusherofheads/Downloads/httpcore-4.3-sources.jar"/>
-	<classpathentry kind="lib" path="/jars/lib/jars/kbase/workspace/WorkspaceService-0.5.0-dev6.jar"/>
-	<classpathentry kind="lib" path="/jars/lib/jars/kbase/common/kbase-common-0.0.20.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/auth/kbase-auth-0.4.4.jar"/>
+	<classpathentry kind="lib" path="/jars/lib/jars/kbase/common/kbase-common-0.0.22.jar"/>
+	<classpathentry kind="lib" path="/jars/lib/jars/kbase/workspace/WorkspaceService-0.8.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

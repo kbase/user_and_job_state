@@ -15,6 +15,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 
@@ -25,6 +26,7 @@ import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.exceptions.UnimplementedException;
 import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
@@ -34,11 +36,11 @@ import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationExcepti
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
+import us.kbase.userandjobstate.test.controllers.workspace.WorkspaceController;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.SetGlobalPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
-import us.kbase.workspace.WorkspaceServer;
 import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class WorkspaceAuthTest {
@@ -50,7 +52,7 @@ public class WorkspaceAuthTest {
 	public static AuthUser U2;
 	
 	public static MongoController MONGO;
-	public static WorkspaceServer WS;
+	public static WorkspaceController WS;
 	public static WorkspaceClient WSC1;
 	public static WorkspaceClient WSC2;
 	private static DBCollection JOBCOL;
@@ -80,8 +82,14 @@ public class WorkspaceAuthTest {
 		String mongohost = "localhost:" + MONGO.getServerPort();
 		System.out.println("mongo on " + mongohost);
 		
-		WS = JSONRPCLayerTestUtils.startupWorkspaceServer(
-				mongohost, WS_DB_NAME, "ws_types", t1, t2.getUserName());
+		WS = new WorkspaceController(
+				TestCommon.getJarsDir(),
+				mongohost,
+				WS_DB_NAME,
+				t2.getUserName(),
+				new URL(TestCommon.getAuthUrl().toString().replace("/api/legacy/KBase/Sessions/Login", "")),
+				Paths.get(TestCommon.getTempDir()).resolve("tempForWorkspaceForUJSAuthTest"));
+		
 		final int port = WS.getServerPort();
 		WSC1 = new WorkspaceClient(new URL("http://localhost:" + port), t1);
 		WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), t2);
@@ -100,7 +108,7 @@ public class WorkspaceAuthTest {
 			MONGO.destroy(TestCommon.getDeleteTempFiles());
 		}
 		if (WS != null) {
-			WS.stopServer();
+			WS.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
@@ -247,7 +255,8 @@ public class WorkspaceAuthTest {
 		JS.updateJob(user1, id, "foo", "stat1", null, null);
 		JS.completeJob(user1, id, "foo", "stat2", null, null);
 		wa1.authorizeRead(user1, j);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		wa2.authorizeRead(user2, j);
 		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
 		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
@@ -302,7 +311,8 @@ public class WorkspaceAuthTest {
 				"Error contacting the workspace service to get permissions: " +
 				"Workspace 1 is deleted"));
 		wa1.authorizeCancel(user1, j);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		wa2.authorizeCancel(user2, j);
 		
 		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
@@ -350,7 +360,8 @@ public class WorkspaceAuthTest {
 				"Error contacting the workspace service to get permissions: " +
 				"Workspace 1 is deleted"));
 		wa1.authorizeDelete(user1, j);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		wa2.authorizeDelete(user2, j);
 		
 		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
@@ -452,7 +463,8 @@ public class WorkspaceAuthTest {
 						"workspace service to get permissions: No workspace " +
 						"with id 4 exists"));
 		wa2.authorizeRead(strat, user2, Arrays.asList("3"));
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
 		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
 		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", user2);
 		//check fencepost error

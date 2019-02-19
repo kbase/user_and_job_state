@@ -26,10 +26,14 @@ public class TestCommon {
 	
 	public static final String AUTHSERV = "test.auth.url";
 	public static final String GLOBUS = "test.globus.url";
+	
 	public static final String MONGOEXE = "test.mongo.exe";
+	public static final String MONGO_USE_WIRED_TIGER = "test.mongo.useWiredTiger";
 	
 	public static final String TEST_TEMP_DIR = "test.temp.dir";
 	public static final String KEEP_TEMP_DIR = "test.temp.dir.keep";
+	
+	public static final String JARS_PATH = "test.jars.dir";
 	
 	public static final String TEST_TOKEN_PREFIX = "test.token";
 	
@@ -84,18 +88,12 @@ public class TestCommon {
 
 	private static Path getConfigFilePath() {
 		final String testCfgFilePathStr = System.getProperty(TEST_CONFIG_FILE_PROP_NAME);
-		System.out.println(testCfgFilePathStr);
 		if (testCfgFilePathStr == null || testCfgFilePathStr.trim().isEmpty()) {
 			throw new TestException(String.format("Cannot get the test config file path." +
 					" Ensure the java system property %s is set to the test config file location.",
 					TEST_CONFIG_FILE_PROP_NAME));
 		}
 		return Paths.get(testCfgFilePathStr).toAbsolutePath().normalize();
-	}
-	
-	
-	public static boolean hasToken(final int user) {
-		return true;
 	}
 	
 	public static AuthToken getToken(
@@ -136,6 +134,14 @@ public class TestCommon {
 	
 	public static String getMongoExe() {
 		return getTestProperty(MONGOEXE);
+	}
+	
+	public static boolean useWiredTigerEngine() {
+		return "true".equals(getTestProperty(MONGO_USE_WIRED_TIGER));
+	}
+	
+	public static Path getJarsDir() {
+		return Paths.get(getTestProperty(JARS_PATH));
 	}
 	
 	public static boolean getDeleteTempFiles() {
