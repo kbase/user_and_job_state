@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -184,9 +185,6 @@ public class JobState {
 		return oi;
 	}
 	
-	private final static String QRY_FIND_JOB_NO_USER = String.format(
-			"{%s: #}", MONGO_ID);
-	
 	public Job getJob(final String user, final String jobID)
 			throws CommunicationException, NoSuchJobException {
 		return getJob(user, jobID, new DefaultUJSAuthorizer());
@@ -214,7 +212,7 @@ public class JobState {
 			throws CommunicationException, NoSuchJobException {
 		final Job j;
 		try {
-			j = jobjong.findOne(QRY_FIND_JOB_NO_USER, jobID).as(Job.class);
+			j = toJob(jobcol.findOne(new BasicDBObject(MONGO_ID, jobID)));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
@@ -226,6 +224,40 @@ public class JobState {
 		return j;
 	}
 	
+	private Job toJob(final DBObject dbo) {
+		if (dbo == null) {
+			return null;
+		}
+		@SuppressWarnings("unchecked")
+		final List<String> shared = (List<String>) dbo.get(SHARED);
+		@SuppressWarnings("unchecked")
+		final List<DBObject> meta = (List<DBObject>) dbo.get(METADATA);
+		return new Job(
+				(ObjectId) dbo.get(MONGO_ID),
+				(String) dbo.get(USER),
+				(String) dbo.get(SERVICE),
+				(String) dbo.get(DESCRIPTION),
+				(String) dbo.get(PROG_TYPE),
+				(Integer) dbo.get(PROG),
+				(Integer) dbo.get(MAXPROG),
+				(String) dbo.get(STATUS),
+				(Date) dbo.get(STARTED),
+				(Date) dbo.get(UPDATED),
+				(Date) dbo.get(EST_COMP),
+				(Boolean) dbo.get(COMPLETE),
+				(Boolean) dbo.get(ERROR),
+				(String) dbo.get(CANCELEDBY),
+				(String) dbo.get(ERROR_MSG),
+				toJobResults((DBObject) dbo.get(RESULT)),
+				shared == null ? null : shared.stream().collect(Collectors.toList()),
+				(String) dbo.get(AUTH_STRAT),
+				(String) dbo.get(AUTH_PARAM),
+				meta.stream().map(
+						m -> m.keySet().stream().collect(Collectors.toMap(
+								k -> k, k -> (String) m.get(k))))
+						.collect(Collectors.toList()));
+	}
+
 	public void startJob(final String user, final String jobID,
 			final String service, final String status,
 			final String description, final Date estComplete)
@@ -431,9 +463,6 @@ public class JobState {
 		}
 	}
 	
-	/* DO NOT change this to use Jongo. This enforces the continuing use of
-	 *  the same field names, which is needed for backwards compatibility.
-	 */
 	private static DBObject resultsToDBObject(final JobResults res) {
 		if (res == null) {
 			return null;
@@ -457,6 +486,37 @@ public class JobState {
 		}
 		return ret;
 	}
+	
+	private JobResults toJobResults(final DBObject dbo) {
+		if (dbo == null) {
+			return null;
+		}
+		@SuppressWarnings("unchecked")
+		final List<DBObject> dbresults = (List<DBObject>) dbo.get("results");
+		final List<JobResult> results;
+		if (dbresults != null) {
+			results = new LinkedList<>();
+			for (final DBObject d: dbresults) {
+				results.add(new JobResult(
+						(String) d.get("servtype"),
+						(String) d.get("url"),
+						(String) d.get("id"),
+						(String) d.get("desc")));
+			}
+		} else {
+			results = null;
+		}
+		@SuppressWarnings("unchecked")
+		final List<String> shocknodes = (List<String>) dbo.get("shocknodes");
+		@SuppressWarnings("unchecked")
+		final List<String> workspaceids = (List<String>) dbo.get("workspaceids");
+		return new JobResults(
+				results,
+				(String) dbo.get("workspaceurl"),
+				workspaceids == null ? null : workspaceids.stream().collect(Collectors.toList()),
+				(String) dbo.get("shockurl"),
+				shocknodes == null ? null : shocknodes.stream().collect(Collectors.toList()));
+	}
 
 	private DBObject buildStartedJobQuery(
 			final String user,
@@ -471,9 +531,6 @@ public class JobState {
 		query.put(COMPLETE, false);
 		return query;
 	}
-	
-	private static final String QRY_CANCELABLE =  String.format(
-			"{%s: #, %s: {$ne: true}}", MONGO_ID, COMPLETE);
 	
 	public void cancelJob(
 			final String user,
@@ -497,7 +554,8 @@ public class JobState {
 				jobID, user));
 		final Job j;
 		try {
-			j = jobjong.findOne(QRY_CANCELABLE, oi).as(Job.class);
+			j = toJob(jobcol.findOne(new BasicDBObject(MONGO_ID, oi)
+					.append(COMPLETE, new BasicDBObject("$ne", true))));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
@@ -556,15 +614,13 @@ public class JobState {
 				jobID, user +
 				(service == null ? "" : " and service " + service)));
 		
-		String querystr = String.format("{%s: #, ", MONGO_ID);
+		final BasicDBObject query = new BasicDBObject(MONGO_ID, id);
 		final Job j;
 		try {
 			if (service == null) {
-				querystr += String.format("%s: true}", COMPLETE);
-				j = jobjong.findOne(querystr, id).as(Job.class);
+				j = toJob(jobcol.findOne(query.append(COMPLETE, true)));
 			} else {
-				querystr += String.format("%s: #}", SERVICE);
-				j = jobjong.findOne(querystr, id, service).as(Job.class);
+				j = toJob(jobcol.findOne(query.append(SERVICE, service)));
 			}
 		} catch (MongoException me) {
 			throw new CommunicationException(
@@ -579,12 +635,6 @@ public class JobState {
 			throw err;
 		}
 		
-		final DBObject query = new BasicDBObject(MONGO_ID, id);
-		if (service == null) {
-			query.put(COMPLETE, true);
-		} else {
-			query.put(SERVICE, service);
-		}
 		final WriteResult wr;
 		try {
 			wr = jobcol.remove(query);
@@ -756,10 +806,6 @@ public class JobState {
 		return queryPrefix;
 	}
 	
-	private final static String QRY_FIND_JOB_BY_OWNER = String.format(
-			"{%s: #, %s: #, %s: \"%s\"}", MONGO_ID, USER, AUTH_STRAT,
-			UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat());
-	
 	//note sharing with an already shared user or sharing with the owner has
 	//no effect
 	public void shareJob(final String owner, final String jobID,
@@ -774,8 +820,11 @@ public class JobState {
 		}
 		final WriteResult wr;
 		try {
-			wr = jobjong.update(QRY_FIND_JOB_BY_OWNER, id, owner)
-					.with("{$addToSet: {" + SHARED + ": {$each: #}}}", us);
+			wr = jobcol.update(
+					new BasicDBObject(MONGO_ID, id).append(USER, owner)
+							.append(AUTH_STRAT, UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat()),
+					new BasicDBObject("$addToSet", new BasicDBObject(SHARED,
+							new BasicDBObject("$each", us))));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);
@@ -835,8 +884,10 @@ public class JobState {
 			throw e;
 		}
 		try {
-			jobjong.update(QRY_FIND_JOB_BY_OWNER, id, j.getUser())
-					.with("{$pullAll: {" + SHARED + ": #}}", users);
+			jobcol.update(
+					new BasicDBObject(MONGO_ID, id).append(USER, j.getUser())
+							.append(AUTH_STRAT, UJSAuthorizer.DEFAULT_AUTH_STRAT.getStrat()),
+					new BasicDBObject("$pullAll", new BasicDBObject(SHARED, users)));
 		} catch (MongoException me) {
 			throw new CommunicationException(
 					"There was a problem communicating with the database", me);

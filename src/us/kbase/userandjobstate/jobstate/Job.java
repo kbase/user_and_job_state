@@ -43,7 +43,51 @@ public class Job {
 	private String authparam;
 	private List<Map<String, String>> meta;
 	
+	@SuppressWarnings("unused")
 	private Job() {}
+	
+	Job(
+			final ObjectId _id,
+			final String user,
+			final String service,
+			final String desc,
+			final String progtype,
+			final Integer prog,
+			final Integer maxprog,
+			final String status,
+			final Date started,
+			final Date updated,
+			final Date estcompl,
+			final Boolean complete,
+			final Boolean error,
+			final String canceledby,
+			final String errormsg,
+			final JobResults results,
+			final List<String> shared,
+			final String authstrat,
+			final String authparam,
+			final List<Map<String, String>> meta) {
+		this._id = _id;
+		this.user = user;
+		this.service = service;
+		this.desc = desc;
+		this.progtype = progtype;
+		this.prog = prog;
+		this.maxprog = maxprog;
+		this.status = status;
+		this.started = started;
+		this.updated = updated;
+		this.estcompl = estcompl;
+		this.complete = complete;
+		this.error = error;
+		this.canceledby = canceledby;
+		this.errormsg = errormsg;
+		this.results = results;
+		this.shared = shared;
+		this.authstrat = authstrat;
+		this.authparam = authparam;
+		this.meta = meta;
+	}
 
 	public String getID() {
 		return _id.toString();
