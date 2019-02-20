@@ -19,7 +19,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import us.kbase.auth.AuthToken;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
@@ -39,6 +38,7 @@ import us.kbase.workspace.WorkspaceIdentity;
 
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.DB;
+import com.mongodb.MongoClient;
 
 public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	
@@ -143,12 +143,12 @@ public class JSONRPCWithWSAuth extends JSONRPCLayerTestUtils {
 	
 	@Before
 	public void before() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				WS_DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + MONGO.getServerPort());
+		DB db = mc.getDB(WS_DB_NAME);
 		TestCommon.destroyDB(db);
-		db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				JOB_DB_NAME);
+		db = mc.getDB(JOB_DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	@Test

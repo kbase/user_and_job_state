@@ -16,9 +16,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.mongodb.DB;
+import com.mongodb.MongoClient;
 
 import us.kbase.auth.AuthToken;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.test.TestCommon;
 import us.kbase.common.test.controllers.mongo.MongoController;
 import us.kbase.test.auth2.authcontroller.AuthController;
@@ -105,9 +105,10 @@ public class PullWSJobWithoutWSTest extends JSONRPCLayerTestUtils {
 	
 	@Before
 	public void before() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				WS_DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + MONGO.getServerPort());
+		final DB db = mc.getDB(WS_DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 
 	@Test

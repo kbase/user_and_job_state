@@ -20,10 +20,10 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.MongoClient;
 
 import us.kbase.auth.AuthToken;
 import us.kbase.common.exceptions.UnimplementedException;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
@@ -66,6 +66,7 @@ public class WorkspaceAuthTest {
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
+		TestCommon.stfuLoggers();
 		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()),
@@ -105,8 +106,7 @@ public class WorkspaceAuthTest {
 		WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), TOKEN2);
 		WSC1.setIsInsecureHttpConnectionAllowed(true);
 		WSC2.setIsInsecureHttpConnectionAllowed(true);
-		final DB db = GetMongoDB.getDB(
-				"localhost:" + MONGO.getServerPort(), JOB_DB_NAME, 0, 0);
+		final DB db = new MongoClient("localhost:" + MONGO.getServerPort()).getDB(JOB_DB_NAME);
 		JOBCOL = db.getCollection("jobstate");
 		final DBCollection schemacol = db.getCollection("schema");
 		JS = new JobState(JOBCOL, new SchemaManager(schemacol));
@@ -127,12 +127,12 @@ public class WorkspaceAuthTest {
 	
 	@Before
 	public void before() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				WS_DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + MONGO.getServerPort());
+		DB db = mc.getDB(WS_DB_NAME);
 		TestCommon.destroyDB(db);
-		db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				JOB_DB_NAME);
+		db = mc.getDB(JOB_DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	private static UJSAuthorizer LENIENT = new UJSAuthorizer() {

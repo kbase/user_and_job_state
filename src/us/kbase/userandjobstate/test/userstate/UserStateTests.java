@@ -19,7 +19,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.IncompatibleSchemaException;
 import us.kbase.common.test.TestCommon;
@@ -31,6 +30,7 @@ import us.kbase.userandjobstate.userstate.exceptions.NoSuchKeyException;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.MongoClient;
 
 public class UserStateTests {
 	
@@ -44,13 +44,13 @@ public class UserStateTests {
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
+		TestCommon.stfuLoggers();
 		mongo = new MongoController(
 				TestCommon.getMongoExe(),
 				Paths.get(TestCommon.getTempDir()));
 		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
 		
-		final DB db = GetMongoDB.getDB(
-				"localhost:" + mongo.getServerPort(), DB_NAME, 0, 0);
+		final DB db = new MongoClient("localhost:" + mongo.getServerPort()).getDB(DB_NAME);
 		usercol = db.getCollection("userstate");
 		schemacol = db.getCollection("schema");
 		us = new UserState(usercol, new SchemaManager(schemacol));
@@ -73,9 +73,10 @@ public class UserStateTests {
 	
 	@Before
 	public void clearDB() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
-				DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + mongo.getServerPort());
+		final DB db = mc.getDB(DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	@Test

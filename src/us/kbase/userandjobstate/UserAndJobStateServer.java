@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -42,17 +41,18 @@ import org.joda.time.format.DateTimeFormatterBuilder;
 import org.slf4j.LoggerFactory;
 
 import com.mongodb.DB;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoCredential;
 import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
+import com.mongodb.ServerAddress;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.common.mongo.GetMongoDB;
-import us.kbase.common.mongo.exceptions.InvalidHostException;
-import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
 import us.kbase.common.schemamanager.exceptions.SchemaException;
@@ -154,8 +154,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	//auth params:
 	public static final String USER = "mongodb-user";
 	public static final String PWD = "mongodb-pwd";
-	//mongo connection attempt limit
-	private static final String MONGO_RECONNECT = "mongodb-retry";
 	
 	//auth servers
 	private static final String KBASE_AUTH_URL = "auth-service-url";
@@ -169,8 +167,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	public static final String USER_COLLECTION = "userstate";
 	public static final String JOB_COLLECTION = "jobstate";
 	public static final String SCHEMA_VERS_COLLECTION = "schemavers";
-	
-	private static final int MONGO_RETRY_LOG_INTERVAL = 10;
 	
 	private final static int MAX_LEN_SERVTYPE = 100;
 	private final static int MAX_LEN_DESC = 1000;
@@ -248,36 +244,22 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			final String host,
 			final String dbs,
 			final String user,
-			final String pwd,
-			final int mongoReconnectRetry) {
+			final String pwd) {
+		//TODO CODE update to non-deprecated API
 		try {
 			if (user != null) {
-				return GetMongoDB.getDB(host, dbs, user, pwd,
-						mongoReconnectRetry, MONGO_RETRY_LOG_INTERVAL);
+				final MongoCredential creds = MongoCredential.createCredential(
+						user, dbs, pwd.toCharArray());
+				// unclear if and when it's safe to clear the password
+				return new MongoClient(new ServerAddress(host), creds,
+						MongoClientOptions.builder().build()).getDB(dbs);
 			} else {
-				return GetMongoDB.getDB(host, dbs, mongoReconnectRetry,
-						MONGO_RETRY_LOG_INTERVAL);
+				return new MongoClient(new ServerAddress(host)).getDB(dbs);
 			}
-		} catch (UnknownHostException uhe) {
-			fail("Couldn't find mongo host " + host + ": " +
-					uhe.getLocalizedMessage());
-		} catch (IOException | MongoTimeoutException e) {
-			fail("Couldn't connect to mongo host " + host + ": " +
-					e.getLocalizedMessage());
-		} catch (MongoAuthException ae) {
-			fail("Not authorized: " + ae.getLocalizedMessage());
 		} catch (MongoException e) {
-			fail("There was an error connecting to the mongo database: " +
-					e.getLocalizedMessage());
-		} catch (InvalidHostException ihe) {
-			fail(host + " is an invalid database host: "  +
-					ihe.getLocalizedMessage());
-		} catch (InterruptedException ie) {
-			fail("Connection to MongoDB was interrupted. This should never " +
-					"happen and indicates a programming problem. Error: " +
-					ie.getLocalizedMessage());
+			fail("Failed to connect to MongoDB: " + e.getMessage());
+			return null;
 		}
-		return null;
 	}
 	
 	private SchemaManager getSchemaManager(final DB db, final String host) {
@@ -537,27 +519,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		l.detachAndStopAllAppenders();
 	}
 	
-	private int getReconnectCount() {
-		final String rec = ujConfig.get(MONGO_RECONNECT);
-		Integer recint = null;
-		try {
-			recint = Integer.parseInt(rec); 
-		} catch (NumberFormatException nfe) {
-			//do nothing
-		}
-		if (recint == null) {
-			logInfo("Couldn't parse MongoDB reconnect value to an integer: " +
-					rec + ", using 0");
-			recint = 0;
-		} else if (recint < 0) {
-			logInfo("MongoDB reconnect value is < 0 (" + recint + "), using 0");
-			recint = 0;
-		} else {
-			logInfo("MongoDB reconnect value is " + recint);
-		}
-		return recint;
-	}
-	
 	/* assumes param is in map */
 	private URL getURL(final Map<String, String> config, final String param) {
 		try {
@@ -708,9 +669,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			System.out.println("Starting server using connection parameters:\n"
 					+ params);
 			logInfo("Starting server using connection parameters:\n" + params);
-			final int mongoConnectRetry = getReconnectCount();
-			final DB ujsDB = getMongoDB(
-					host, dbs, user, pwd, mongoConnectRetry);
+			final DB ujsDB = getMongoDB(host, dbs, user, pwd);
 			final SchemaManager sm = getSchemaManager(ujsDB, host);
 			final ConfigurableAuthService cauth = setUpAuthClient(ujConfig);
 			if (ujsDB == null || sm == null || cauth == null) {

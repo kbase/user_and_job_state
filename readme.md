@@ -6,7 +6,7 @@ Service to maintain global user state and job status
 RUNTIME REQUIREMENTS
 --------------------
 
-mongo 2.4.3+ required.
+mongo 2.6.11+ required.
 
 SETUP
 -----

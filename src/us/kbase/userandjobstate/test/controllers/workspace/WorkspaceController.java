@@ -20,11 +20,12 @@ import java.util.Map;
 import java.util.Scanner;
 
 import org.apache.commons.io.FileUtils;
+import org.bson.Document;
 import org.ini4j.Ini;
 import org.ini4j.Profile.Section;
 
-import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
+import com.mongodb.client.MongoDatabase;
 
 import us.kbase.common.test.TestException;
 
@@ -69,17 +70,12 @@ public class WorkspaceController {
 		final Path deployCfg = createDeployCfg(
 				mongoHost, mongoDatabase, authServiceRootURL, adminUser);
 		
-		final MongoClient mc = new MongoClient(mongoHost);
-		mc.getDB(mongoDatabase).getCollection("settings")
-				.insert(new BasicDBObject("type_db", "WorkspaceController_types")
-				.append("backend", "gridFS"));
-		
-//		try (final MongoClient mc = new MongoClient(mongoHost)) {
-//			final MongoDatabase db = mc.getDatabase(mongoDatabase);
-//			db.getCollection("settings").insertOne(
-//					new Document("type_db", "WorkspaceController_types")
-//					.append("backend", "gridFS"));
-//		}
+		try (final MongoClient mc = new MongoClient(mongoHost)) {
+			final MongoDatabase db = mc.getDatabase(mongoDatabase);
+			db.getCollection("settings").insertOne(
+					new Document("type_db", "WorkspaceController_types")
+					.append("backend", "gridFS"));
+		}
 
 		final List<String> command = new LinkedList<String>();
 		command.addAll(Arrays.asList("java", "-classpath", classpath, WS_CLASS, "" + port));

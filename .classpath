@@ -26,7 +26,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="/jars/lib/jars/apache_commons/commons-lang-2.4.jar"/>
-	<classpathentry kind="lib" path="/jars/lib/jars/mongo/mongo-java-driver-2.13.3.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/jcommander/jcommander-1.48.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/google/guava-14.0.1.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/kidl/kbase-kidl-parser-1409261812-7863aef.jar"/>
@@ -36,5 +35,6 @@
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/common/kbase-common-0.0.22.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/workspace/WorkspaceService-0.8.2.jar"/>
 	<classpathentry kind="lib" path="/jars/lib/jars/kbase/auth2/kbase-auth2test-0.2.4.jar"/>
+	<classpathentry kind="lib" path="/jars/lib/jars/mongo/mongo-java-driver-3.10.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
