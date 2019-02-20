@@ -1,5 +1,7 @@
 package us.kbase.userandjobstate.test.kbase;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
@@ -183,7 +185,9 @@ public class WorkspaceAuthTest {
 					new URL("http://localhost:" + (WS.getServerPort() + 1)));
 			fail("created factory w/ bad args");
 		} catch (IOException e) {
-			assertExceptionCorrect(e, new IOException("Connection refused"));
+			// for some reason, testing in travis winds up w/ a different error message than
+			// testing locally. JDK version probably
+			assertThat("incorrect message", e.getMessage(), containsString("Connection refused"));
 		}
 	}
 	

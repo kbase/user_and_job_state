@@ -1,6 +1,7 @@
 package us.kbase.userandjobstate.test.jobstate;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -550,29 +551,20 @@ public class JobStateTests {
 			js.startJob(user, jobid, service, status, desc, estCompl);
 			fail("Started job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 		try {
 			js.startJobWithPercentProg(user, jobid, service, status, desc,
 					estCompl);
 			fail("Started job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 		try {
 			js.startJob(user, jobid, service, status, desc, 6, estCompl);
 			fail("Started job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 		if (!goodID(jobid) || exception instanceof NoSuchJobException) {
 			return;
@@ -581,29 +573,20 @@ public class JobStateTests {
 			js.createAndStartJob(user, service, status, desc, estCompl);
 			fail("Started job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 		try {
 			js.createAndStartJobWithPercentProg(user, service, status, desc,
 					estCompl);
 			fail("Started job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 		try {
 			js.createAndStartJob(user, service, status, desc, 6, estCompl);
 			fail("Started job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 	}
 	
@@ -690,7 +673,7 @@ public class JobStateTests {
 				j.getStarted() instanceof Date);
 		assertThat("job est complete ok", j.getEstimatedCompletion(),
 				is(estComplete));
-		assertThat("job updated ok", j.getLastUpdated(), is(Date.class));
+		assertThat("job updated ok", j.getLastUpdated(), instanceOf(Date.class));
 		assertThat("job complete ok", j.isComplete(), is(complete));
 		assertThat("job error ok", j.hasError(), is(error));
 		assertThat("job results ok", j.getResults(), is(results));
@@ -984,10 +967,7 @@ public class JobStateTests {
 			js.updateJob(user, jobid, service, status, progress, estCompl);
 			fail("updated job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 	}
 	
@@ -1118,10 +1098,7 @@ public class JobStateTests {
 			js.completeJob(user, jobid, service, status, errormsg, res);
 			fail("completed job with bad args");
 		} catch (Exception e) {
-			assertThat("correct exception type", e,
-					is(exception.getClass()));
-			assertThat("correct exception msg", e.getLocalizedMessage(),
-					is(exception.getLocalizedMessage()));
+			assertExceptionCorrect(e, exception);
 		}
 	}
 	
@@ -1684,9 +1661,7 @@ public class JobStateTests {
 			js.getJob(user, jobid);
 			fail("got job sucessfully but expected fail");
 		} catch (Exception exp) {
-			assertThat("correct exception", exp.getLocalizedMessage(),
-					is(e.getLocalizedMessage()));
-			assertThat("correct exception type", exp, is(e.getClass()));
+			assertExceptionCorrect(exp, e);
 		}
 		failGetJob(user, jobid, new DefaultUJSAuthorizer(), e);
 	}
@@ -1697,9 +1672,7 @@ public class JobStateTests {
 			js.getJob(user, jobid, auth);
 			fail("got job successfully but expected fail");
 		} catch (Exception exp) {
-			assertThat("correct exception", exp.getLocalizedMessage(),
-					is(e.getLocalizedMessage()));
-			assertThat("correct exception type", exp, is(e.getClass()));
+			assertExceptionCorrect(exp, e);
 		}
 	}
 	
@@ -1709,9 +1682,7 @@ public class JobStateTests {
 			js.shareJob(user, jobid, users);
 			fail("got job sucessfully but expected fail");
 		} catch (Exception exp) {
-			assertThat("correct exception", exp.getLocalizedMessage(),
-					is(e.getLocalizedMessage()));
-			assertThat("correct exception type", exp, is(e.getClass()));
+			assertExceptionCorrect(exp, e);
 		}
 	}
 	
@@ -1727,9 +1698,7 @@ public class JobStateTests {
 			js.unshareJob(user, jobid, users);
 			fail("unshared job sucessfully but expected fail");
 		} catch (Exception exp) {
-			assertThat("correct exception", exp.getLocalizedMessage(),
-					is(e.getLocalizedMessage()));
-			assertThat("correct exception type", exp, is(e.getClass()));
+			assertExceptionCorrect(exp, e);
 		}
 	}
 }
