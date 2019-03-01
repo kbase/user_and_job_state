@@ -5,18 +5,12 @@ OVERVIEW
 A service for 1) maintaining global KBase user state, and 2) maintaining
 job state. See the API docs for more details.
 
-VERSION: 0.2.4 (TBD)
+VERSION: 0.2.3 (3/1/19)
 -------------------------
 
 UPDATED FEATURES / MAJOR BUG FIXES:
 - Updated the MongoDB client to v3.10.1, allowing use of mongod > 3.2. As such, the
   ``mongo-retry`` configuration item has been removed as the driver now handles this internally.
-
-
-VERSION: 0.2.3 (2/13/18)
--------------------------
-
-UPDATED FEATURES / MAJOR BUG FIXES:
 - Modified repo to use automated dockerhub builds
 
 
