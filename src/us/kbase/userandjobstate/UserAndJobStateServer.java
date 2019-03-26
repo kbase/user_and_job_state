@@ -593,7 +593,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			final Map<String, String> config,
 			final String param) {
 		final String p = config.get(param);
-		return p != null && !p.isEmpty();
+		return p != null && !p.trim().isEmpty();
+	}
+	
+	private String nullIfWhitespace(final String s) {
+		return s == null || s.trim().isEmpty() ? null : s.trim();
 	}
 	
 	public static void clearConfigForTests() {
@@ -650,8 +654,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			auth = null;
 			authfac = null;
 		} else {
-			final String user = ujConfig.get(USER);
-			final String pwd = ujConfig.get(PWD);
+			final String user = nullIfWhitespace(ujConfig.get(USER));
+			final String pwd = nullIfWhitespace(ujConfig.get(PWD));
 			final String authAllowInsecure = ujConfig.get(INSECURE_AUTH_URL);
 			String params = "";
 			for (String s: Arrays.asList(HOST, DB, USER, KBASE_AUTH_URL,

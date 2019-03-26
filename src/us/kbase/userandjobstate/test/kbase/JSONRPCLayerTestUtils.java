@@ -80,7 +80,7 @@ public class JSONRPCLayerTestUtils {
 		Section ws = ini.add("UserAndJobState");
 		ws.add("mongodb-host", mongohost);
 		ws.add("mongodb-database", dbname);
-		ws.add("mongodb-user", null);
+		ws.add("mongodb-user", "     "); // test that whitespace is ignored
 		ws.add("mongodb-pwd", null);
 		ws.add("auth-service-url", authURL + "/api/legacy/KBase/Sessions/Login");
 		ws.add("auth-service-url-allow-insecure", "true");
