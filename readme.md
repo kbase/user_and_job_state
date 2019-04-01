@@ -6,7 +6,7 @@ Service to maintain global user state and job status
 RUNTIME REQUIREMENTS
 --------------------
 
-mongo 2.4.3+ required.
+mongo 2.6.11+ required.
 
 SETUP
 -----
@@ -14,7 +14,8 @@ SETUP
 1. make
 2. if you want to run tests:  
     1. MongoDB must be installed, but not necessarily running.  
-    2. fill in the the test.cfg config file in ./test  
+    2. Copy ./test.cfg.example to ./test.cfg  
+    2. fill in ./test.cfg  
     3. make test  
 3. A mongodb instance must be up and running.
 5. fill in deploy.cfg

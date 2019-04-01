@@ -10,8 +10,11 @@ public class JobResult {
 	@SuppressWarnings("unused")
 	private JobResult() {} //for jongo
 	
-	public JobResult(final String servtype, final String url,
-			final String id, final String desc) {
+	public JobResult(
+			final String servtype,
+			final String url,
+			final String id,
+			final String desc) {
 		super();
 		if (servtype == null || url == null || id == null) {
 			throw new NullPointerException(

@@ -1,5 +1,7 @@
 package us.kbase.userandjobstate.test.kbase;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 import static us.kbase.common.test.TestCommon.assertExceptionCorrect;
@@ -15,30 +17,29 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.MongoClient;
 
-import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthToken;
-import us.kbase.auth.AuthUser;
-import us.kbase.auth.ConfigurableAuthService;
 import us.kbase.common.exceptions.UnimplementedException;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.schemamanager.SchemaManager;
+import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
-import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.test.auth2.authcontroller.AuthController;
 import us.kbase.userandjobstate.authorization.AuthorizationStrategy;
 import us.kbase.userandjobstate.authorization.UJSAuthorizer;
 import us.kbase.userandjobstate.authorization.exceptions.UJSAuthorizationException;
 import us.kbase.userandjobstate.jobstate.Job;
 import us.kbase.userandjobstate.jobstate.JobState;
 import us.kbase.userandjobstate.kbase.WorkspaceAuthorizationFactory;
+import us.kbase.userandjobstate.test.controllers.workspace.WorkspaceController;
 import us.kbase.workspace.CreateWorkspaceParams;
 import us.kbase.workspace.SetGlobalPermissionsParams;
 import us.kbase.workspace.WorkspaceClient;
 import us.kbase.workspace.WorkspaceIdentity;
-import us.kbase.workspace.WorkspaceServer;
 import us.kbase.workspace.database.WorkspaceUserMetadata;
 
 public class WorkspaceAuthTest {
@@ -46,50 +47,66 @@ public class WorkspaceAuthTest {
 	public static AuthorizationStrategy strat =
 			new AuthorizationStrategy("kbaseworkspace");
 	
-	public static AuthUser U1;
-	public static AuthUser U2;
+	public static final String USER1 = "user1";
+	public static final String USER2 = "user2";
+	public static AuthToken TOKEN1;
+	public static AuthToken TOKEN2;
 	
 	public static MongoController MONGO;
-	public static WorkspaceServer WS;
+	public static WorkspaceController WS;
 	public static WorkspaceClient WSC1;
 	public static WorkspaceClient WSC2;
 	private static DBCollection JOBCOL;
 	private static JobState JS;
+	
+	private static AuthController AUTHC;
 	
 	public static final String WS_DB_NAME = "ws";
 	public static final String JOB_DB_NAME = "job";
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
-		final ConfigurableAuthService auth = new ConfigurableAuthService(
-				new AuthConfig().withKBaseAuthServerURL(
-						TestCommon.getAuthUrl()));
-		final AuthToken t1 = TestCommon.getToken(1, auth);
-		final AuthToken t2 = TestCommon.getToken(2, auth);
-		if (t1.getUserName().equals(t2.getUserName())) {
-			throw new TestException("user1 cannot equal user2: " +
-					t1.getUserName());
-		}
-		final String p1 = TestCommon.getPwdNullIfToken(1); 
-		
-		U1 = auth.getUserFromToken(t1);
-		U2 = auth.getUserFromToken(t2);
+		TestCommon.stfuLoggers();
 		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
-				Paths.get(TestCommon.getTempDir()));
+				Paths.get(TestCommon.getTempDir()),
+				TestCommon.useWiredTigerEngine());
 		System.out.println("Using Mongo temp dir " + MONGO.getTempDir());
 		String mongohost = "localhost:" + MONGO.getServerPort();
 		System.out.println("mongo on " + mongohost);
 		
-		WS = JSONRPCLayerTestUtils.startupWorkspaceServer(
-				mongohost, WS_DB_NAME, "ws_types", t1, p1, t2.getUserName());
+		// set up auth
+		final String dbname = JSONRPCLayerTest.class.getSimpleName() + "Auth";
+		AUTHC = new AuthController(
+				TestCommon.getJarsDir(),
+				"localhost:" + MONGO.getServerPort(),
+				dbname,
+				Paths.get(TestCommon.getTempDir()));
+		
+		// set up ws
+		final URL authURL = new URL("http://localhost:" + AUTHC.getServerPort() + "/testmode");
+		System.out.println("started auth server at " + authURL);
+		TestCommon.createAuthUser(authURL, USER1, "display1");
+		final String token1 = TestCommon.createLoginToken(authURL, USER1);
+		TestCommon.createAuthUser(authURL, USER2, "display2");
+		final String token2 = TestCommon.createLoginToken(authURL, USER2);
+		TOKEN1 = new AuthToken(token1, USER1);
+		TOKEN2 = new AuthToken(token2, USER2);
+		
+		WS = new WorkspaceController(
+				TestCommon.getJarsDir(),
+				mongohost,
+				WS_DB_NAME,
+				USER2,
+				authURL,
+				Paths.get(TestCommon.getTempDir()).resolve("tempForWorkspaceForUJSAuthTest"));
+		
 		final int port = WS.getServerPort();
-		WSC1 = new WorkspaceClient(new URL("http://localhost:" + port), t1);
-		WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), t2);
+		WSC1 = new WorkspaceClient(new URL("http://localhost:" + port), TOKEN1);
+		WSC2 = new WorkspaceClient(new URL("http://localhost:" + port), TOKEN2);
 		WSC1.setIsInsecureHttpConnectionAllowed(true);
 		WSC2.setIsInsecureHttpConnectionAllowed(true);
-		final DB db = GetMongoDB.getDB(
-				"localhost:" + MONGO.getServerPort(), JOB_DB_NAME, 0, 0);
+		final DB db = new MongoClient("localhost:" + MONGO.getServerPort()).getDB(JOB_DB_NAME);
 		JOBCOL = db.getCollection("jobstate");
 		final DBCollection schemacol = db.getCollection("schema");
 		JS = new JobState(JOBCOL, new SchemaManager(schemacol));
@@ -100,19 +117,22 @@ public class WorkspaceAuthTest {
 		if (MONGO != null) {
 			MONGO.destroy(TestCommon.getDeleteTempFiles());
 		}
+		if (AUTHC != null) {
+			AUTHC.destroy(TestCommon.getDeleteTempFiles());
+		}
 		if (WS != null) {
-			WS.stopServer();
+			WS.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
 	@Before
 	public void before() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				WS_DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + MONGO.getServerPort());
+		DB db = mc.getDB(WS_DB_NAME);
 		TestCommon.destroyDB(db);
-		db = GetMongoDB.getDB("localhost:" + MONGO.getServerPort(),
-				JOB_DB_NAME);
+		db = mc.getDB(JOB_DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	private static UJSAuthorizer LENIENT = new UJSAuthorizer() {
@@ -165,7 +185,9 @@ public class WorkspaceAuthTest {
 					new URL("http://localhost:" + (WS.getServerPort() + 1)));
 			fail("created factory w/ bad args");
 		} catch (IOException e) {
-			assertExceptionCorrect(e, new IOException("Connection refused"));
+			// for some reason, testing in travis winds up w/ a different error message than
+			// testing locally. JDK version probably
+			assertThat("incorrect message", e.getMessage(), containsString("Connection refused"));
 		}
 	}
 	
@@ -185,7 +207,7 @@ public class WorkspaceAuthTest {
 		WorkspaceAuthorizationFactory wafac =
 				new WorkspaceAuthorizationFactory(
 						new URL("http://localhost:" + WS.getServerPort()));
-		UJSAuthorizer wa = wafac.buildAuthorizer(U1.getToken());
+		UJSAuthorizer wa = wafac.buildAuthorizer(TOKEN1);
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
 		wa.authorizeCreate(strat, "1");
@@ -205,19 +227,19 @@ public class WorkspaceAuthTest {
 			.withWorkspace("foo1"));
 		wa.authorizeCreate(strat, "2");
 		
-		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(TOKEN2);
 		failCreate(wa2, strat, "1", new UJSAuthorizationException(
 				String.format("User %s cannot write to workspace 1",
-						U2.getUserId())));
+						USER2)));
 		
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", U2.getUserId());
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", USER2);
 		failCreate(wa2, strat, "1", new UJSAuthorizationException(
 				String.format("User %s cannot write to workspace 1",
-						U2.getUserId())));
+						USER2)));
 		
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", U2.getUserId());
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", USER2);
 		wa2.authorizeCreate(strat, "1");
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", U2.getUserId());
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", USER2);
 		wa2.authorizeCreate(strat, "1");
 	}
 	
@@ -226,57 +248,55 @@ public class WorkspaceAuthTest {
 		WorkspaceAuthorizationFactory wafac =
 				new WorkspaceAuthorizationFactory(
 						new URL("http://localhost:" + WS.getServerPort()));
-		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
-		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
-		String user1 = U1.getUserId();
-		String user2 = U2.getUserId();
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(TOKEN1);
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(TOKEN2);
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", USER2);
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		
 		//test that deleting a workspace keeps the job visible to the owner
-		String id = JS.createJob(user1, wa1, strat, "1", mt);
-		Job j = JS.getJob(user1, id, wa1);
-		wa2.authorizeRead(user2, j);
+		String id = JS.createJob(USER1, wa1, strat, "1", mt);
+		Job j = JS.getJob(USER1, id, wa1);
+		wa2.authorizeRead(USER2, j);
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
-		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
+		failSingleRead(wa2, USER2, j, new UJSAuthorizationException(
 				"Error contacting the workspace service to get permissions: " +
 				"Workspace 1 is deleted"));
-		JS.startJob(user1, id, "foo", "stat1", "desc1", null);
-		JS.updateJob(user1, id, "foo", "stat1", null, null);
-		JS.completeJob(user1, id, "foo", "stat2", null, null);
-		wa1.authorizeRead(user1, j);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		wa2.authorizeRead(user2, j);
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
-		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
-				String.format("User %s cannot read workspace 1", user2)));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
-		wa2.authorizeRead(user2, j);
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
-		wa2.authorizeRead(user2, j);
+		JS.startJob(USER1, id, "foo", "stat1", "desc1", null);
+		JS.updateJob(USER1, id, "foo", "stat1", null, null);
+		JS.completeJob(USER1, id, "foo", "stat2", null, null);
+		wa1.authorizeRead(USER1, j);
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
+		wa2.authorizeRead(USER2, j);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", USER2);
+		failSingleRead(wa2, USER2, j, new UJSAuthorizationException(
+				String.format("User %s cannot read workspace 1", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", USER2);
+		wa2.authorizeRead(USER2, j);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", USER2);
+		wa2.authorizeRead(USER2, j);
 		
 		// test globally readable workspace
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
-		failSingleRead(wa2, user2, j, new UJSAuthorizationException(
-				String.format("User %s cannot read workspace 1", user2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", USER2);
+		failSingleRead(wa2, USER2, j, new UJSAuthorizationException(
+				String.format("User %s cannot read workspace 1", USER2)));
 		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(1L)
 				.withNewPermission("r"));
-		wa2.authorizeRead(user2, j);
+		wa2.authorizeRead(USER2, j);
 		
-		failSingleRead(wa2, user1, j, new IllegalStateException(
+		failSingleRead(wa2, USER1, j, new IllegalStateException(
 				"A programming error occured: the token username and the " +
 				"supplied username do not match"));
 		
 		// test bad auth strat
-		String id2 = JS.createJob(user1, LENIENT,
+		String id2 = JS.createJob(USER1, LENIENT,
 				new AuthorizationStrategy("foo"), "foo", mt);
-		Job j2 = JS.getJob(user1, id2, LENIENT);
-		failSingleRead(wa1, user1, j2, new UJSAuthorizationException(
+		Job j2 = JS.getJob(USER1, id2, LENIENT);
+		failSingleRead(wa1, USER1, j2, new UJSAuthorizationException(
 				"Invalid authorization strategy: foo"));
-		
 	}
 	
 	@Test
@@ -284,46 +304,45 @@ public class WorkspaceAuthTest {
 		WorkspaceAuthorizationFactory wafac =
 				new WorkspaceAuthorizationFactory(
 						new URL("http://localhost:" + WS.getServerPort()));
-		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
-		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
-		String user1 = U1.getUserId();
-		String user2 = U2.getUserId();
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(TOKEN1);
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(TOKEN2);
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 				.withWorkspace("foo"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", USER2);
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		
 		//test that deleting a workspace keeps the job visible to the owner
-		String id = JS.createJob(user1, wa1, strat, "1", mt);
-		Job j = JS.getJob(user1, id, wa1);
-		wa2.authorizeCancel(user2, j);
+		String id = JS.createJob(USER1, wa1, strat, "1", mt);
+		Job j = JS.getJob(USER1, id, wa1);
+		wa2.authorizeCancel(USER2, j);
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
-		failCancel(wa2, user2, j, new UJSAuthorizationException(
+		failCancel(wa2, USER2, j, new UJSAuthorizationException(
 				"Error contacting the workspace service to get permissions: " +
 				"Workspace 1 is deleted"));
-		wa1.authorizeCancel(user1, j);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		wa2.authorizeCancel(user2, j);
+		wa1.authorizeCancel(USER1, j);
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
+		wa2.authorizeCancel(USER2, j);
 		
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
-		failCancel(wa2, user2, j, new UJSAuthorizationException(
-				String.format("User %s cannot write to workspace 1", user2)));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
-		failCancel(wa2, user2, j, new UJSAuthorizationException(
-				String.format("User %s cannot write to workspace 1", user2)));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
-		wa2.authorizeCancel(user2, j);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", USER2);
+		failCancel(wa2, USER2, j, new UJSAuthorizationException(
+				String.format("User %s cannot write to workspace 1", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", USER2);
+		failCancel(wa2, USER2, j, new UJSAuthorizationException(
+				String.format("User %s cannot write to workspace 1", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", USER2);
+		wa2.authorizeCancel(USER2, j);
 		
-		failCancel(wa2, user1, j, new IllegalStateException(
+		failCancel(wa2, USER1, j, new IllegalStateException(
 				"A programming error occured: the token username and the " +
 				"supplied username do not match"));
 		
 		// test bad auth strat
-		String id2 = JS.createJob(user1, LENIENT,
+		String id2 = JS.createJob(USER1, LENIENT,
 				new AuthorizationStrategy("foo"), "foo", mt);
-		Job j2 = JS.getJob(user1, id2, LENIENT);
-		failCancel(wa1, user1, j2, new UJSAuthorizationException(
+		Job j2 = JS.getJob(USER1, id2, LENIENT);
+		failCancel(wa1, USER1, j2, new UJSAuthorizationException(
 				"Invalid authorization strategy: foo"));
 	}
 	
@@ -332,53 +351,52 @@ public class WorkspaceAuthTest {
 		WorkspaceAuthorizationFactory wafac =
 				new WorkspaceAuthorizationFactory(
 						new URL("http://localhost:" + WS.getServerPort()));
-		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
-		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
-		String user1 = U1.getUserId();
-		String user2 = U2.getUserId();
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(TOKEN1);
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(TOKEN2);
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 				.withWorkspace("foo"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", USER2);
 		WorkspaceUserMetadata mt = new WorkspaceUserMetadata();
 		
 		//test that deleting a workspace keeps the job visible to the owner
-		String id = JS.createJob(user1, wa1, strat, "1", mt);
-		Job j = JS.getJob(user1, id, wa1);
-		wa2.authorizeDelete(user2, j);
+		String id = JS.createJob(USER1, wa1, strat, "1", mt);
+		Job j = JS.getJob(USER1, id, wa1);
+		wa2.authorizeDelete(USER2, j);
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
-		failDelete(wa2, user2, j, new UJSAuthorizationException(
+		failDelete(wa2, USER2, j, new UJSAuthorizationException(
 				"Error contacting the workspace service to get permissions: " +
 				"Workspace 1 is deleted"));
-		wa1.authorizeDelete(user1, j);
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		wa2.authorizeDelete(user2, j);
+		wa1.authorizeDelete(USER1, j);
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
+		wa2.authorizeDelete(USER2, j);
 		
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", user2);
-		failDelete(wa2, user2, j, new UJSAuthorizationException(String.format(
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "n", USER2);
+		failDelete(wa2, USER2, j, new UJSAuthorizationException(String.format(
 				"User %s does not have administration privileges for " +
-				"workspace 1", user2)));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
-		failDelete(wa2, user2, j, new UJSAuthorizationException(String.format(
+				"workspace 1", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", USER2);
+		failDelete(wa2, USER2, j, new UJSAuthorizationException(String.format(
 				"User %s does not have administration privileges for " +
-				"workspace 1", user2)));;
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", user2);
-		failDelete(wa2, user2, j, new UJSAuthorizationException(String.format(
+				"workspace 1", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "w", USER2);
+		failDelete(wa2, USER2, j, new UJSAuthorizationException(String.format(
 				"User %s does not have administration privileges for " +
-				"workspace 1", user2)));;
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", user2);
-		wa2.authorizeDelete(user2, j);
+				"workspace 1", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "a", USER2);
+		wa2.authorizeDelete(USER2, j);
 		
 		
-		failDelete(wa2, user1, j, new IllegalStateException(
+		failDelete(wa2, USER1, j, new IllegalStateException(
 				"A programming error occured: the token username and the " +
 				"supplied username do not match"));
 		
 		// test bad auth strat
-		String id2 = JS.createJob(user1, LENIENT,
+		String id2 = JS.createJob(USER1, LENIENT,
 				new AuthorizationStrategy("foo"), "foo", mt);
-		Job j2 = JS.getJob(user1, id2, LENIENT);
-		failDelete(wa1, user1, j2, new UJSAuthorizationException(
+		Job j2 = JS.getJob(USER1, id2, LENIENT);
+		failDelete(wa1, USER1, j2, new UJSAuthorizationException(
 				"Invalid authorization strategy: foo"));
 	}
 	
@@ -423,10 +441,8 @@ public class WorkspaceAuthTest {
 		WorkspaceAuthorizationFactory wafac =
 				new WorkspaceAuthorizationFactory(
 						new URL("http://localhost:" + WS.getServerPort()));
-		UJSAuthorizer wa1 = wafac.buildAuthorizer(U1.getToken());
-		UJSAuthorizer wa2 = wafac.buildAuthorizer(U2.getToken());
-		String user1 = U1.getUserId();
-		String user2 = U2.getUserId();
+		UJSAuthorizer wa1 = wafac.buildAuthorizer(TOKEN1);
+		UJSAuthorizer wa2 = wafac.buildAuthorizer(TOKEN2);
 		
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo"));
@@ -434,61 +450,63 @@ public class WorkspaceAuthTest {
 			.withWorkspace("foo1"));
 		WSC1.createWorkspace(new CreateWorkspaceParams()
 			.withWorkspace("foo2"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", user2);
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "r", user2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 1, "r", USER2);
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "r", USER2);
 		
-		wa1.authorizeRead(strat, user1, Arrays.asList("1", "2", "3"));
-		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
-		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "2", "3"),
+		wa1.authorizeRead(strat, USER1, Arrays.asList("1", "2", "3"));
+		wa2.authorizeRead(strat, USER2, Arrays.asList("1", "3"));
+		failMultipleRead(wa2, strat, USER2, Arrays.asList("1", "2", "3"),
 				new UJSAuthorizationException(String.format(
-						"User %s cannot read workspace 2", user2)));
+						"User %s cannot read workspace 2", USER2)));
 		
 		WSC1.deleteWorkspace(new WorkspaceIdentity().withId(1L));
-		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
+		failMultipleRead(wa2, strat, USER2, Arrays.asList("1", "3"),
 				new UJSAuthorizationException("Error contacting the " +
 						"workspace service to get permissions: Workspace 1 " +
 						"is deleted"));
-		failMultipleRead(wa2, strat, user2, Arrays.asList("3", "4"),
+		failMultipleRead(wa2, strat, USER2, Arrays.asList("3", "4"),
 				new UJSAuthorizationException("Error contacting the " +
 						"workspace service to get permissions: No workspace " +
 						"with id 4 exists"));
-		wa2.authorizeRead(strat, user2, Arrays.asList("3"));
-		WSC1.undeleteWorkspace(new WorkspaceIdentity().withId(1L));
-		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", user2);
+		wa2.authorizeRead(strat, USER2, Arrays.asList("3"));
+		WSC2.administer(new UObject(ImmutableMap.of("command", "undeleteWorkspace",
+				"params", new WorkspaceIdentity().withId(1L))));
+		wa2.authorizeRead(strat, USER2, Arrays.asList("1", "3"));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", USER2);
+
 		//check fencepost error
-		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
+		failMultipleRead(wa2, strat, USER2, Arrays.asList("1", "3"),
 				new UJSAuthorizationException(String.format(
-				"User %s cannot read workspace 3", user2)));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "w", user2);
-		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "a", user2);
-		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
+				"User %s cannot read workspace 3", USER2)));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "w", USER2);
+		wa2.authorizeRead(strat, USER2, Arrays.asList("1", "3"));
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "a", USER2);
+		wa2.authorizeRead(strat, USER2, Arrays.asList("1", "3"));
 		
 		//test globally readable workspaces
-		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", user2);
-		failMultipleRead(wa2, strat, user2, Arrays.asList("1", "3"),
+		JSONRPCLayerTestUtils.setPermissions(WSC1, 3, "n", USER2);
+		failMultipleRead(wa2, strat, USER2, Arrays.asList("1", "3"),
 				new UJSAuthorizationException(String.format(
-				"User %s cannot read workspace 3", user2)));
+				"User %s cannot read workspace 3", USER2)));
 		WSC1.setGlobalPermission(new SetGlobalPermissionsParams().withId(3L)
 				.withNewPermission("r"));
-		wa2.authorizeRead(strat, user2, Arrays.asList("1", "3"));
+		wa2.authorizeRead(strat, USER2, Arrays.asList("1", "3"));
 		
 		
-		failMultipleRead(wa1, strat, user1, Arrays.asList("1", "2", "3", "4",
+		failMultipleRead(wa1, strat, USER1, Arrays.asList("1", "2", "3", "4",
 				"5", "6", "7", "8", "9", "10", "11"),
 				new UJSAuthorizationException(
 						"No more than 10 workspace IDs may be specified"));
-		failMultipleRead(wa1, strat, user1, Arrays.asList("1", "2", "3", "4",
+		failMultipleRead(wa1, strat, USER1, Arrays.asList("1", "2", "3", "4",
 				"5", "6", "7", "8", "9", "foo"),
 				new UJSAuthorizationException(
 						"The string foo is not a valid integer workspace ID"));
-		failMultipleRead(wa1, strat, user2, Arrays.asList("1"),
+		failMultipleRead(wa1, strat, USER2, Arrays.asList("1"),
 				new IllegalStateException("A programming error occured: the " +
 						"token username and the supplied username do not " +
 						"match"));
 		
-		failMultipleRead(wa1, new AuthorizationStrategy("foo"), user1,
+		failMultipleRead(wa1, new AuthorizationStrategy("foo"), USER1,
 				Arrays.asList("1"),
 				new UJSAuthorizationException(
 						"Invalid authorization strategy: foo"));

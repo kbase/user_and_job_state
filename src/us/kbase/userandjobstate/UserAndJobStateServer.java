@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -42,17 +41,18 @@ import org.joda.time.format.DateTimeFormatterBuilder;
 import org.slf4j.LoggerFactory;
 
 import com.mongodb.DB;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoCredential;
 import com.mongodb.MongoException;
 import com.mongodb.MongoTimeoutException;
+import com.mongodb.ServerAddress;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthException;
 import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.common.mongo.GetMongoDB;
-import us.kbase.common.mongo.exceptions.InvalidHostException;
-import us.kbase.common.mongo.exceptions.MongoAuthException;
 import us.kbase.common.schemamanager.SchemaManager;
 import us.kbase.common.schemamanager.exceptions.InvalidSchemaRecordException;
 import us.kbase.common.schemamanager.exceptions.SchemaException;
@@ -146,7 +146,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	private static final String GIT =
 			"https://github.com/kbase/user_and_job_state";
 	
-	private static final String VER = "0.2.2";
+	private static final String VER = "0.2.3";
 
 	//required deploy parameters:
 	public static final String HOST = "mongodb-host";
@@ -154,15 +154,10 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	//auth params:
 	public static final String USER = "mongodb-user";
 	public static final String PWD = "mongodb-pwd";
-	//mongo connection attempt limit
-	private static final String MONGO_RECONNECT = "mongodb-retry";
-	//credentials to use for user queries
-	private static final String KBASE_ADMIN_USER = "kbase-admin-user";
-	private static final String KBASE_ADMIN_PWD = "kbase-admin-pwd";
-	private static final String KBASE_ADMIN_TOKEN = "kbase-admin-token";
 	
 	//auth servers
 	private static final String KBASE_AUTH_URL = "auth-service-url";
+	private static final String INSECURE_AUTH_URL = "auth-service-url-allow-insecure";
 	private static final String GLOBUS_AUTH_URL = "globus-url";
 	
 	private static final String WORKSPACE_URL = "workspace-url";
@@ -173,12 +168,8 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	public static final String JOB_COLLECTION = "jobstate";
 	public static final String SCHEMA_VERS_COLLECTION = "schemavers";
 	
-	private static final int MONGO_RETRY_LOG_INTERVAL = 10;
-	
 	private final static int MAX_LEN_SERVTYPE = 100;
 	private final static int MAX_LEN_DESC = 1000;
-	
-	private final static int TOKEN_REFRESH_INTERVAL_SEC = 24 * 60 * 60;
 	
 	private final UserState us;
 	private final JobState js;
@@ -253,36 +244,22 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			final String host,
 			final String dbs,
 			final String user,
-			final String pwd,
-			final int mongoReconnectRetry) {
+			final String pwd) {
+		//TODO CODE update to non-deprecated API
 		try {
 			if (user != null) {
-				return GetMongoDB.getDB(host, dbs, user, pwd,
-						mongoReconnectRetry, MONGO_RETRY_LOG_INTERVAL);
+				final MongoCredential creds = MongoCredential.createCredential(
+						user, dbs, pwd.toCharArray());
+				// unclear if and when it's safe to clear the password
+				return new MongoClient(new ServerAddress(host), creds,
+						MongoClientOptions.builder().build()).getDB(dbs);
 			} else {
-				return GetMongoDB.getDB(host, dbs, mongoReconnectRetry,
-						MONGO_RETRY_LOG_INTERVAL);
+				return new MongoClient(new ServerAddress(host)).getDB(dbs);
 			}
-		} catch (UnknownHostException uhe) {
-			fail("Couldn't find mongo host " + host + ": " +
-					uhe.getLocalizedMessage());
-		} catch (IOException | MongoTimeoutException e) {
-			fail("Couldn't connect to mongo host " + host + ": " +
-					e.getLocalizedMessage());
-		} catch (MongoAuthException ae) {
-			fail("Not authorized: " + ae.getLocalizedMessage());
 		} catch (MongoException e) {
-			fail("There was an error connecting to the mongo database: " +
-					e.getLocalizedMessage());
-		} catch (InvalidHostException ihe) {
-			fail(host + " is an invalid database host: "  +
-					ihe.getLocalizedMessage());
-		} catch (InterruptedException ie) {
-			fail("Connection to MongoDB was interrupted. This should never " +
-					"happen and indicates a programming problem. Error: " +
-					ie.getLocalizedMessage());
+			fail("Failed to connect to MongoDB: " + e.getMessage());
+			return null;
 		}
-		return null;
 	}
 	
 	private SchemaManager getSchemaManager(final DB db, final String host) {
@@ -512,7 +489,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		return date == null ? null : DATE_FORMATTER.print(new DateTime(date));
 	}
 	
-	private void checkUsers(final List<String> users, AuthToken token)
+	private void checkUsers(final List<String> users, final AuthToken token)
 			throws IOException, AuthException {
 		//token is guaranteed to not be null since all calls require
 		//authentication
@@ -526,7 +503,7 @@ public class UserAndJobStateServer extends JsonServerServlet {
 						"A user name cannot be null or the empty string");
 			}
 		}
-		final Map<String, Boolean> userok = auth.isValidUserName(users);
+		final Map<String, Boolean> userok = auth.isValidUserName(users, token);
 		for (String u: userok.keySet()) {
 			if (!userok.get(u)) {
 				throw new IllegalArgumentException(String.format(
@@ -542,27 +519,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 		l.detachAndStopAllAppenders();
 	}
 	
-	private int getReconnectCount() {
-		final String rec = ujConfig.get(MONGO_RECONNECT);
-		Integer recint = null;
-		try {
-			recint = Integer.parseInt(rec); 
-		} catch (NumberFormatException nfe) {
-			//do nothing
-		}
-		if (recint == null) {
-			logInfo("Couldn't parse MongoDB reconnect value to an integer: " +
-					rec + ", using 0");
-			recint = 0;
-		} else if (recint < 0) {
-			logInfo("MongoDB reconnect value is < 0 (" + recint + "), using 0");
-			recint = 0;
-		} else {
-			logInfo("MongoDB reconnect value is " + recint);
-		}
-		return recint;
-	}
-	
 	/* assumes param is in map */
 	private URL getURL(final Map<String, String> config, final String param) {
 		try {
@@ -575,39 +531,24 @@ public class UserAndJobStateServer extends JsonServerServlet {
 	}
 	
 	/* assumes params are already in map and empty strings were set to null*/
-	@SuppressWarnings("deprecation")
-	private ConfigurableAuthService setUpAuthClient(
-			final Map<String, String> config) {
+	private ConfigurableAuthService setUpAuthClient(final Map<String, String> config) {
 		final URL authURL = getURL(config, KBASE_AUTH_URL);
+		final String authAllowInsecure = config.get(INSECURE_AUTH_URL);
 		final URL globusURL = getURL(config, GLOBUS_AUTH_URL);
 		if (authURL == null || globusURL == null) { // a url was invalid
 			return null;
 		}
+
 		final AuthConfig c;
 		try {
 			c = new AuthConfig().withGlobusAuthURL(globusURL)
-				.withKBaseAuthServerURL(authURL);
+				.withKBaseAuthServerURL(authURL)
+				.withAllowInsecureURLs("true".equals(authAllowInsecure));
 		} catch (URISyntaxException e) {
 			throw new RuntimeException("Neat. I'm suprised this happened", e);
 		}
-		final boolean token = config.get(KBASE_ADMIN_TOKEN) != null;
-		final ConfigurableAuthService auth;
 		try {
-			auth = new ConfigurableAuthService(c);
-			if (token) {
-				c.withToken(auth.validateToken(config.get(KBASE_ADMIN_TOKEN)));
-			} else {
-				//TODO AUTH LATER remove refreshing token
-				c.withRefreshingToken(auth.getRefreshingToken(
-						config.get(KBASE_ADMIN_USER),
-						config.get(KBASE_ADMIN_PWD),
-						TOKEN_REFRESH_INTERVAL_SEC));
-			}
-			return auth;
-		} catch (AuthException e) {
-			fail("Couldn't log in the KBase administrative user " +
-					(token ? "with a token" : config.get(KBASE_ADMIN_USER)) +
-					": " + e.getMessage());
+			return new ConfigurableAuthService(c);
 		} catch (IOException e) {
 			fail("Couldn't connect to authorization service at " +
 					c.getAuthServerURL() + " : " + e.getLocalizedMessage());
@@ -652,7 +593,11 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			final Map<String, String> config,
 			final String param) {
 		final String p = config.get(param);
-		return p != null && !p.isEmpty();
+		return p != null && !p.trim().isEmpty();
+	}
+	
+	private String nullIfWhitespace(final String s) {
+		return s == null || s.trim().isEmpty() ? null : s.trim();
 	}
 	
 	public static void clearConfigForTests() {
@@ -701,23 +646,6 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					"is to be used");
 			failed = true;
 		}
-		if (!hasParam(ujConfig, KBASE_ADMIN_TOKEN)) {
-			ujConfig.put(KBASE_ADMIN_TOKEN, null);
-			if (!hasParam(ujConfig, KBASE_ADMIN_USER)) {
-				fail(String.format(
-						"Must provide param %s or %s in config file",
-						KBASE_ADMIN_USER, KBASE_ADMIN_TOKEN));
-				failed = true;
-			}
-			if (!hasParam(ujConfig, KBASE_ADMIN_PWD)) {
-				fail("Must provide param " + KBASE_ADMIN_PWD +
-						" in config file");
-				failed = true;
-			}
-		} else {
-			ujConfig.put(KBASE_ADMIN_USER, null);
-			ujConfig.put(KBASE_ADMIN_PWD, null);
-		}
 		
 		if (failed) {
 			fail("Server startup failed - all calls will error out.");
@@ -726,8 +654,9 @@ public class UserAndJobStateServer extends JsonServerServlet {
 			auth = null;
 			authfac = null;
 		} else {
-			final String user = ujConfig.get(USER);
-			final String pwd = ujConfig.get(PWD);
+			final String user = nullIfWhitespace(ujConfig.get(USER));
+			final String pwd = nullIfWhitespace(ujConfig.get(PWD));
+			final String authAllowInsecure = ujConfig.get(INSECURE_AUTH_URL);
 			String params = "";
 			for (String s: Arrays.asList(HOST, DB, USER, KBASE_AUTH_URL,
 					GLOBUS_AUTH_URL)) {
@@ -735,15 +664,16 @@ public class UserAndJobStateServer extends JsonServerServlet {
 					params += s + "=" + ujConfig.get(s) + "\n";
 				}
 			}
+			params += INSECURE_AUTH_URL +"=" + 
+				(authAllowInsecure == null ? "<not-set> ('false' will be used)" : authAllowInsecure) + "\n";
+	
 			if (pwd != null) {
 				params += PWD + "=[redacted for your safety and comfort]\n";
 			}
 			System.out.println("Starting server using connection parameters:\n"
 					+ params);
 			logInfo("Starting server using connection parameters:\n" + params);
-			final int mongoConnectRetry = getReconnectCount();
-			final DB ujsDB = getMongoDB(
-					host, dbs, user, pwd, mongoConnectRetry);
+			final DB ujsDB = getMongoDB(host, dbs, user, pwd);
 			final SchemaManager sm = getSchemaManager(ujsDB, host);
 			final ConfigurableAuthService cauth = setUpAuthClient(ujConfig);
 			if (ujsDB == null || sm == null || cauth == null) {

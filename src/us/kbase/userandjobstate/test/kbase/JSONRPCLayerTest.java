@@ -24,17 +24,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.mongodb.DB;
+import com.mongodb.MongoClient;
 
-import us.kbase.auth.AuthConfig;
 import us.kbase.auth.AuthToken;
-import us.kbase.auth.ConfigurableAuthService;
-import us.kbase.common.mongo.GetMongoDB;
 import us.kbase.common.service.ServerException;
 import us.kbase.common.service.Tuple2;
 import us.kbase.common.service.UObject;
 import us.kbase.common.test.TestCommon;
-import us.kbase.common.test.TestException;
 import us.kbase.common.test.controllers.mongo.MongoController;
+import us.kbase.test.auth2.authcontroller.AuthController;
 import us.kbase.userandjobstate.CreateJobParams;
 import us.kbase.userandjobstate.InitProgress;
 import us.kbase.userandjobstate.Result;
@@ -60,9 +58,9 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	private static UserAndJobStateServer SERVER = null;
 	private static UserAndJobStateClient CLIENT1 = null;
-	private static String USER1 = null;
+	private static String USER1 = "user1";
 	private static UserAndJobStateClient CLIENT2 = null;
-	private static String USER2 = null;
+	private static String USER2 = "user2";
 	private static String TOKEN1;
 	private static String TOKEN2;
 	
@@ -71,29 +69,40 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 	
 	private final static String DB_NAME = "JSONRPCLayerTest_DB";
 	
-	private static MongoController mongo;
+	private static MongoController MONGO;
+	private static AuthController AUTHC;
 	
 	@BeforeClass
 	public static void setUpClass() throws Exception {
-		final ConfigurableAuthService auth = new ConfigurableAuthService(
-				new AuthConfig().withKBaseAuthServerURL(
-						TestCommon.getAuthUrl()));
-		final AuthToken t1 = TestCommon.getToken(1, auth);
-		final AuthToken t2 = TestCommon.getToken(2, auth);
-		USER1 = t1.getUserName();
-		USER2 = t2.getUserName();
-		if (USER1.equals(USER2)) {
-			throw new TestException("user1 cannot equal user2: " + USER1);
-		}
-		String p1 = TestCommon.getPwdNullIfToken(1);
-
-		mongo = new MongoController(
+		TestCommon.stfuLoggers();
+		MONGO = new MongoController(
 				TestCommon.getMongoExe(),
-				Paths.get(TestCommon.getTempDir()));
-		System.out.println("Using Mongo temp dir " + mongo.getTempDir());
+				Paths.get(TestCommon.getTempDir()),
+				TestCommon.useWiredTigerEngine());
+		System.out.println("Using Mongo temp dir " + MONGO.getTempDir());
 		
-		SERVER = startUpUJSServer("localhost:" + mongo.getServerPort(),
-				null, DB_NAME, t1, p1);
+		// set up auth
+		final String dbname = JSONRPCLayerTest.class.getSimpleName() + "Auth";
+		AUTHC = new AuthController(
+				TestCommon.getJarsDir(),
+				"localhost:" + MONGO.getServerPort(),
+				dbname,
+				Paths.get(TestCommon.getTempDir()));
+		
+		final URL authURL = new URL("http://localhost:" + AUTHC.getServerPort() + "/testmode");
+		System.out.println("started auth server at " + authURL);
+		TestCommon.createAuthUser(authURL, USER1, "display1");
+		final String token1 = TestCommon.createLoginToken(authURL, USER1);
+		TestCommon.createAuthUser(authURL, USER2, "display2");
+		final String token2 = TestCommon.createLoginToken(authURL, USER2);
+		final AuthToken t1 = new AuthToken(token1, USER1);
+		final AuthToken t2 = new AuthToken(token2, USER2);
+		
+		SERVER = startUpUJSServer(
+				"localhost:" + MONGO.getServerPort(),
+				authURL,
+				null,
+				DB_NAME);
 		int port = SERVER.getServerPort();
 		System.out.println("Started test server on port " + port);
 		System.out.println("Starting tests");
@@ -112,21 +121,25 @@ public class JSONRPCLayerTest extends JSONRPCLayerTestUtils {
 			SERVER.stopServer();
 			System.out.println("Done");
 		}
-		if (mongo != null) {
-			mongo.destroy(TestCommon.getDeleteTempFiles());
+		if (AUTHC != null) {
+			AUTHC.destroy(TestCommon.getDeleteTempFiles());
+		}
+		if (MONGO != null) {
+			MONGO.destroy(TestCommon.getDeleteTempFiles());
 		}
 	}
 	
 	@Before
 	public void clearDB() throws Exception {
-		DB db = GetMongoDB.getDB("localhost:" + mongo.getServerPort(),
-				DB_NAME);
+		final MongoClient mc = new MongoClient("localhost:" + MONGO.getServerPort());
+		final DB db = mc.getDB(DB_NAME);
 		TestCommon.destroyDB(db);
+		mc.close();
 	}
 	
 	@Test
 	public void ver() throws Exception {
-		assertThat("got correct version", CLIENT1.ver(), is("0.2.2"));
+		assertThat("got correct version", CLIENT1.ver(), is("0.2.3"));
 	}
 	
 	
